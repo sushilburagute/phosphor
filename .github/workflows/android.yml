@@ -16,8 +16,18 @@ jobs:
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew
+      - name: Read and verify app version
+        id: version
+        shell: bash
+        run: |
+          version="$(./gradlew -q :app:printVersion)"
+          echo "name=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match version.properties (v$version)" >&2
+            exit 1
+          fi
       - run: ./gradlew testDebugUnitTest lintDebug assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: phosphor-debug
+          name: phosphor-${{ steps.version.outputs.name }}-debug
           path: app/build/outputs/apk/debug/app-debug.apk

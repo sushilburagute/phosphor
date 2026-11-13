@@ -35,10 +35,6 @@ class WallpaperRenderer {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.MONOSPACE }
-    private val watermarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        textAlign = Paint.Align.CENTER
-    }
     private val path = Path()
     private val rect = RectF()
     private val shaderMatrix = Matrix()
@@ -71,7 +67,6 @@ class WallpaperRenderer {
         settings: WallpaperSettings,
         offsetX: Float = 0f,
         offsetY: Float = 0f,
-        bottomInsetPixels: Int = 0,
         reveal: Float = 1f,
         interaction: WallpaperInteraction = WallpaperInteraction(),
     ) {
@@ -97,7 +92,7 @@ class WallpaperRenderer {
         canvas.drawRect(0f, 0f, 1000f, h, paint)
 
         val artworkSave = canvas.save()
-        // The image stays overscanned; only artwork moves, never the attribution.
+        // Keep the image overscanned while the artwork moves.
         val zoom = 1f + (1f - awake) * 0.055f + this.interaction.strength * 0.018f
         canvas.scale(zoom, zoom, 500f, h * 0.5f)
         if (settings.parallax && !settings.reducedMotion) {
@@ -123,7 +118,6 @@ class WallpaperRenderer {
         paint.alpha = max(finiteUnit(settings.darken) * 210f, (1f - awake) * 78f).toInt()
         canvas.drawRect(0f, 0f, 1000f, h, paint)
         paint.alpha = 255
-        drawWatermark(canvas, h, bottomInsetPixels.coerceAtLeast(0) * 1000f / width)
         canvas.restoreToCount(saved)
     }
 
@@ -522,16 +516,6 @@ class WallpaperRenderer {
         canvas.drawRect(0f, 0f, 1000f, h, paint)
         paint.alpha = 255
         paint.shader = null
-    }
-
-    private fun drawWatermark(canvas: Canvas, h: Float, bottomInset: Float) {
-        watermarkPaint.textSize = 22f
-        watermarkPaint.color = 0xD9FFFFFF.toInt()
-        watermarkPaint.setShadowLayer(4f, 0f, 1f, 0xB3000000.toInt())
-        // Sit below launcher docks, while respecting gesture/three-button navigation.
-        val inset = max(66f, bottomInset + 24f).coerceAtMost(h * 0.3f)
-        canvas.drawText("made by sush.dev", 500f, h - inset, watermarkPaint)
-        watermarkPaint.clearShadowLayer()
     }
 
     fun release() {

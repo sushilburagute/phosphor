@@ -329,7 +329,7 @@ private fun Gallery(saved: Boolean, category: String, wallpapers: List<Wallpaper
                         for (i in 0..4) drawLine(color.copy(alpha = .3f + i * .15f), Offset(size.width * .15f + i * 5f, size.height * .8f), Offset(size.width * .45f + i * 5f, size.height * .2f), 3f)
                     }
                 }
-                if (!saved) Text("made by sush.dev", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 14.dp))
+                if (!saved) AppAttribution(Modifier.padding(top = 14.dp))
             }
         }
         if (!saved && category == "All") item(span = { GridItemSpan(maxLineSpan) }) {
@@ -483,7 +483,7 @@ private fun EditorControls(preset: WallpaperPreset, settings: WallpaperSettings,
         }
     }
     OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Save a still frame") }
-    Text("made by sush.dev", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 16.dp))
+    AppAttribution(Modifier.padding(bottom = 16.dp))
 }
 
 @Composable
@@ -519,7 +519,7 @@ private fun SettingsScreen(theme: String, dynamic: Boolean, onTheme: (String) ->
         }
         Spacer(Modifier.height(16.dp))
         Text("Phosphor", fontSize = 28.sp, fontWeight = FontWeight.Medium, letterSpacing = (-1).sp)
-        Text("made by sush.dev", color = MaterialTheme.colorScheme.primary)
+        AppAttribution()
         Text("Live art, quietly yours.", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

@@ -1,5 +1,17 @@
 # Validation
 
+## App branding and versioning (0.1.1)
+
+Verified on 2026-11-13 in the `feat/app-branding-versioning` worktree:
+
+- `gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleRelease`: successful; 38 unit tests passed and lint reported zero errors and 24 warnings.
+- The Compose credit test clicks the shared attribution, checks the exact `https://sush.dev?utm_source=phosphor` URI, and verifies the displayed version name and code.
+- `gradlew.bat -q :app:printVersion` returned `0.1.1`; generated BuildConfig and debug/release APK metadata use version name `0.1.1` and code `2`.
+- Native renderer and PNG export tests passed after removing the shared watermark drawing path. Explore, the editor, and Settings use the same app-only credit component.
+- The optimized release APK is unsigned. No new emulator or physical-device interaction checks were performed for this change; browser dispatch and device appearance remain part of the device checklist.
+
+The results below describe earlier implementation checks.
+
 Verified on 2026-11-13 using the Android SDK 36 toolchain and a headless Android 16 / API 36 x86_64 emulator with the Pixel launcher.
 
 ## Build and automated checks
@@ -34,7 +46,7 @@ Changing emulator display overrides during the large-text check caused the emula
 - Opened Android's wallpaper preview and applied Signal bloom to the home screen. Confirmed the selected service with `dumpsys wallpaper` and the committed configuration in application preferences.
 - Observed the app's dynamic colors change after wallpaper application.
 - Opened Afterimage in the system preview and canceled. The draft remained Afterimage while the active wallpaper remained Signal bloom.
-- Imported a supplied JPEG reference through the system document picker. Confirmed its private PNG copy and image wallpaper preview with the watermark. The import did not change the active wallpaper.
+- Imported a supplied JPEG reference through the system document picker. Confirmed its private PNG copy and image wallpaper preview (this earlier build included a watermark; version 0.1.1 removes it). The import did not change the active wallpaper.
 - Scrolled to editor controls and saved a still through Android's document picker. Retrieved the resulting nonempty PNG from Downloads.
 - Inspected generated artwork for all twelve procedural presets and the imported-image preview.
 - Checked the runtime error log: no app crashes recorded during these checks.

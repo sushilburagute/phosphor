@@ -34,9 +34,7 @@ class WallpaperRendererTest {
             val bitmap = render(preset)
             val pixels = pixels(bitmap)
             assertTrue("${preset.id} contains transparent pixels", pixels.all { Color.alpha(it) == 255 })
-            // Ignore the watermark area: the art itself must carry visible detail.
-            val art = pixels.take(WIDTH * HEIGHT * 3 / 4)
-            assertTrue("${preset.id} is effectively a solid fill", art.toSet().size > 80)
+            assertTrue("${preset.id} is effectively a solid fill", pixels.toSet().size > 80)
             if (preset.kind != WallpaperKind.IMAGE) {
                 val x = 20f + (index % 3) * 200f
                 val y = 12f + (index / 3) * 400f

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Phosphor</string>
-    <string name="wallpaper_description">Living color. Auroras, ASCII, gradients, glass and tactile art. made by sush.dev</string>
+    <string name="wallpaper_description">Living color. Auroras, ASCII, gradients, glass and tactile art.</string>
+    <string name="creator_credit">made by sush.dev</string>
+    <string name="creator_url" translatable="false">https://sush.dev?utm_source=phosphor</string>
+    <string name="app_version">v%1$s (%2$d)</string>
 </resources>

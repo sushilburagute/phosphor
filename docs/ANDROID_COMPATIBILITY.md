@@ -30,7 +30,8 @@ Run this checklist on a physical Pixel and a physical Samsung device before clai
 
 | Scenario | Expected result |
 | --- | --- |
-| Fresh install; open each wallpaper family | Preview displays without a crash; artwork is distinct; watermark is legible |
+| Fresh install; open each wallpaper family | Preview displays without a crash; artwork is distinct and free of branding |
+| Tap creator credit in Explore, editor, and Settings | Browser opens `https://sush.dev?utm_source=phosphor`; adjacent version matches the installed app |
 | Apply from app | Correct artwork reaches system preview and home screen |
 | Edit while already active, then cancel picker | Previously applied wallpaper remains unchanged |
 | Apply on a picker with no result | Manual confirmation can commit the chosen settings |
@@ -50,7 +51,7 @@ Run this checklist on a physical Pixel and a physical Samsung device before clai
 | Preview while existing live wallpaper runs | Engines render independently without shared resource recycling |
 | Import large portrait and landscape photos | Bounded decoding, correct center crop, motion stays within image edges |
 | Reboot; kill app process | Applied configuration and private imported image persist |
-| Export still image | Saved image matches selected artwork and includes attribution |
+| Export still image | Saved image matches selected artwork without a watermark |
 | Observe 10-minute run / Android Studio profiler | No sustained growth; record actual CPU, frame timing, and thermal behavior |
 
 Use Android Studio's profiler and `adb shell dumpsys wallpaper` for diagnostics. Battery behavior and sustained FPS depend on device resolution and Canvas performance; no unmeasured battery-life claim is made.
