@@ -75,6 +75,45 @@ class WallpaperRendererTest {
     }
 
     @Test
+    fun everyFamilyRespondsToATapEvenWhenAmbientSpeedIsZero() {
+        for (preset in WallpaperCatalog.presets) {
+            val settings = WallpaperSettings(presetId = preset.id, speed = 0f)
+            val first = render(preset, settings)
+            val touched = render(preset, settings, interaction = WallpaperInteraction(
+                x = 0.4f, y = 0.45f, strength = 0.8f, rippleProgress = 0.3f, offsetX = 0.4f,
+            ))
+            assertTrue("${preset.id} ignores touch at zero speed", changedFraction(first, touched) > 0.02f)
+            first.recycle()
+            touched.recycle()
+        }
+    }
+
+    @Test
+    fun reducedMotionSuppressesTouchEffectsAndLockReveal() {
+        val preset = WallpaperCatalog.find("aurora-veil")
+        val settings = WallpaperSettings(reducedMotion = true)
+        val first = render(preset, settings)
+        val touched = render(preset, settings, interaction = WallpaperInteraction(strength = 1f, rippleProgress = 0.2f), reveal = 0f)
+        assertTrue(first.sameAs(touched))
+        first.recycle()
+        touched.recycle()
+    }
+
+    @Test
+    fun lockTreatmentPreservesOpaqueArtworkAndCanBeDisabled() {
+        val preset = WallpaperCatalog.find("gradient-tide")
+        val awake = render(preset)
+        val locked = render(preset, reveal = 0f)
+        assertTrue(changedFraction(awake, locked) > 0.1f)
+        assertTrue(pixels(locked).all { Color.alpha(it) == 255 })
+        val disabled = render(preset, WallpaperSettings(presetId = preset.id, unlockAnimation = false), reveal = 0f)
+        assertTrue(awake.sameAs(disabled))
+        awake.recycle()
+        locked.recycle()
+        disabled.recycle()
+    }
+
+    @Test
     fun missingImageUsesTheSameSafeFallbackAsAnEmptyImport() {
         val image = WallpaperCatalog.find("image-custom")
         val absent = render(image, WallpaperSettings(imagePath = "/not-a-real-phosphor-image.png"))
@@ -99,6 +138,7 @@ class WallpaperRendererTest {
                     WallpaperCatalog.find("image-custom"),
                     WallpaperSettings(imagePath = imageFile.absolutePath, intensity = 1f),
                     offsetX = 1f, offsetY = -1f,
+                    interaction = WallpaperInteraction(offsetX = 1f, offsetY = -1f),
                 )
                 // A tall image must still cover all four corners of a wide surface.
                 for ((x, y) in listOf(0 to 0, 359 to 0, 0 to 149, 359 to 149)) {
@@ -153,11 +193,14 @@ class WallpaperRendererTest {
         time: Float = 12f,
         offsetX: Float = 0f,
         offsetY: Float = 0f,
+        interaction: WallpaperInteraction = WallpaperInteraction(),
+        reveal: Float = 1f,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val renderer = WallpaperRenderer()
         try {
-            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY)
+            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY,
+                interaction = interaction, reveal = reveal)
         } finally {
             renderer.release()
         }

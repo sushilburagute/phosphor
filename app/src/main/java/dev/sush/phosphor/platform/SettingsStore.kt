@@ -46,6 +46,8 @@ class SettingsStore(context: Context) {
                 darken = number(json, "darken", defaults.darken, 0f, 1f),
                 imagePath = json.optString("imagePath").takeIf { it.isNotBlank() && it != "null" },
                 reducedMotion = json.optBoolean("reducedMotion", defaults.reducedMotion),
+                lowBatteryMode = json.optBoolean("lowBatteryMode", defaults.lowBatteryMode),
+                unlockAnimation = json.optBoolean("unlockAnimation", defaults.unlockAnimation),
             )
         } catch (_: org.json.JSONException) {
             defaults
@@ -62,6 +64,8 @@ class SettingsStore(context: Context) {
             put("darken", bounded(settings.darken, 0f))
             put("imagePath", settings.imagePath ?: JSONObject.NULL)
             put("reducedMotion", settings.reducedMotion)
+            put("lowBatteryMode", settings.lowBatteryMode)
+            put("unlockAnimation", settings.unlockAnimation)
         }
         preferences.edit().putString(key, json.toString()).apply()
     }

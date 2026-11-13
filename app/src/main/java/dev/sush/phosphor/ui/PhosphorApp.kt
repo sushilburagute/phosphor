@@ -13,6 +13,15 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,9 +37,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,11 +50,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowCompat
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperKind
@@ -73,8 +89,30 @@ fun PhosphorApp() {
     val dark = when (theme) { "Dark" -> true; "Light" -> false; else -> isSystemInDarkTheme() }
     val scheme = when {
         dynamic && Build.VERSION.SDK_INT >= 31 -> if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> darkColorScheme(primary = Lavender, onPrimary = Color(0xFF302448), background = Ink, surface = Ink, surfaceVariant = Color(0xFF252630), onBackground = Fog, onSurface = Fog)
-        else -> lightColorScheme(primary = Color(0xFF67548E), background = Fog, surface = Fog, surfaceVariant = Color(0xFFE7E3EF), onBackground = Ink, onSurface = Ink)
+        dark -> darkColorScheme(
+            primary = Lavender, onPrimary = Color(0xFF332650),
+            primaryContainer = Color(0xFF4B3D68), onPrimaryContainer = Color(0xFFECDDFF),
+            secondary = Color(0xFFB9CCC5), onSecondary = Color(0xFF253630),
+            secondaryContainer = Color(0xFF3B4C46), onSecondaryContainer = Color(0xFFD4E8E0),
+            tertiary = Color(0xFFE9BDB3), onTertiary = Color(0xFF462A24),
+            tertiaryContainer = Color(0xFF603F37), onTertiaryContainer = Color(0xFFFFDAD0),
+            background = Ink, surface = Ink, onBackground = Fog, onSurface = Fog,
+            surfaceVariant = Color(0xFF48454F), onSurfaceVariant = Color(0xFFCAC4D0),
+            surfaceContainer = Color(0xFF202129), surfaceContainerLow = Color(0xFF191B22),
+            surfaceContainerHigh = Color(0xFF2A2B33), outline = Color(0xFF948E9B),
+        )
+        else -> lightColorScheme(
+            primary = Color(0xFF67548E), onPrimary = Color.White,
+            primaryContainer = Color(0xFFECDDFF), onPrimaryContainer = Color(0xFF23153D),
+            secondary = Color(0xFF52655D), onSecondary = Color.White,
+            secondaryContainer = Color(0xFFD4E8E0), onSecondaryContainer = Color(0xFF101F19),
+            tertiary = Color(0xFF7B574D), onTertiary = Color.White,
+            tertiaryContainer = Color(0xFFFFDAD0), onTertiaryContainer = Color(0xFF2E150F),
+            background = Fog, surface = Fog, onBackground = Ink, onSurface = Ink,
+            surfaceVariant = Color(0xFFE7E0EC), onSurfaceVariant = Color(0xFF49454F),
+            surfaceContainer = Color(0xFFECE9F0), surfaceContainerLow = Color(0xFFF6F3FA),
+            surfaceContainerHigh = Color(0xFFE6E3EA), outline = Color(0xFF79747F),
+        )
     }
     SideEffect {
         (context as? Activity)?.window?.let { window ->
@@ -160,23 +198,59 @@ fun PhosphorApp() {
     }
     BackHandler(selectedId != null) { selectedId = null; uncertainApply = false }
 
-    MaterialTheme(colorScheme = scheme) {
-        Scaffold(
-            snackbarHost = { SnackbarHost(snackbar) },
-            bottomBar = {
-                if (selectedId == null) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                    listOf("Explore", "Saved", "Settings").forEach { item ->
-                        NavigationBarItem(
-                            selected = page == item, onClick = { page = item },
-                            icon = { NavigationMark(item) }, label = { Text(item) },
-                        )
+    val savedScreens = rememberSaveableStateHolder()
+    val motionEnabled = !draft.reducedMotion && !active.reducedMotion
+    MaterialTheme(colorScheme = scheme, shapes = Shapes(
+        small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(20.dp),
+        large = RoundedCornerShape(28.dp), extraLarge = RoundedCornerShape(32.dp),
+    )) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val useRail = maxWidth >= 600.dp && maxHeight >= 480.dp
+            Scaffold(
+                snackbarHost = { SnackbarHost(snackbar) },
+                bottomBar = {
+                    if (selectedId == null && !useRail) NavigationBar {
+                        listOf("Explore", "Saved", "Settings").forEach { item ->
+                            NavigationBarItem(
+                                selected = page == item, onClick = { page = item },
+                                icon = { NavigationMark(item) }, label = { Text(item) },
+                            )
+                        }
                     }
-                }
-            },
-        ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
-                val selected = selectedId?.let(WallpaperCatalog::find)
-                if (selected != null) {
+                },
+            ) { padding ->
+                Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+                    if (selectedId == null && useRail) NavigationRail(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    ) {
+                        Spacer(Modifier.height(24.dp))
+                        listOf("Explore", "Saved", "Settings").forEach { item ->
+                            NavigationRailItem(
+                                selected = page == item, onClick = { page = item },
+                                icon = { NavigationMark(item) }, label = { Text(item) },
+                                modifier = Modifier.padding(vertical = 6.dp),
+                            )
+                        }
+                    }
+                    // Compose obeys the system animator duration scale, including disabled animations.
+                    AnimatedContent(
+                        targetState = selectedId?.let { "editor:$it" } ?: page,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        transitionSpec = {
+                            val duration = if (motionEnabled) 220 else 0
+                            if (targetState.startsWith("editor:")) {
+                                (fadeIn(tween(duration)) + slideInHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it / 12 }) togetherWith fadeOut(tween(duration / 2))
+                            } else if (initialState.startsWith("editor:")) {
+                                fadeIn(tween(duration)) togetherWith (fadeOut(tween(duration / 2)) + slideOutHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it / 12 })
+                            } else {
+                                fadeIn(tween(duration)) togetherWith fadeOut(tween(duration / 2))
+                            }
+                        },
+                        label = "Screen navigation",
+                    ) { destination ->
+                        savedScreens.SaveableStateProvider(destination) {
+                            val selected = destination.removePrefix("editor:").takeIf { destination.startsWith("editor:") }?.let(WallpaperCatalog::find)
+                            if (selected != null) {
                     Editor(
                         selected, draft, selected.id in favorites, uncertainApply,
                         onBack = { selectedId = null; uncertainApply = false },
@@ -196,19 +270,32 @@ fun PhosphorApp() {
                         onExport = { exportLauncher.launch("phosphor-${selected.id}.png") },
                         onPaletteHelp = { showPaletteHelp = true },
                     )
-                } else if (page == "Settings") {
-                    SettingsScreen(theme, dynamic, onTheme = { theme = it; prefs.edit().putString("theme", it).apply() }, onDynamic = { dynamic = it; prefs.edit().putBoolean("dynamic", it).apply() }, onPaletteHelp = { showPaletteHelp = true })
-                } else {
-                    val available = WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE || importedPath != null }
-                    val displayed = available.filter { (page != "Saved" || it.id in favorites) && (category == "All" || it.kind.label() == category) }
-                    Gallery(page == "Saved", category, displayed, favorites, active, importedPath,
-                        onCategory = { category = it }, onSelect = ::edit, onFavorite = ::favorite,
-                        onImport = { importLauncher.launch(arrayOf("image/*")) },
-                        onExplore = { page = "Explore"; category = "All" },
-                    )
+
+                            } else if (destination == "Settings") {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    SettingsScreen(theme, dynamic, onTheme = { theme = it; prefs.edit().putString("theme", it).apply() }, onDynamic = { dynamic = it; prefs.edit().putBoolean("dynamic", it).apply() }, onPaletteHelp = { showPaletteHelp = true })
+                                }
+                            } else {
+                                val available = WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE || importedPath != null }
+                                val displayed = available.filter { (destination != "Saved" || it.id in favorites) && (category == "All" || it.kind.label() == category) }
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    Gallery(destination == "Saved", category, displayed, favorites, active, importedPath,
+                                        onCategory = { category = it }, onSelect = ::edit, onFavorite = ::favorite,
+                                        onImport = { importLauncher.launch(arrayOf("image/*")) },
+                                        onExplore = { page = "Explore"; category = "All" },
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
-                if (busy) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .55f)).clickable(enabled = true) {}, contentAlignment = Alignment.Center) {
-                    Surface(shape = RoundedCornerShape(24.dp)) { Row(Modifier.padding(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(Modifier.size(24.dp)); Text("Preparing your image…") } }
+            }
+        }
+        if (busy) Dialog(onDismissRequest = {}, properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)) {
+            Surface(shape = MaterialTheme.shapes.large) {
+                Row(Modifier.padding(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CircularProgressIndicator(Modifier.size(24.dp))
+                    Text("Preparing your image")
                 }
             }
         }
@@ -224,7 +311,8 @@ fun PhosphorApp() {
 @Composable
 private fun Gallery(saved: Boolean, category: String, wallpapers: List<WallpaperPreset>, favorites: Set<String>, active: WallpaperSettings, imagePath: String?, onCategory: (String) -> Unit, onSelect: (WallpaperPreset) -> Unit, onFavorite: (String) -> Unit, onImport: () -> Unit, onExplore: () -> Unit) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(156.dp),
+        modifier = Modifier.widthIn(max = 1200.dp).fillMaxSize(),
+        columns = GridCells.Adaptive(168.dp * LocalDensity.current.fontScale.coerceIn(1f, 1.5f)),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
@@ -232,11 +320,12 @@ private fun Gallery(saved: Boolean, category: String, wallpapers: List<Wallpaper
             Column(Modifier.padding(top = 18.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
-                        Text(if (saved) "Your collection" else "Phosphor", fontSize = 36.sp, letterSpacing = (-1.5).sp, fontWeight = FontWeight.Medium)
+                        Text(if (saved) "Your collection" else "Phosphor", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Medium, modifier = Modifier.semantics { heading() })
                         Text(if (saved) "Keep your favorites close." else "A little movement. A different feeling.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
                     }
+                    val markColor = MaterialTheme.colorScheme.primary
                     if (!saved) Canvas(Modifier.size(38.dp)) {
-                        val color = Lavender
+                        val color = markColor
                         for (i in 0..4) drawLine(color.copy(alpha = .3f + i * .15f), Offset(size.width * .15f + i * 5f, size.height * .8f), Offset(size.width * .45f + i * 5f, size.height * .2f), 3f)
                     }
                 }
@@ -245,14 +334,14 @@ private fun Gallery(saved: Boolean, category: String, wallpapers: List<Wallpaper
         }
         if (!saved && category == "All") item(span = { GridItemSpan(maxLineSpan) }) {
             val featured = WallpaperCatalog.find("aurora-veil")
-            Box(Modifier.fillMaxWidth().height(285.dp).clip(RoundedCornerShape(28.dp)).clickable { onSelect(featured) }) {
+            Box(Modifier.fillMaxWidth().height(285.dp * LocalDensity.current.fontScale.coerceIn(1f, 2f)).clip(MaterialTheme.shapes.extraLarge).clickable(role = Role.Button, onClickLabel = "Customize Northern veil") { onSelect(featured) }) {
                 WallpaperPreview(featured, active.copy(presetId = featured.id, imagePath = null), Modifier.fillMaxSize())
-                Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .85f)))))
+                Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Black.copy(alpha = .15f), Color.Black.copy(alpha = .92f)))))
                 Column(Modifier.align(Alignment.BottomStart).padding(24.dp).padding(bottom = 6.dp)) {
-                    Text("Light, in slow motion", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Medium, letterSpacing = (-.8).sp)
-                    Text("Explore the aurora collection", color = Color.White.copy(alpha = .8f), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 7.dp))
+                    Text("Light, in slow motion", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Medium)
+                    Text("Explore the aurora collection", color = Color.White, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 7.dp))
                 }
-                Surface(Modifier.align(Alignment.TopEnd).padding(18.dp), color = Color.Black.copy(alpha = .3f), shape = CircleShape) { Text("Live art", color = Color.White, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) }
+                Surface(Modifier.align(Alignment.TopEnd).padding(18.dp), color = Color.Black.copy(alpha = .6f), shape = CircleShape) { Text("Live art", color = Color.White, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) }
             }
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -262,10 +351,10 @@ private fun Gallery(saved: Boolean, category: String, wallpapers: List<Wallpaper
                 }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf("All", "Aurora", "ASCII", "Gradients", "Glass", "Abstract", "Textures", "Your images")) { label ->
-                        FilterChip(selected = category == label, onClick = { onCategory(label) }, label = { Text(label) })
+                        FilterChip(selected = category == label, onClick = { onCategory(label) }, label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp))
                     }
                 }
-                if (!saved) OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp)) { Text("+  Bring an image to life") }
+                if (!saved) OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp)) { Text("Bring an image to life") }
             }
         }
         if (wallpapers.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
@@ -276,15 +365,24 @@ private fun Gallery(saved: Boolean, category: String, wallpapers: List<Wallpaper
             }
         }
         items(wallpapers, key = { it.id }) { preset ->
-            Column {
-                Box(Modifier.fillMaxWidth().aspectRatio(.77f).clip(RoundedCornerShape(20.dp)).clickable { onSelect(preset) }) {
+            Card(
+                onClick = { onSelect(preset) },
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            ) {
+                Box(Modifier.fillMaxWidth().aspectRatio(.77f)) {
                     WallpaperPreview(preset, active.copy(presetId = preset.id, imagePath = if (preset.kind == WallpaperKind.IMAGE) imagePath else null), Modifier.fillMaxSize())
-                    Surface(Modifier.align(Alignment.TopEnd).padding(8.dp), shape = CircleShape, color = Color.Black.copy(alpha = .35f)) {
-                        IconButton(onClick = { onFavorite(preset.id) }, modifier = Modifier.semantics { contentDescription = if (preset.id in favorites) "Remove ${preset.name} from saved" else "Save ${preset.name}" }) { Heart(preset.id in favorites, Color.White) }
+                    Surface(Modifier.align(Alignment.TopEnd).padding(8.dp), shape = CircleShape, color = Color.Black.copy(alpha = .6f)) {
+                        IconButton(onClick = { onFavorite(preset.id) }, modifier = Modifier.semantics { contentDescription = if (preset.id in favorites) "Remove "+preset.name+" from saved" else "Save "+preset.name }) { Heart(preset.id in favorites, Color.White) }
+                    }
+                    if (preset.id == active.presetId) Surface(Modifier.align(Alignment.BottomStart).padding(12.dp), color = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer, shape = CircleShape) {
+                        Text("Current", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
                     }
                 }
-                Text(preset.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 10.dp))
-                Text(preset.kind.label(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(preset.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                    Text(preset.kind.label(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
@@ -293,58 +391,118 @@ private fun Gallery(saved: Boolean, category: String, wallpapers: List<Wallpaper
 @Composable
 private fun Editor(preset: WallpaperPreset, settings: WallpaperSettings, favorite: Boolean, uncertainApply: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onChange: (WallpaperSettings) -> Unit, onApply: () -> Unit, onConfirm: () -> Unit, onExport: () -> Unit, onPaletteHelp: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("‹  Back") }
-            Text(preset.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).padding(start = 8.dp))
-            IconButton(onClick = onFavorite, modifier = Modifier.semantics { contentDescription = if (favorite) "Remove from saved" else "Save wallpaper" }) { Heart(favorite, MaterialTheme.colorScheme.primary) }
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) { Text("Back") }
+                Text(preset.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).padding(horizontal = 8.dp).semantics { heading() })
+                IconButton(onClick = onFavorite, modifier = Modifier.semantics { contentDescription = if (favorite) "Remove from saved" else "Save wallpaper" }) { Heart(favorite, MaterialTheme.colorScheme.primary) }
+            }
         }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            if (uncertainApply) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(20.dp)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("If you selected Phosphor in the wallpaper picker, save these settings to finish applying it. Otherwise, your previous wallpaper settings are unchanged.", style = MaterialTheme.typography.bodyMedium)
-                    TextButton(onClick = onConfirm) { Text("Save wallpaper settings") }
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            // Reading and editing stay beside the artwork when the window can fit
+            // both panes. At large font sizes, retain the single scrollable column.
+            val split = maxWidth >= 840.dp && LocalDensity.current.fontScale <= 1.5f
+            if (split) {
+                Row(Modifier.fillMaxSize().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        EditorArtwork(preset, settings, Modifier.heightIn(max = 680.dp).aspectRatio(.64f, matchHeightConstraintsFirst = true))
+                    }
+                    Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        ApplyNotice(uncertainApply, settings.reducedMotion, onConfirm)
+                        EditorControls(preset, settings, onChange, onExport, onPaletteHelp)
+                    }
+                }
+            } else {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    ApplyNotice(uncertainApply, settings.reducedMotion, onConfirm)
+                    EditorArtwork(preset, settings, Modifier.widthIn(max = 440.dp).fillMaxWidth().aspectRatio(.78f))
+                    Column(Modifier.widthIn(max = 600.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        EditorControls(preset, settings, onChange, onExport, onPaletteHelp)
+                    }
                 }
             }
-            Box(Modifier.fillMaxWidth().heightIn(max = 510.dp).aspectRatio(.72f).clip(RoundedCornerShape(30.dp))) {
-                WallpaperPreview(preset, settings, Modifier.fillMaxSize(), animate = true)
-                if (settings.parallax && !settings.reducedMotion) Surface(Modifier.align(Alignment.TopCenter).padding(18.dp), color = Color.Black.copy(alpha = .35f), shape = CircleShape) { Text("Touch to move", color = Color.White, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(preset.description, style = MaterialTheme.typography.bodyLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    preset.colors.take(5).forEach { color -> Box(Modifier.size(18.dp).clip(CircleShape).background(Color(color))) }
-                    TextButton(onClick = onPaletteHelp) { Text("System colors") }
-                }
-            }
-            Text("Make it yours", style = MaterialTheme.typography.titleLarge)
-            LabeledSlider("Motion speed", settings.speed, enabled = !settings.reducedMotion) { onChange(settings.copy(speed = it)) }
-            LabeledSlider("Intensity", settings.intensity) { onChange(settings.copy(intensity = it)) }
-            LabeledSlider("Dim wallpaper", settings.darken) { onChange(settings.copy(darken = it)) }
-            ToggleRow("Interactive motion", "Respond to touch and home-screen scrolling", settings.parallax, { onChange(settings.copy(parallax = it)) }, !settings.reducedMotion)
-            ToggleRow("Still mode", "Keep the artwork, pause its animation", settings.reducedMotion, { onChange(settings.copy(reducedMotion = it)) })
-            Column {
-                Text("Frame rate", style = MaterialTheme.typography.titleSmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(15, 30, 60).forEach { fps -> FilterChip(selected = settings.fps == fps, onClick = { onChange(settings.copy(fps = fps)) }, enabled = !settings.reducedMotion, label = { Text("$fps fps") }) }
-                }
-                Text("30 fps balances smooth motion and battery use. Animation pauses when hidden and slows in Battery Saver.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) { Text("Save a still frame") }
-            Text("made by sush.dev", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 20.dp))
         }
-        Surface(shadowElevation = 4.dp) {
-            Button(onClick = onApply, modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 12.dp), contentPadding = PaddingValues(16.dp), shape = RoundedCornerShape(18.dp)) { Text("Set live wallpaper", style = MaterialTheme.typography.titleSmall) }
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 3.dp) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Button(onClick = onApply, modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).heightIn(min = 56.dp), contentPadding = PaddingValues(16.dp)) {
+                    Text("Set live wallpaper", style = MaterialTheme.typography.titleSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ApplyNotice(visible: Boolean, reducedMotion: Boolean, onConfirm: () -> Unit) {
+    val duration = if (reducedMotion) 0 else 180
+    AnimatedVisibility(visible = visible, enter = fadeIn(tween(duration)), exit = fadeOut(tween(duration))) {
+        Surface(color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer, shape = MaterialTheme.shapes.medium) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("If you selected Phosphor in the wallpaper picker, save these settings to finish applying it. Otherwise, your previous wallpaper settings are unchanged.", style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = onConfirm, modifier = Modifier.heightIn(min = 48.dp)) { Text("Save wallpaper settings") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditorArtwork(preset: WallpaperPreset, settings: WallpaperSettings, modifier: Modifier = Modifier) {
+    Box(modifier.clip(MaterialTheme.shapes.extraLarge)) {
+        WallpaperPreview(preset, settings, Modifier.fillMaxSize(), animate = true)
+        if (settings.parallax && !settings.reducedMotion) Surface(Modifier.align(Alignment.TopCenter).padding(16.dp), color = Color.Black.copy(alpha = .6f), contentColor = Color.White, shape = CircleShape) {
+            Text("Touch and drag to explore", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+        }
+    }
+}
+
+@Composable
+private fun EditorControls(preset: WallpaperPreset, settings: WallpaperSettings, onChange: (WallpaperSettings) -> Unit, onExport: () -> Unit, onPaletteHelp: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(preset.description, style = MaterialTheme.typography.bodyLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            preset.colors.take(5).forEach { color -> Box(Modifier.size(20.dp).clip(CircleShape).background(Color(color))) }
+            TextButton(onClick = onPaletteHelp, modifier = Modifier.heightIn(min = 48.dp)) { Text("System colors") }
+        }
+    }
+    SettingsGroup("Motion") {
+        LabeledSlider("Motion speed", settings.speed, enabled = !settings.reducedMotion) { onChange(settings.copy(speed = it)) }
+        LabeledSlider("Intensity", settings.intensity) { onChange(settings.copy(intensity = it)) }
+        LabeledSlider("Dim wallpaper", settings.darken) { onChange(settings.copy(darken = it)) }
+        ToggleRow("Interactive motion", "Respond to touch and home-screen scrolling", settings.parallax, { onChange(settings.copy(parallax = it)) }, !settings.reducedMotion)
+        ToggleRow("Lock and unlock animation", "Gently settle on lock and reveal on unlock. Availability depends on your phone.", settings.unlockAnimation, { onChange(settings.copy(unlockAnimation = it)) }, !settings.reducedMotion)
+        ToggleRow("Still mode", "Keep the artwork and pause all wallpaper motion", settings.reducedMotion, { onChange(settings.copy(reducedMotion = it)) })
+    }
+    SettingsGroup("Battery and quality") {
+        ToggleRow("Automatic low battery mode", "Save energy at 20% or below while unplugged; pause motion at 5%. System Battery Saver is always respected.", settings.lowBatteryMode, { onChange(settings.copy(lowBatteryMode = it)) })
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Frame rate", style = MaterialTheme.typography.titleSmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf(15, 30, 60).forEach { fps -> FilterChip(selected = settings.fps == fps, onClick = { onChange(settings.copy(fps = fps)) }, enabled = !settings.reducedMotion, label = { Text("$fps fps") }, modifier = Modifier.heightIn(min = 48.dp)) }
+            }
+            Text("30 fps balances smooth motion and battery use. The wallpaper pauses when hidden and conserves power in Battery Saver.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Save a still frame") }
+    Text("made by sush.dev", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 16.dp))
+}
+
+@Composable
+private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.large) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp), content = content)
         }
     }
 }
 
 @Composable
 private fun SettingsScreen(theme: String, dynamic: Boolean, onTheme: (String) -> Unit, onDynamic: (Boolean) -> Unit, onPaletteHelp: () -> Unit) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Text("Settings", fontSize = 34.sp, fontWeight = FontWeight.Medium, letterSpacing = (-1).sp)
+    Column(Modifier.widthIn(max = 680.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        Text("Settings", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Medium, modifier = Modifier.semantics { heading() })
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Appearance", style = MaterialTheme.typography.titleLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("System", "Light", "Dark").forEach { option -> FilterChip(selected = theme == option, onClick = { onTheme(option) }, label = { Text(option) }) } }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { listOf("System", "Light", "Dark").forEach { option -> FilterChip(selected = theme == option, onClick = { onTheme(option) }, label = { Text(option) }, modifier = Modifier.heightIn(min = 48.dp)) } }
             ToggleRow("Use system colors", "Match your phone’s palette on Android 12 and later", dynamic, onDynamic, Build.VERSION.SDK_INT >= 31)
         }
         HorizontalDivider()
@@ -370,7 +528,7 @@ private fun SettingsScreen(theme: String, dynamic: Boolean, onTheme: (String) ->
 private fun LabeledSlider(label: String, value: Float, enabled: Boolean = true, onChange: (Float) -> Unit) {
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, style = MaterialTheme.typography.titleSmall)
+            Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f).padding(end = 12.dp))
             Text("${(value * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Slider(value = value, onValueChange = onChange, enabled = enabled, modifier = Modifier.semantics { contentDescription = label })
@@ -379,12 +537,12 @@ private fun LabeledSlider(label: String, value: Float, enabled: Boolean = true, 
 
 @Composable
 private fun ToggleRow(title: String, description: String, checked: Boolean, onChecked: (Boolean) -> Unit, enabled: Boolean = true) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChecked), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = checked, onCheckedChange = onChecked, enabled = enabled, modifier = Modifier.semantics { contentDescription = title })
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
 

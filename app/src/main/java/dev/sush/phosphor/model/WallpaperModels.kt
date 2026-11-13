@@ -20,6 +20,8 @@ data class WallpaperSettings(
     val darken: Float = 0f,
     val imagePath: String? = null,
     val reducedMotion: Boolean = false,
+    val lowBatteryMode: Boolean = true,
+    val unlockAnimation: Boolean = true,
 )
 
 /** Stable IDs are persisted by the app and used by the live wallpaper service. */

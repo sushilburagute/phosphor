@@ -18,9 +18,11 @@ import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * A software-Canvas renderer shared by the gallery, editor and WallpaperService.
@@ -58,6 +60,7 @@ class WallpaperRenderer {
     private var c1 = Color.WHITE
     private var c2 = Color.GRAY
     private val glyphs = arrayOf(".", ":", "+", "*", "#", "%", "@")
+    private var interaction = WallpaperInteraction()
 
     fun draw(
         canvas: Canvas,
@@ -69,12 +72,21 @@ class WallpaperRenderer {
         offsetX: Float = 0f,
         offsetY: Float = 0f,
         bottomInsetPixels: Int = 0,
+        reveal: Float = 1f,
+        interaction: WallpaperInteraction = WallpaperInteraction(),
     ) {
         if (width <= 0 || height <= 0) return
         val h = 1000f * height / width
         val amount = finiteUnit(settings.intensity)
         val t = if (settings.reducedMotion) 0f else
-            timeSeconds.takeIf { it.isFinite() }?.times(finiteUnit(settings.speed) * 0.45f) ?: 0f
+            timeSeconds.takeIf { it.isFinite() }?.times(finiteUnit(settings.speed) * 1.35f) ?: 0f
+        this.interaction = if (settings.reducedMotion || !settings.parallax) WallpaperInteraction() else interaction.copy(
+            x = finiteUnit(interaction.x), y = finiteUnit(interaction.y),
+            strength = finiteUnit(interaction.strength), rippleProgress = finiteUnit(interaction.rippleProgress),
+            offsetX = safeOffset(interaction.offsetX), offsetY = safeOffset(interaction.offsetY),
+        )
+        val awake = if (settings.reducedMotion || !settings.unlockAnimation) 1f else
+            reveal.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 1f
         ensureShaders(preset, h)
         val saved = canvas.save()
         canvas.scale(width / 1000f, width / 1000f)
@@ -85,8 +97,12 @@ class WallpaperRenderer {
         canvas.drawRect(0f, 0f, 1000f, h, paint)
 
         val artworkSave = canvas.save()
+        // The image stays overscanned; only artwork moves, never the attribution.
+        val zoom = 1f + (1f - awake) * 0.055f + this.interaction.strength * 0.018f
+        canvas.scale(zoom, zoom, 500f, h * 0.5f)
         if (settings.parallax && !settings.reducedMotion) {
-            canvas.translate(safeOffset(offsetX) * 24f * amount, safeOffset(offsetY) * 24f * amount)
+            canvas.translate((safeOffset(offsetX) * 24f + this.interaction.offsetX * 34f) * amount,
+                (safeOffset(offsetY) * 24f + this.interaction.offsetY * 34f) * amount)
         }
         when (preset.kind) {
             WallpaperKind.AURORA -> drawAurora(canvas, h, t, amount)
@@ -97,13 +113,14 @@ class WallpaperRenderer {
             WallpaperKind.TEXTURE -> drawTexture(canvas, h, t, amount, preset.id == "texture-basalt")
             WallpaperKind.IMAGE -> drawImage(canvas, h, t, amount, settings)
         }
+        drawInteraction(canvas, h, amount)
         canvas.restoreToCount(artworkSave)
 
         // Fine grain ties the procedural artwork together without animated noise shimmer.
         if (preset.kind != WallpaperKind.IMAGE) drawNoise(canvas, h, if (preset.kind == WallpaperKind.TEXTURE) 42 else 15)
         paint.shader = null
         paint.color = Color.BLACK
-        paint.alpha = (finiteUnit(settings.darken) * 210f).toInt()
+        paint.alpha = max(finiteUnit(settings.darken) * 210f, (1f - awake) * 78f).toInt()
         canvas.drawRect(0f, 0f, 1000f, h, paint)
         paint.alpha = 255
         drawWatermark(canvas, h, bottomInsetPixels.coerceAtLeast(0) * 1000f / width)
@@ -147,9 +164,10 @@ class WallpaperRenderer {
                     val x = -100f + step * 1200f / 36f
                     val phase = x * 0.0048f + band * 1.7f
                     val y = h * (0.24f + band * 0.23f) +
-                        sin(phase + t * 0.75f) * 145f * (0.7f + amount * 0.3f) +
-                        cos(x * 0.009f - t * 0.4f + band) * 36f * amount +
-                        (u - 0.5f) * (125f + 65f * sin(phase * 0.7f + t * 0.3f))
+                        sin(phase + t * 0.75f) * 195f * (0.7f + amount * 0.3f) +
+                        cos(x * 0.009f - t * 0.4f + band) * 65f * amount +
+                        (u - 0.5f) * (125f + 95f * sin(phase * 0.7f + t * 0.3f)) +
+                        disturbance(x, h * (0.24f + band * 0.23f), h) * amount
                     if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
                 linePaint.color = mix(c1, c2, (band / 2f * 0.65f + u * 0.35f))
@@ -174,10 +192,10 @@ class WallpaperRenderer {
         for (row in 0..rows) {
             val y = row * 23f
             for (column in 0..44) {
-                val x = column * 24f - 28f
+                val x = column * 24f - 28f + sin(t * 0.8f + row * 0.12f) * 9f * amount
                 val center = if (terminal) 500f + sin(y * 0.005f + t * 0.5f) * 190f else
                     500f + (h * 0.5f - y) * 0.46f + sin(y * 0.006f + t) * 55f * amount
-                val distance = abs(x - center - wave)
+                val distance = abs(x - center - wave - disturbance(x, y, h) * amount)
                 val envelope = (1f - distance / (if (terminal) 360f else 270f)).coerceIn(0f, 1f)
                 val flow = sin(row * 0.19f + column * 0.38f - t * 1.6f)
                 val luminance = envelope * envelope * (0.57f + (flow + 1f) * 0.2f)
@@ -206,13 +224,15 @@ class WallpaperRenderer {
         glow(canvas, glowB, 830f, h * 0.29f, 820f, h * 0.51f, 160)
         glow(canvas, glowA, 70f, h * 0.78f, 710f, h * 0.44f, 180)
         if (spheres) {
-            drawLens(canvas, 310f + sin(t * 0.6f) * 70f * amount, h * 0.30f + cos(t * 0.5f) * 45f * amount, 310f)
-            drawLens(canvas, 760f + cos(t * 0.4f) * 60f * amount, h * 0.61f + sin(t * 0.5f) * 75f * amount, 410f)
-            drawLens(canvas, 190f + sin(t * 0.7f) * 45f * amount, h * 0.85f, 195f)
+            drawLens(canvas, 310f + sin(t * 0.6f) * 120f * amount, h * 0.30f + cos(t * 0.5f) * 95f * amount,
+                310f + sin(t * 0.38f) * 24f * amount)
+            drawLens(canvas, 760f + cos(t * 0.4f) * 110f * amount, h * 0.61f + sin(t * 0.5f) * 125f * amount,
+                410f + cos(t * 0.41f) * 32f * amount)
+            drawLens(canvas, 190f + sin(t * 0.7f) * 85f * amount, h * 0.85f + cos(t * 0.55f) * 55f * amount, 195f)
         } else {
             val saved = canvas.save()
             canvas.translate(500f, h * 0.5f)
-            canvas.rotate(-24f + sin(t * 0.32f) * 4f * amount)
+            canvas.rotate(-24f + sin(t * 0.32f) * 11f * amount)
             paint.shader = ribbon
             paint.alpha = 220
             rect.set(-370f, -h, 370f, h)
@@ -220,7 +240,7 @@ class WallpaperRenderer {
             // Off-center bright edges and dark seams read like a fluted glass prism.
             for (index in 0 until 24) {
                 val x = -360f + index * 31f
-                val bend = sin(index * 0.25f + t * 0.5f) * 60f * amount
+                val bend = sin(index * 0.25f + t * 0.5f) * 100f * amount
                 path.reset()
                 path.moveTo(x, -h)
                 path.cubicTo(x - 160f + bend, -h * 0.35f, x + 180f - bend, h * 0.35f, x, h)
@@ -276,14 +296,14 @@ class WallpaperRenderer {
         val saved = canvas.save()
         if (loop) {
             canvas.translate(500f, h * 0.5f)
-            canvas.rotate(-28f + sin(t * 0.25f) * 5f * amount)
+            canvas.rotate(-28f + sin(t * 0.25f) * 16f * amount)
             for (index in 0 until 100) {
                 val u = index / 99f
                 val r = 190f + u * 240f
                 path.reset()
                 for (step in 0..100) {
                     val angle = step / 100f * (Math.PI * 2).toFloat()
-                    val ripple = sin(angle * 3f + t * 0.5f) * 25f * amount
+                    val ripple = sin(angle * 3f + t * 0.5f) * 48f * amount
                     val x = cos(angle) * (r + ripple)
                     val y = sin(angle) * (r * 1.6f + ripple)
                     if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
@@ -297,7 +317,7 @@ class WallpaperRenderer {
         } else {
             for (index in 0 until 130) {
                 val u = index / 129f
-                val drift = sin(t * 0.6f + u * 3f) * 65f * amount
+                val drift = sin(t * 0.6f + u * 3f) * 155f * amount
                 path.reset()
                 path.moveTo(-180f, h * (0.12f + u * 0.78f))
                 path.cubicTo(1350f + drift, h * (0.01f + u * 0.2f),
@@ -316,8 +336,9 @@ class WallpaperRenderer {
     private fun drawTexture(canvas: Canvas, h: Float, t: Float, amount: Float, basalt: Boolean) {
         glow(canvas, glowB, 800f, h * 0.18f, 1100f, h * 0.75f, 210)
         for (band in 0 until 5) {
-            val drift = sin(t * 0.42f + band * 0.7f) * 55f * amount
-            val y = h * (-0.05f + band * 0.28f)
+            val drift = sin(t * 0.42f + band * 0.7f) * 115f * amount
+            val y = h * (-0.05f + band * 0.28f) + cos(t * 0.36f + band) * 55f * amount +
+                disturbance(500f, h * band * 0.28f, h) * amount
             path.reset()
             path.moveTo(-120f, y + 130f)
             path.cubicTo(240f + drift, y - 410f, 480f - drift, y + 470f, 1120f, y - 60f)
@@ -366,12 +387,12 @@ class WallpaperRenderer {
         val motion = if (settings.reducedMotion) 0f else amount
         // Reserve enough overscan in both axes, including landscape and foldables,
         // for the combined image drift and surface parallax.
-        val margin = 64f + motion * 48f
+        val margin = 128f + motion * 96f
         val scale = max((1000f + margin) / bitmap.width, (h + margin) / bitmap.height)
         val bw = bitmap.width * scale
         val bh = bitmap.height * scale
-        val driftX = sin(t * 0.4f) * 22f * motion
-        val driftY = cos(t * 0.31f) * 24f * motion
+        val driftX = sin(t * 0.4f) * 32f * motion
+        val driftY = cos(t * 0.31f) * 38f * motion
         val left = (1000f - bw) * 0.5f + driftX
         val top = (h - bh) * 0.5f + driftY
         rect.set(left, top, left + bw, top + bh)
@@ -411,13 +432,46 @@ class WallpaperRenderer {
         for (i in 0 until count) {
             val x0 = fraction(i * 17 + 101) * 1100f - 50f
             val y0 = fraction(i * 31 + 503) * (h + 100f) - 50f
-            val x = x0 + sin(t * 0.33f + i * 0.83f) * 25f * amount
-            val y = y0 + cos(t * 0.27f + i * 1.37f) * 30f * amount
+            val x = x0 + sin(t * 0.33f + i * 0.83f) * 48f * amount
+            val y = ((y0 + 70f - t * 14f * amount) % (h + 140f) + h + 140f) % (h + 140f) - 70f +
+                cos(t * 0.27f + i * 1.37f) * 45f * amount
             paint.color = mix(c1, Color.WHITE, fraction(i + 200))
             paint.alpha = ((75f + fraction(i + 430) * 140f) * opacity).toInt()
             canvas.drawCircle(x, y, 0.8f + fraction(i + 810) * 2.4f, paint)
         }
         paint.alpha = 255
+    }
+
+    /** Local deformation connects the response to the finger, not just the screen. */
+    private fun disturbance(x: Float, y: Float, h: Float): Float {
+        if (interaction.strength <= 0f && interaction.rippleProgress >= 1f) return 0f
+        val dx = (x - interaction.x * 1000f) / 400f
+        val dy = (y - interaction.y * h) / 400f
+        val distance = sqrt(dx * dx + dy * dy)
+        val pull = exp(-distance * distance * 1.8f) * interaction.strength * 95f
+        val ring = interaction.rippleProgress
+        val wave = sin(distance * 7f - ring * 12f) * exp(-abs(distance - ring * 2f) * 3f) *
+            (1f - ring) * 38f
+        return pull + wave
+    }
+
+    private fun drawInteraction(canvas: Canvas, h: Float, amount: Float) {
+        val response = interaction
+        if (response.strength <= 0f && response.rippleProgress >= 1f) return
+        val x = response.x * 1000f
+        val y = response.y * h
+        val opacity = (response.strength * (65f + amount * 40f)).toInt()
+        glow(canvas, glowA, x, y, 330f + amount * 120f, 330f + amount * 120f, opacity)
+        glow(canvas, glowWhite, x, y, 125f, 125f, (response.strength * 40f).toInt())
+        val p = response.rippleProgress
+        if (p < 1f) {
+            linePaint.shader = null
+            linePaint.style = Paint.Style.STROKE
+            linePaint.strokeWidth = 2f + (1f - p) * 5f
+            linePaint.color = alpha(mix(c1, c2, p), ((1f - p) * (1f - p) * 110f).toInt())
+            canvas.drawCircle(x, y, 24f + p * 650f, linePaint)
+            linePaint.alpha = 255
+        }
     }
 
     private fun glow(canvas: Canvas, shader: Shader?, x: Float, y: Float, rx: Float, ry: Float, opacity: Int) {
