@@ -59,6 +59,10 @@ class WallpaperRenderer {
     private var veilKey = 0L
     private var veilTop: Shader? = null
     private var veilBottom: Shader? = null
+    private var groundShader: Shader? = null
+    private var groundColor = 0
+    private var groundLift = 0
+    private var groundHeight = 0f
 
     /** Tests measure small bitmaps at full on-device density; 0 means derive from width. */
     internal var forcedDetail = 0f
@@ -181,7 +185,13 @@ class WallpaperRenderer {
     /** A quiet base gradient so the ground is never a flat fill. */
     private fun ground(canvas: Canvas, f: Frame) {
         val lift = if (f.night) mix(f.c0, f.c1, 0.07f) else mix(f.c0, Color.WHITE, 0.5f)
-        paint.shader = LinearGradient(0f, 0f, 1000f, f.h, intArrayOf(f.c0, lift, f.c0), null, Shader.TileMode.CLAMP)
+        if (groundShader == null || groundColor != f.c0 || groundLift != lift || groundHeight != f.h) {
+            groundColor = f.c0
+            groundLift = lift
+            groundHeight = f.h
+            groundShader = LinearGradient(0f, 0f, 1000f, f.h, intArrayOf(f.c0, lift, f.c0), null, Shader.TileMode.CLAMP)
+        }
+        paint.shader = groundShader
         canvas.drawRect(0f, 0f, 1000f, f.h, paint)
         paint.shader = null
     }
@@ -327,6 +337,7 @@ class WallpaperRenderer {
         veilTop = null
         veilBottom = null
         veilKey = 0
+        groundShader = null
         lastReal = Float.NaN
     }
 

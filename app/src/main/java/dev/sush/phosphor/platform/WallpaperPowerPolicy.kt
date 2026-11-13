@@ -33,12 +33,13 @@ object WallpaperPowerPolicy {
         powerSaveMode: Boolean,
         batteryPercent: Int?,
         charging: Boolean,
+        locked: Boolean = false,
     ): WallpaperPowerProfile {
         val low = settings.lowBatteryMode && !charging && batteryPercent != null && batteryPercent in 0..20
         val critical = low && batteryPercent <= 5
         val saving = powerSaveMode || low
         return WallpaperPowerProfile(
-            fps = if (saving) minOf(settings.fps.coerceIn(15, 60), 15) else settings.fps.coerceIn(15, 60),
+            fps = if (saving || locked) 15 else settings.fps.coerceIn(15, 60),
             motionScale = when { critical -> 0f; saving -> 0.45f; else -> 1f },
             energySaving = saving,
         )

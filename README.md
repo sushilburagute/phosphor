@@ -12,8 +12,8 @@ Phosphor renders its artwork on the device: long-exposure orbits of light, curta
 - **Interactive.** Taps send ripples, drags pull the artwork, and each family answers in its own way. Launcher tap and icon-drop commands are supported. Touch answers even at zero motion speed and settles to idle.
 - **Wake reveal.** The artwork rises from dark when the screen turns on and blooms on unlock. Screen-off visibility depends on Android and the device.
 - Live editor with a touchable preview, a home-screen overlay for checking readability, speed, intensity, calm (fade toward the background), frame rate, still mode and wake reveal.
-- **Battery aware.** Rendering stops when hidden. Below 20% and unplugged, motion slows to 15 fps; at 5% it holds still. System Battery Saver is always respected. Uses the GPU canvas when available.
-- Favorites, and a gallery of still previews with a day/night switch, so browsing doesn't run a dozen animations.
+- **Battery aware.** Rendering stops when hidden or the screen is off. Lock-screen animation is capped at 15 fps, and touch/scroll requests respect the frame limit. Below 20% and unplugged, motion slows to 15 fps; at 5% it holds still. System Battery Saver is always respected. Uses the GPU canvas when available.
+- Favorites, and a gallery of cached still previews with a day/night switch, so browsing reuses rendered artwork.
 - Local image import with gentle drift, ripples and floating light. This is a flat-image effect, not automatic subject segmentation.
 - Android's native wallpaper picker and stable wallpaper color reporting for system theming. A themed (monochrome) launcher icon, a splash screen, light and dark app themes, and optional Material You colors on Android 12+.
 - Export a still PNG in either treatment, including the watermark, through Android's document picker.
