@@ -274,6 +274,10 @@ internal class GlassScene(private val k: RenderKit) {
 
 /** Filaments and loops that part around a finger and pulse with each tap. */
 internal class AbstractScene(private val k: RenderKit) {
+    private val loopCos = FloatArray(91) { cos(it / 90f * (Math.PI * 2).toFloat()) }
+    private val loopSin = FloatArray(91) { sin(it / 90f * (Math.PI * 2).toFloat()) }
+    private val loopRipple = FloatArray(91)
+
     fun draw(canvas: Canvas, f: Frame, loop: Boolean) {
         val h = f.h
         val mode = k.modeFor(f)
@@ -326,17 +330,22 @@ internal class AbstractScene(private val k: RenderKit) {
         canvas.rotate(-28f + sin(f.t * 0.25f) * 5f * f.amount)
         val pulseAngle = (f.now * 2.2f) % (2f * Math.PI.toFloat())
         val count = (90 * (0.5f + f.detail * 0.5f)).toInt()
+        // The same deformation is shared by every band and color pass.
+        for (step in 0..90) {
+            val angle = step / 90f * (Math.PI * 2).toFloat()
+            var ripple = sin(angle * 3f + f.t * 0.5f) * 25f * f.amount
+            if (f.pulses > 0) ripple += exp(-((angle - pulseAngle + 7f) % 6.283f - 3.14f).let { it * it } * 4f) * 30f * f.pulseA[0]
+            loopRipple[step] = ripple
+        }
         for (index in 0 until count) {
             val u = index / (count - 1f)
             val r = 170f + u * 250f
             for (pass in 0 until if (f.night && index % 3 == 0) 3 else 1) {
                 k.path.reset()
                 for (step in 0..90) {
-                    val angle = step / 90f * (Math.PI * 2).toFloat()
-                    var ripple = sin(angle * 3f + f.t * 0.5f) * 25f * f.amount
-                    if (f.pulses > 0) ripple += exp(-((angle - pulseAngle + 7f) % 6.283f - 3.14f).let { it * it } * 4f) * 30f * f.pulseA[0]
-                    val x = cos(angle) * (r + ripple)
-                    val y = sin(angle) * (r * 1.6f + ripple)
+                    val ripple = loopRipple[step]
+                    val x = loopCos[step] * (r + ripple)
+                    val y = loopSin[step] * (r * 1.6f + ripple)
                     if (step == 0) k.path.moveTo(x, y) else k.path.lineTo(x, y)
                 }
                 k.path.close()

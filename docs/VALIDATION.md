@@ -1,5 +1,22 @@
 # Validation
 
+## Performance and battery PR
+
+Integrated on 2026-11-14 with `origin/main` at `e3dbb12`, preserving its redesigned artwork, day/night treatments, hardware Canvas path, touch effects, and independent wake/unlock reveals.
+
+Command: `./gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleRelease`
+
+- 64 tests passed with zero failures or errors; the 4 opt-in preview/screenshot tests were skipped.
+- Android lint: zero errors, 33 warnings. These include dependency/style suggestions and two allocation warnings for lazily generating a gallery bitmap once per content or size change; no lint baseline was added.
+- Added 14 tests for frame-request coalescing and deadlines, surface FPS limits, cancellation/resume, lock-screen power policy, preview observer cleanup, screen-off/wake behavior, battery-policy changes, and gallery bitmap reuse/invalidation (including the day/night switch).
+- Native Skia artwork contact-sheet PNG and label-legibility report hashes match a baseline run of the current renderer before the calculation/shader changes. Existing motion, reveal, touch, still-mode, import, persistence, and readability tests remain passing.
+- Gallery tiles cache a bitmap instead of replaying procedural paths. Cached frames are invalidated after content, treatment, or size changes. Temporary renderer resources are released; Android retains bitmap references until recorded drawing commands are finished with them.
+- Power and keyguard state refresh on broadcasts/visibility changes. Input requests share the animation frame budget, screen-off rendering stops even if Android keeps the surface marked visible, and the visible lock screen uses at most 15 fps.
+
+The initial implementation was smoke-tested on a headless Android 16 / API 36 emulator: gallery rendering, native wallpaper preview, and sleep/wake, including a dozing display with a still-visible preview engine. The emulator had an initial process-start timeout and a later delayed first activity draw before the gallery cache was added; the final cached gallery rendered successfully and its procedural GPU path-mask cache was absent. The integrated version described above was checked through the automated suite and build, without repeating those emulator checks against the redesign.
+
+Physical-device energy, thermal, and sustained frame-time profiling remains outstanding. Compare signed release builds at fixed brightness, refresh rate, preset, motion settings, and battery state. Measure the gallery, editor, home screen, lock screen, screen-off/always-on display, and an opaque foreground app separately, including input bursts and the 20%/5% boundaries. Use Android Studio System Trace/Power Profiler or Perfetto, repeat after cooling, and check for recurring rendering work while hidden or screen-off. Frame caps and reduced work are not a measured battery-life percentage.
+
 ## PR #1 merge verification
 
 Verified the merge of `main` at `dcd301d` on 2026-11-13 on Windows with JDK 21.0.9, Android SDK Platform 36 and Build Tools 35.0.0.

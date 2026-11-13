@@ -24,6 +24,7 @@ internal class AsciiScene(private val k: RenderKit) {
     }
     private val ramp = arrayOf(".", ":", "-", "=", "+", "*", "#", "%", "@", "0")
     private val noise = arrayOf("/", "\\", "|", "<", ">", "{", "}", "$", "&", "?", "1", "7")
+    private val crests = FloatArray(6)
 
     fun draw(canvas: Canvas, f: Frame, terminal: Boolean) {
         if (terminal) afterimage(canvas, f) else beam(canvas, f)
@@ -127,7 +128,6 @@ internal class AsciiScene(private val k: RenderKit) {
         val firstRow = (top / cellH).toInt()
         val lastRow = (bottom / cellH).toInt()
         val ghosts = 6
-        val crests = FloatArray(ghosts)
         for (col in 0 until cols) {
             val x = col * cellW + 4f + f.shiftX(0.5f)
             val drag = if (f.drag > 0f) exp(-((x - f.dragX) / 160f).let { it * it }) * f.drag else 0f
