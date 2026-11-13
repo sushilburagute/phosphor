@@ -8,6 +8,7 @@ Command: `./gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleReleas
 
 - 64 tests passed with zero failures or errors; the 4 opt-in preview/screenshot tests were skipped.
 - Android lint: zero errors, 33 warnings. These include dependency/style suggestions and two allocation warnings for lazily generating a gallery bitmap once per content or size change; no lint baseline was added.
+- CI explicitly installs Platform 36 and Build Tools 35.0.0. This avoids the setup action's legacy default `tools` package, which failed SDK setup before Gradle could run.
 - Added 14 tests for frame-request coalescing and deadlines, surface FPS limits, cancellation/resume, lock-screen power policy, preview observer cleanup, screen-off/wake behavior, battery-policy changes, and gallery bitmap reuse/invalidation (including the day/night switch).
 - Native Skia artwork contact-sheet PNG and label-legibility report hashes match a baseline run of the current renderer before the calculation/shader changes. Existing motion, reveal, touch, still-mode, import, persistence, and readability tests remain passing.
 - Gallery tiles cache a bitmap instead of replaying procedural paths. Cached frames are invalidated after content, treatment, or size changes. Temporary renderer resources are released; Android retains bitmap references until recorded drawing commands are finished with them.
