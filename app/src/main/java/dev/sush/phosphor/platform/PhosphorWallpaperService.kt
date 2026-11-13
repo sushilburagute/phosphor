@@ -24,12 +24,12 @@ import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
-import android.view.WindowInsets
 import androidx.annotation.RequiresApi
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.render.TouchField
 import dev.sush.phosphor.render.WallpaperMotion
+import dev.sush.phosphor.render.WallpaperFrameScheduler
 import dev.sush.phosphor.render.WallpaperRenderer
 
 class PhosphorWallpaperService : WallpaperService() {
@@ -62,21 +62,23 @@ class PhosphorWallpaperService : WallpaperService() {
         private var surfaceReady = false
         private var visible = false
         private var destroyed = false
-        private val ambient: Boolean get() = !powerManager.isInteractive
+        private var screenInteractive = powerManager.isInteractive
+        private var systemSaver = powerManager.isPowerSaveMode
+        private var keyguardLocked = keyguard.isKeyguardLocked
+        private val ambient: Boolean get() = !screenInteractive
         private var receiverRegistered = false
         private var animationObserverRegistered = false
-        private var pendingWake = !powerManager.isInteractive
+        private var pendingWake = !screenInteractive
         private var userPresent = false
         private var hardwareCanvas = true
         private var width = 1
         private var height = 1
-        private var bottomInsetPixels = 0
         private var phase = 0f
         private var lastFrame = 0L
         private var revealStart = -1L
         private var scrollX = 0f
         private var cachedColors: WallpaperColors? = null
-        private val frame = Runnable { drawFrame() }
+        private val frames = WallpaperFrameScheduler(handler) { drawFrame() }
         private val colorUpdate = Runnable { if (!destroyed) notifyColorsChanged() }
         private val settingsListener: () -> Unit = { refreshSettings() }
         private val animationObserver = object : ContentObserver(handler) {
@@ -84,13 +86,15 @@ class PhosphorWallpaperService : WallpaperService() {
         }
         private val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action != Intent.ACTION_BATTERY_CHANGED) refreshDeviceState()
                 when (intent?.action) {
                     Intent.ACTION_BATTERY_CHANGED -> {
-                        val next = WallpaperPowerPolicy.fromIntent(intent)
-                        if (next == battery) return
-                        battery = next
+                        val previous = powerProfile()
+                        battery = WallpaperPowerPolicy.fromIntent(intent)
+                        if (previous == powerProfile()) return
                     }
                     Intent.ACTION_SCREEN_OFF -> {
+                        screenInteractive = false
                         pendingWake = true
                         userPresent = false
                         interaction.reset()
@@ -98,7 +102,7 @@ class PhosphorWallpaperService : WallpaperService() {
                         lockReveal.transitionTo(locked = true, animate = false, now = SystemClock.uptimeMillis())
                     }
                     // Wake: the artwork ignites from its ground, if the person wants that.
-                    Intent.ACTION_SCREEN_ON -> { pendingWake = true; userPresent = false }
+                    Intent.ACTION_SCREEN_ON -> { screenInteractive = true; pendingWake = true; userPresent = false }
                     // Unlock: a bloom rises from where the unlock gesture usually ends.
                     Intent.ACTION_USER_PRESENT -> {
                         userPresent = true
@@ -168,18 +172,8 @@ class PhosphorWallpaperService : WallpaperService() {
 
         override fun onVisibilityChanged(visible: Boolean) {
             this.visible = visible
+            if (visible) refreshDeviceState()
             if (!visible) { touch.clear(); interaction.reset() }
-            restartFrames()
-        }
-
-        override fun onApplyWindowInsets(insets: WindowInsets) {
-            super.onApplyWindowInsets(insets)
-            bottomInsetPixels = if (Build.VERSION.SDK_INT >= 30) {
-                insets.getInsetsIgnoringVisibility(WindowInsets.Type.navigationBars() or WindowInsets.Type.displayCutout()).bottom
-            } else {
-                @Suppress("DEPRECATION")
-                insets.systemWindowInsetBottom
-            }
             restartFrames()
         }
 
@@ -204,7 +198,7 @@ class PhosphorWallpaperService : WallpaperService() {
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
             surfaceReady = false
-            handler.removeCallbacks(frame)
+            frames.stop()
             lastFrame = 0L
             touch.clear()
             interaction.reset()
@@ -215,14 +209,24 @@ class PhosphorWallpaperService : WallpaperService() {
             xOffset: Float, yOffset: Float, xOffsetStep: Float, yOffsetStep: Float,
             xPixelOffset: Int, yPixelOffset: Int,
         ) {
-            scrollX = (xOffset.coerceIn(0f, 1f) - 0.5f) * 2f
+            val next = (xOffset.coerceIn(0f, 1f) - 0.5f) * 2f
+            if (next == scrollX) return
+            scrollX = next
             if (interactive()) requestFrame()
         }
 
         private fun motionEnabled() = !settings.reducedMotion && !ambient && ValueAnimator.areAnimatorsEnabled()
 
+        private fun refreshDeviceState() {
+            screenInteractive = powerManager.isInteractive
+            systemSaver = powerManager.isPowerSaveMode
+            keyguardLocked = keyguard.isKeyguardLocked
+        }
+
+        private fun isLocked(): Boolean = !isPreview && (ambient || (!userPresent && keyguardLocked))
+
         private fun powerProfile() = WallpaperPowerPolicy.resolve(
-            settings, powerManager.isPowerSaveMode, battery.percent, battery.charging,
+            settings, systemSaver, battery.percent, battery.charging, locked = isLocked(),
         )
 
         private fun interactive() = visible && settings.parallax && motionEnabled() && powerProfile().motionScale > 0f
@@ -235,7 +239,8 @@ class PhosphorWallpaperService : WallpaperService() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { touch.press(x, y); touch.tap(x, y, seconds(), 0.7f) }
                 MotionEvent.ACTION_MOVE -> touch.move(x, y)
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> touch.release()
+                MotionEvent.ACTION_UP -> touch.release(seconds())
+                MotionEvent.ACTION_CANCEL -> touch.release()
             }
             requestFrame()
         }
@@ -253,16 +258,15 @@ class PhosphorWallpaperService : WallpaperService() {
         }
 
         private fun restartFrames() {
-            handler.removeCallbacks(frame)
+            frames.stop()
             lastFrame = 0L
             if (!interactive()) { interaction.reset(); touch.clear() }
-            if (visible && surfaceReady && !destroyed) handler.post(frame)
+            requestFrame()
         }
 
         /** Touches request a frame without resetting the elapsed animation clock. */
         private fun requestFrame() {
-            handler.removeCallbacks(frame)
-            if (visible && surfaceReady && !destroyed) handler.post(frame)
+            if (visible && surfaceReady && !destroyed && !ambient) frames.request(powerProfile().fps)
         }
 
         private fun reveal(now: Long): Float {
@@ -273,8 +277,8 @@ class PhosphorWallpaperService : WallpaperService() {
         }
 
         private fun drawFrame(force: Boolean = false) {
-            handler.removeCallbacks(frame)
-            if (destroyed || !surfaceReady || (!visible && !force)) return
+            frames.onFrame()
+            if (destroyed || !surfaceReady || ((!visible || ambient) && !force)) return
             val now = SystemClock.uptimeMillis()
             val profile = powerProfile()
             val motion = motionEnabled() && profile.motionScale > 0f
@@ -282,8 +286,7 @@ class PhosphorWallpaperService : WallpaperService() {
             if (motion) phase += delta * settings.speed * profile.motionScale
             lastFrame = now
             if (visible) {
-                val locked = !isPreview && (ambient || (!userPresent && keyguard.isKeyguardLocked))
-                lockReveal.transitionTo(locked, settings.unlockAnimation && motion && !profile.energySaving,
+                lockReveal.transitionTo(isLocked(), settings.unlockAnimation && motion && !profile.energySaving,
                     now, wake = pendingWake && !ambient)
                 if (pendingWake && !ambient) {
                     if (settings.wakeReveal && motion && !profile.energySaving) revealStart = now
@@ -305,7 +308,6 @@ class PhosphorWallpaperService : WallpaperService() {
                         WallpaperCatalog.find(settings.presetId), drawSettings,
                         if (settings.parallax && motion) scrollX * 0.65f else 0f,
                         0f,
-                        bottomInsetPixels = bottomInsetPixels,
                         night = night,
                         touch = if (motion) touch else null,
                         realSeconds = now / 1000f,
@@ -332,10 +334,7 @@ class PhosphorWallpaperService : WallpaperService() {
             val animating = motion && settings.speed > 0f
             val responding = motion && (touch.isActive(now / 1000f) || interaction.isActive || reveal < 1f || lockReveal.isRunning(now))
             if (visible && surfaceReady && !destroyed && (animating || responding)) {
-                val spent = SystemClock.uptimeMillis() - now
-                // Responses honor the same low-battery cap as ambient animation.
-                val fps = profile.fps
-                handler.postDelayed(frame, (1000L / fps.coerceIn(15, 60) - spent).coerceAtLeast(1L))
+                requestFrame()
             }
         }
 
@@ -397,6 +396,7 @@ class PhosphorWallpaperService : WallpaperService() {
         override fun onDestroy() {
             destroyed = true
             visible = false
+            frames.stop()
             engines -= this
             handler.removeCallbacksAndMessages(null)
             store.removeListener(settingsListener)

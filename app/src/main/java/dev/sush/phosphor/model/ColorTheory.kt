@@ -47,6 +47,8 @@ data class Scheme(
     val nightGround: Float = 0.17f,
     val nightLight: Float = 0.74f,
     val dayGround: Float = 0.955f,
+    /** Key ink lightness by day. Scenes that paint whole fields with it want a pastel (~0.72). */
+    val dayLight: Float = 0.47f,
 ) {
     val accentHue: Float get() = (hue + (if (clockwise) harmony.offset else -harmony.offset) + accentShift + 360f) % 360f
 
@@ -64,8 +66,8 @@ data class Scheme(
     /** Paper, key ink, accent ink. */
     fun day(): List<Int> = listOf(
         ColorTheory.oklch(dayGround, 0.028f * chroma.coerceAtMost(1.2f), dayGroundHue),
-        ColorTheory.oklch(0.47f, 0.16f * chroma, hue),
-        ColorTheory.oklch(0.63f, 0.19f * chroma, accentHue),
+        ColorTheory.oklch(dayLight, 0.16f * chroma, hue),
+        ColorTheory.oklch(minOf(dayLight + 0.16f, 0.8f), 0.19f * chroma, accentHue),
     )
 }
 

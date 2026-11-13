@@ -71,7 +71,7 @@ internal class RainScene(private val k: RenderKit) {
         val saved = canvas.save()
         canvas.scale(-1f, 1f, 500f, 0f)
         for (i in layers.indices) stream(canvas, f, i)
-        if (f.pulses > 0) ring(canvas, f)
+        if (f.pulses > 0 || f.trail > 0 || f.charge > 0.01f) decoded(canvas, f)
         canvas.restoreToCount(saved)
     }
 
@@ -152,8 +152,12 @@ internal class RainScene(private val k: RenderKit) {
         k.normal(glyph)
     }
 
-    /** Each tap sends a ring of freshly decoded characters out across the rain. */
-    private fun ring(canvas: Canvas, f: Frame) {
+    /**
+     * Characters the finger has touched light up as freshly decoded code: a swipe leaves a
+     * fading trail, a hold gathers a growing knot around the finger, and each tap or release
+     * sends a ring out across the rain.
+     */
+    private fun decoded(canvas: Canvas, f: Frame) {
         val layer = layers[1]
         val cellW = layer.size * 0.92f
         val cellH = layer.size * 1.12f
@@ -167,9 +171,17 @@ internal class RainScene(private val k: RenderKit) {
             val y = row * cellH + layer.size
             for (col in 0 until cols) {
                 val x = col * cellW + cellW * 0.5f
-                val wave = f.wave(1000f - x, y, 46f)
-                if (wave < 0.12f) continue
-                glyph.alpha = (wave * 255f).toInt().coerceIn(0, 255)
+                val wx = 1000f - x
+                var light = if (f.pulses > 0) f.wave(wx, y, 46f) else 0f
+                if (f.trail > 0) light = maxOf(light, f.trailInfluence(wx, y, 55f))
+                if (f.charge > 0.01f) {
+                    val r = 50f + 150f * f.charge
+                    val dx = wx - f.dragX
+                    val dy = y - f.dragY
+                    light = maxOf(light, f.charge * kotlin.math.exp(-(dx * dx + dy * dy) / (r * r)))
+                }
+                if (light < 0.12f) continue
+                glyph.alpha = (light * 255f).toInt().coerceIn(0, 255)
                 val c = hash(row * 977 + col + (f.now * 20f).toInt() * 31) % chars.size
                 canvas.drawText(chars, c, 1, x, y, glyph)
             }

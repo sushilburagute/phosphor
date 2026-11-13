@@ -44,7 +44,7 @@ class ColorTheoryTest {
             // Accents must stand apart from their ground in both treatments.
             for (accent in 1..2) {
                 assertTrue(ColorTheory.toOklch(preset.colors[accent])[0] - ColorTheory.toOklch(preset.colors[0])[0] > 0.4f)
-                assertTrue(ColorTheory.toOklch(preset.dayColors[0])[0] - ColorTheory.toOklch(preset.dayColors[accent])[0] > 0.25f)
+                assertTrue(ColorTheory.toOklch(preset.dayColors[0])[0] - ColorTheory.toOklch(preset.dayColors[accent])[0] > 0.15f)
             }
         }
     }

@@ -2,398 +2,454 @@ package dev.sush.phosphor.render
 
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import dev.sush.phosphor.render.RenderKit.Companion.alpha
 import dev.sush.phosphor.render.RenderKit.Companion.fraction
 import dev.sush.phosphor.render.RenderKit.Companion.mix
 import dev.sush.phosphor.render.RenderKit.Companion.smooth
 import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Long-exposure light trails. Every trail is an arc of an ellipse travelling at a Keplerian
- * speed (inner orbits are faster), so the field shears and reforms instead of rotating rigidly.
+ * Long-exposure light trails: the ORBIT family. Each preset lives in its own file
+ * ([OrbitExposure], [OrbitThreshold], [OrbitRingfall]); this file holds what they share.
  *
- * Night draws additive light, so crossing trails brighten like a real long exposure. Day draws
- * the same trails in ink, from deep key to its pastel, over a sunrise band of the accent.
+ * Night draws additive light, so crossing trails brighten like a real long exposure. Day prints
+ * the same trails in two overprinted inks with a slight misregistration, like a riso print.
+ *
+ * Every preset keeps the launcher's label rows (about 0.36, 0.48, 0.60 and 0.72 of the height)
+ * quiet by composition: orbits are sized so their long, nearly horizontal stretches settle in
+ * the gaps between rows, and only their steep flanks cross a row.
  */
-internal class OrbitScene(private val k: RenderKit) {
-    private val points = FloatArray(4096)
+internal class OrbitScene(k: RenderKit) {
+    private val kit = OrbitKit(k)
+    private val exposure = OrbitExposure(kit)
+    private val threshold = OrbitThreshold(kit)
+    private val ringfall = OrbitRingfall(kit)
 
     fun draw(canvas: Canvas, f: Frame, variant: String) {
+        kit.step(f)
         when (variant) {
-            "orbit-threshold" -> threshold(canvas, f)
-            "orbit-ringfall" -> ringfall(canvas, f)
-            else -> exposure(canvas, f)
+            "orbit-threshold" -> threshold.draw(canvas, f)
+            "orbit-ringfall" -> ringfall.draw(canvas, f)
+            else -> exposure.draw(canvas, f)
         }
     }
+}
 
-    // region Long exposure
+/** Shared state, batched specks and the gesture answers every orbit preset uses. */
+internal class OrbitKit(val k: RenderKit) {
+    /** Point batches: [CLASSES] colors x two sizes, each drawn with one drawPoints call. */
+    private val batches = Array(CLASSES * 2) { FloatArray(BATCH * 2) }
+    private val counts = IntArray(CLASSES * 2)
+    private val wakeX = FloatArray(TouchField.TRAIL)
+    private val wakeY = FloatArray(TouchField.TRAIL)
 
-    private fun exposure(canvas: Canvas, f: Frame) {
-        val h = f.h
-        // Sits in the gap between typical icon rows, so no label row crosses the bright line.
-        val horizon = h * 0.55f
-        val reveal = smooth(f.reveal)
-        stars(canvas, f, 150, 0f, horizon, 0.25f)
+    private val laneColors = IntArray(LANES)
+    private val laneShaders = arrayOfNulls<Shader>(LANES)
+    private var laneCount = 0
+    private var laneKey = 0L
 
-        // The upper system's center leans toward a held finger, as if pulled by gravity.
-        val pull = f.drag * 0.22f
-        val ux = 1180f + (f.dragX - 1180f) * pull + f.shiftX(0.6f)
-        val uy = h * 0.4f + (f.dragY - h * 0.4f) * pull * 0.5f + f.shiftY(0.5f)
-        val lx = 1230f + (f.dragX - 1230f) * pull * 0.6f + f.shiftX(1f)
-        val ly = h * 0.69f + f.shiftY(0.8f)
+    /** Extra orbital phase (degrees) a swipe has spun into the system; glides, then holds. */
+    var spin = 0f; private set
+    private var spinVelocity = 0f
 
-        var saved = canvas.save()
-        canvas.clipRect(-50f, -50f, 1050f, horizon)
-        trails(canvas, f, ux, uy, 0.5f, -5f, (1500 * f.detail).toInt(), 11, 0.86f, 1500f)
-        canvas.restoreToCount(saved)
+    /**
+     * Scene time. The renderer's clock runs fast enough for the field scenes; long exposures
+     * read best slower, so orbits, twinkle and meteors all run on this calmer clock.
+     */
+    var t = 0f; private set
 
-        saved = canvas.save()
-        canvas.clipRect(-50f, horizon, 1050f, h + 50f)
-        trails(canvas, f, lx, ly, 0.34f, 3f, (1600 * f.detail).toInt(), 29, 0.8f, 1600f)
-        canvas.restoreToCount(saved)
-
-        horizonLine(canvas, f, horizon, reveal, 1f)
-        val figureColor = if (f.night) 0xFF010204.toInt() else alpha(f.c1, 235)
-        k.figure(canvas, 452f + f.shiftX(1f), horizon + h * 0.082f, 21f, figureColor, 0f,
-            if (f.night) 0x99000000.toInt() else alpha(f.c1, 70))
+    fun step(f: Frame) {
+        t = f.t * PACE
+        if (!f.busy && f.dt == 0f) { spin = 0f; spinVelocity = 0f; return }
+        if (f.dt <= 0f) return
+        // A sideways swipe spins the orbits up; the extra speed glides away over about a second.
+        spinVelocity += f.flowX * 0.06f * f.dt
+        spinVelocity *= exp(-1.1f * f.dt)
+        spin += spinVelocity * f.dt
     }
 
     /**
-     * Draw [count] trails orbiting ([cx], [cy]). [flat] squashes orbits vertically; [seed]
-     * keeps the two systems distinct. Arcs get a faint long tail and a brighter short head.
+     * A vertical shader of [color] that thins light (or ink) to [depth] where it passes behind a
+     * launcher label row, with soft shoulders: it reads as faint haze lanes across the exposure.
+     * Cached per color, so a scene should draw from a small, fixed set of colors.
      */
-    private fun trails(
-        canvas: Canvas, f: Frame, cx: Float, cy: Float, flat: Float, tilt: Float,
-        count: Int, seed: Int, brightness: Float, reach: Float,
+    fun lane(f: Frame, color: Int, depth: Float = if (f.night) 0.42f else 0.55f): Shader {
+        val key = f.h.toRawBits().toLong() * 1031 + (depth * 1000f).toLong()
+        if (key != laneKey) { laneCount = 0; laneKey = key }
+        for (i in 0 until laneCount) if (laneColors[i] == color) return laneShaders[i]!!
+        val stops = FloatArray(18)
+        val colors = IntArray(18)
+        val full = alpha(color, 255)
+        val thin = alpha(color, (255 * depth).toInt())
+        stops[0] = 0f; colors[0] = full
+        for (row in 0 until 4) {
+            val top = 0.356f + row * 0.12f
+            val bottom = top + 0.033f
+            val j = 1 + row * 4
+            stops[j] = top - 0.014f; colors[j] = full
+            stops[j + 1] = top; colors[j + 1] = thin
+            stops[j + 2] = bottom; colors[j + 2] = thin
+            stops[j + 3] = bottom + 0.014f; colors[j + 3] = full
+        }
+        stops[17] = 1f; colors[17] = full
+        val shader = LinearGradient(0f, 0f, 0f, f.h, colors, stops, Shader.TileMode.CLAMP)
+        if (laneCount < LANES) {
+            laneColors[laneCount] = color
+            laneShaders[laneCount] = shader
+            laneCount++
+        }
+        return shader
+    }
+
+    // region Specks
+
+    fun speck(cls: Int, big: Boolean, x: Float, y: Float) {
+        val b = cls * 2 + if (big) 1 else 0
+        val n = counts[b]
+        if (n >= BATCH) return
+        batches[b][n * 2] = x
+        batches[b][n * 2 + 1] = y
+        counts[b] = n + 1
+    }
+
+    /**
+     * Dots along an elliptical arc from [head] back over [sweep] degrees (negative sweeps run the
+     * other way), like a strobed exposure. A few dots turn into white or ember specks.
+     */
+    fun dottedArc(
+        f: Frame, cx: Float, cy: Float, rx: Float, ry: Float, head: Float, sweep: Float,
+        spacing: Float, seed: Int, cls: Int, big: Boolean, specks: Float = 0.12f,
+        lean: Float = 0f, pivot: Float = cy,
     ) {
-        val saved = canvas.save()
-        canvas.translate(cx, cy)
-        canvas.rotate(tilt)
-        // Pulses and drag are evaluated in this rotated frame.
-        val rad = (-tilt * PI / 180f).toFloat()
-        val cr = cos(rad); val sr = sin(rad)
-        val p = k.stroke
+        val sweepRad = sweep * DEG
+        val reach = sqrt((rx * rx + ry * ry) * 0.5f)
+        val n = (kotlin.math.abs(sweepRad) * reach / spacing).toInt().coerceIn(2, 180)
+        val step = -sweepRad / n
+        var c = cos(head * DEG)
+        var s = sin(head * DEG)
+        val cs = cos(step)
+        val ss = sin(step)
+        val bottom = f.h + 6f
+        for (j in 0 until n) {
+            // Point on the ellipse, skewed sideways by [lean] in proportion to its height above [pivot].
+            val y = cy + ry * s
+            val x = cx + rx * c + lean * (y - pivot)
+            // Rotate the unit vector one step instead of calling sin/cos per dot.
+            val nc = c * cs - s * ss
+            s = s * cs + c * ss
+            c = nc
+            if (x < -6f || x > 1006f || y < -6f || y > bottom) continue
+            val r = fraction(seed + j * 7)
+            // The tail thins out, so each trail fades away from its head; label rows thin it too.
+            if (r < j.toFloat() / n * 0.7f || (r < 0.5f && inLabelRow(y / f.h))) continue
+            val tint = fraction(seed * 3 + j)
+            val kind = when {
+                tint < specks * 0.45f -> WHITE
+                tint < specks * 0.8f -> EMBER
+                tint < specks -> if (cls == EMBER || cls == RED) BLUE else RED
+                else -> cls
+            }
+            speck(kind, big && r > 0.5f, x, y)
+        }
+    }
+
+    /** Draw and empty every batch. [gain] scales the whole layer (reveal, intensity). */
+    fun flushSpecks(canvas: Canvas, f: Frame, gain: Float, size: Float = 1f) {
+        val p = k.dots
         p.shader = null
         k.additive(p, f.night)
-        val reveal = smooth(f.reveal)
-        val ink = !f.night
-        val hotLow = 0.30f + fraction(seed * 7) * 0.05f
-        val hotHigh = 0.56f + fraction(seed * 11) * 0.04f
-        for (i in 0 until count) {
-            val s = i * 977 + seed * 131
-            val u = fraction(s + 1).pow(1.25f)
-            var r = 70f + u * reach
-            val w0 = fraction(s + 2) * 2f * PI.toFloat()
-            // Kepler-ish: angular speed falls with radius^1.5, gently.
-            val omega = 0.9f * (260f / r).pow(1.1f) * (0.8f + fraction(s + 3) * 0.4f)
-            val head = w0 + f.t * omega
-            var sweep = (30f + fraction(s + 4).pow(0.7f) * 150f) * (0.35f + reveal * 0.65f)
-
-            // Local position of the trail's head, for touch response.
-            val hx = cos(head) * r
-            val hy = sin(head) * r * flat
-            var boost = 0f
-            if (f.busy) {
-                val wx = cx + hx * cr + hy * sr  // approximate world position (rotation is small)
-                val wy = cy - hx * sr + hy * cr
-                val wave = f.wave(wx, wy, 90f)
-                val held = f.dragInfluence(wx, wy, 260f)
-                boost = wave + held * 0.8f
-                r += wave * 38f + held * 22f
-                sweep += wave * 26f
-            }
-
-            val hot = (u in hotLow..hotLow + 0.03f) || (u in hotHigh..hotHigh + 0.02f) || fraction(s + 5) < 0.03f
-            // By day the trails range from deep key ink to its pastel pigment, never toward grey.
-            val base = if (ink) when {
-                hot -> f.c2
-                fraction(s + 6) < 0.2f -> k.fieldA
-                else -> mix(f.c1, k.fieldA, fraction(s + 7) * 0.6f)
-            } else when {
-                hot -> if (!ink && fraction(s + 10) < 0.3f) mix(f.c2, Color.WHITE, 0.0f) else if (ink) f.c2 else mix(f.c2, Color.WHITE, fraction(s + 10) * 0.35f)
-                u < 0.1f -> if (ink) f.c1 else mix(f.c1, Color.WHITE, 0.5f - u * 3f)
-                fraction(s + 6) < 0.16f -> mix(f.c1, f.c2, 0.4f)  // violet crossovers
-                else -> if (ink) mix(f.c1, f.c0, fraction(s + 7) * 0.35f) else mix(f.c1, Color.WHITE, fraction(s + 7) * 0.45f)
-            }
-            val nearCore = (1f - u).pow(2.6f)
-            var a = if (ink) {
-                (46f + nearCore * 110f + (if (hot) 110f else 0f) + fraction(s + 8) * 50f) * brightness
-            } else {
-                (26f + nearCore * 105f + (if (hot) 110f else 0f) + fraction(s + 8) * 60f) * brightness
-            }
-            a = a * (0.55f + f.amount * 0.45f) * (0.25f + reveal * 0.75f) + boost * 140f
-            val width = (if (hot) 1.9f else 0.8f) + fraction(s + 9).pow(2f) * 2.2f + nearCore * 1.4f
-
-            k.rect.set(-r, -r * flat, r, r * flat)
-            val headDeg = (head * 180f / PI).toFloat()
-            p.color = base
-            p.alpha = a.toInt().coerceIn(0, 255)
-            p.strokeWidth = width
-            canvas.drawArc(k.rect, headDeg - sweep, sweep, false, p)
-            if (hot) {
-                // A brighter head on hot trails reads as the leading edge of the exposure.
-                p.alpha = (a * 0.8f).toInt().coerceIn(0, 255)
-                p.strokeWidth = width * 1.6f
-                canvas.drawArc(k.rect, headDeg - sweep * 0.2f, sweep * 0.2f, false, p)
-                if (ink) {
-                    // Second ink, offset like a riso misregistration.
-                    canvas.save()
-                    canvas.translate(2.6f, 1.8f)
-                    p.color = k.fieldB
-                    p.alpha = (a * 0.5f).toInt().coerceIn(0, 255)
-                    p.strokeWidth = width
-                    canvas.drawArc(k.rect, headDeg - sweep, sweep, false, p)
-                    canvas.restore()
-                }
-            }
+        // Gallery thumbnails draw fewer, slightly larger dots so trails still read.
+        val thumb = 1.9f - f.detail * 0.9f
+        for (b in 0 until CLASSES * 2) {
+            val n = counts[b]
+            if (n == 0) continue
+            val cls = b / 2
+            p.color = specColor(f, cls)
+            p.alpha = (specAlpha(f, cls) * gain).toInt().coerceIn(0, 255)
+            p.strokeWidth = (if (b % 2 == 1) 3.3f else 1.9f) * size * thumb
+            canvas.drawPoints(batches[b], 0, n * 2, p)
+            counts[b] = 0
         }
         k.reset(p)
-        canvas.restoreToCount(saved)
     }
 
-    private fun horizonLine(canvas: Canvas, f: Frame, y: Float, reveal: Float, strength: Float) {
-        val span = 560f * (0.15f + reveal * 0.85f)
-        if (f.night) {
-            k.glow(canvas, k.glowB, 500f, y - 6f, span * 1.7f, 46f * strength, (150 * strength).toInt(), RenderKit.Mode.SCREEN)
-            k.glow(canvas, k.glowA, 500f, y + 18f, span * 1.8f, 70f * strength, (90 * strength).toInt(), RenderKit.Mode.SCREEN)
-            val p = k.stroke
-            k.additive(p, true)
-            p.color = mix(f.c2, Color.WHITE, 0.25f); p.alpha = (200 * strength).toInt(); p.strokeWidth = 3f
-            canvas.drawLine(500f - span * 1.2f, y - 3f, 500f + span * 1.2f, y - 3f, p)
-            p.color = Color.WHITE; p.alpha = (220 * strength).toInt(); p.strokeWidth = 1.6f
-            canvas.drawLine(500f - span * 1.2f, y, 500f + span * 1.2f, y, p)
-            p.color = f.c1; p.alpha = (150 * strength).toInt(); p.strokeWidth = 2f
-            canvas.drawLine(500f - span * 1.2f, y + 4f, 500f + span * 1.2f, y + 4f, p)
-            k.reset(p)
-        } else {
-            // Daylight: the horizon is a sunrise band of the accent's pigment.
-            k.glow(canvas, k.glowB, 500f, y, span * 2f, 150f * strength, (230 * strength).toInt(), RenderKit.Mode.INK)
-            k.glow(canvas, k.glowB, 500f, y, span * 1.4f, 34f * strength, (200 * strength).toInt(), RenderKit.Mode.INK)
-            val p = k.stroke
-            k.normal(p)
-            p.color = f.c2; p.alpha = (190 * strength).toInt(); p.strokeWidth = 2.6f
-            canvas.drawLine(500f - span * 1.2f, y - 2f, 500f + span * 1.2f, y - 2f, p)
-            p.color = f.c1; p.alpha = (170 * strength).toInt(); p.strokeWidth = 1.4f
-            canvas.drawLine(500f - span * 1.2f, y + 2.5f, 500f + span * 1.2f, y + 2.5f, p)
-            k.reset(p)
-        }
+    private fun specColor(f: Frame, cls: Int): Int = if (f.night) when (cls) {
+        BLUE -> mix(f.c1, Color.WHITE, 0.12f)
+        PALE -> mix(f.c1, Color.WHITE, 0.55f)
+        WHITE -> Color.WHITE
+        EMBER -> mix(f.c2, Color.WHITE, 0.25f)
+        RED -> f.c2
+        else -> mix(f.c1, f.c0, 0.35f)
+    } else when (cls) {
+        BLUE, PALE, DEEP -> f.c1
+        WHITE -> mix(f.c1, Color.BLACK, 0.2f)
+        else -> f.c2
     }
 
-    /** Pinpoint stars, each twinkling on its own phase. Day mode prints them as fine ink specks. */
-    private fun stars(canvas: Canvas, f: Frame, count: Int, top: Float, bottom: Float, depth: Float) {
-        val p = k.fill
-        p.shader = null
-        k.normal(p)
-        val n = (count * (0.5f + f.detail * 0.5f)).toInt()
-        val reveal = smooth(f.reveal * 1.4f)
+    private fun specAlpha(f: Frame, cls: Int): Float = if (f.night) when (cls) {
+        BLUE -> 160f; PALE -> 180f; WHITE -> 230f; EMBER -> 215f; RED -> 190f; else -> 110f
+    } else when (cls) {
+        BLUE -> 170f; PALE -> 105f; WHITE -> 225f; EMBER -> 210f; RED -> 160f; else -> 70f
+    }
+
+    // endregion
+
+    // region Sky
+
+    /**
+     * Dust and stars between [top] and [bottom], batched by color. Each one twinkles on its own
+     * phase by stepping between a dim and a bright batch. [avoidLabels] thins them in label rows.
+     */
+    fun stars(f: Frame, count: Int, top: Float, bottom: Float, depth: Float, avoidLabels: Boolean = true) {
+        val n = (count * (0.45f + f.detail * 0.55f)).toInt()
+        if (smooth(f.reveal * 1.6f - 0.2f) <= 0.02f) return
         for (i in 0 until n) {
             val x = fraction(i * 13 + 7) * 1040f - 20f + f.shiftX(depth)
             val y = top + fraction(i * 29 + 3) * (bottom - top) + f.shiftY(depth)
-            val twinkle = 0.55f + 0.45f * sin(f.t * (1.2f + fraction(i + 99) * 2.5f) + i)
-            val size = 0.7f + fraction(i * 5 + 1).pow(3f) * 2.4f
+            if (avoidLabels && inLabelRow(y / f.h) && fraction(i * 41) < 0.6f) continue
+            val twinkle = sin(t * (0.9f + fraction(i + 99) * 2.6f) + i * 1.7f)
             val tint = fraction(i * 3 + 11)
-            p.color = if (f.night) when {
-                tint < 0.08f -> f.c2
-                tint < 0.22f -> f.c1
-                else -> Color.WHITE
-            } else if (tint < 0.15f) f.c2 else f.c1
-            val boost = if (f.busy) f.wave(x, y, 70f) else 0f
-            p.alpha = ((if (f.night) 200f else 120f) * twinkle * reveal + boost * 150f).toInt().coerceIn(0, 255)
-            canvas.drawCircle(x, y, size * (1f + boost * 0.8f), p)
+            val big = fraction(i * 5 + 1) > 0.9f
+            val boost = if (f.pulses > 0) f.wave(x, y, 70f) else 0f
+            val cls = when {
+                boost > 0.3f -> WHITE
+                tint < 0.07f -> EMBER
+                tint < 0.11f -> RED
+                tint < 0.3f -> BLUE
+                twinkle > 0.35f -> WHITE
+                else -> if (f.night) DEEP else PALE
+            }
+            speck(cls, big, x, y)
         }
-        p.alpha = 255
     }
 
-    // endregion
-
-    // region Threshold
-
-    private fun threshold(canvas: Canvas, f: Frame) {
-        val h = f.h
-        val horizon = h * 0.79f
-        val reveal = smooth(f.reveal)
-        stars(canvas, f, 260, 0f, horizon - h * 0.25f, 0.2f)
-
-        // A pale bowl of light rising from the horizon behind the figure; the floor stays dark.
-        val sky = canvas.save()
-        canvas.clipRect(-50f, -50f, 1050f, horizon)
-        if (f.night) {
-            k.glow(canvas, k.glowA, 500f, horizon, 820f, h * 0.26f, (95 * reveal).toInt(), RenderKit.Mode.SCREEN)
-            k.glow(canvas, k.glowWhite, 500f, horizon, 380f, h * 0.06f, (150 * reveal).toInt(), RenderKit.Mode.SCREEN)
-        } else {
-            // A cool key-colored sky over a warm dawn dome rising from the horizon.
-            k.glow(canvas, k.glowA, 500f, horizon - h * 0.3f, 1100f, h * 0.36f, (130 * reveal).toInt(), RenderKit.Mode.INK)
-            k.glow(canvas, k.glowB, 500f, horizon, 900f, h * 0.3f, (235 * reveal).toInt(), RenderKit.Mode.INK)
-        }
-        canvas.restoreToCount(sky)
-        if (f.night) k.glow(canvas, k.glowA, 500f, horizon, 700f, h * 0.035f, (60 * reveal).toInt(), RenderKit.Mode.SCREEN)
-
-        // Rings of dots sag toward the horizon, wider and slower as they rise.
-        val rings = (44 * (0.6f + f.detail * 0.4f)).toInt()
-        val p = k.dots
-        k.additive(p, f.night)
-        val cx = 500f + f.shiftX(0.7f)
-        for (ring in 0 until rings) {
-            val q = ring / (rings - 1f)
-            val y0 = horizon - 14f - q.pow(1.3f) * h * 0.55f + f.shiftY(0.5f * q)
-            val rx = 560f + q * 820f
-            val sag = 30f + q * 210f
-            val speed = 0.06f + (1f - q) * 0.22f
-            val dotsOnRing = (PI.toFloat() * rx / (if (f.detail > 0.6f) 10f else 18f)).toInt()
-            var bright = 0
-            var dim = 0
-            var hot = 0
-            val gap = PI.toFloat() / dotsOnRing
-            val phase = f.t * speed * (if (ring % 2 == 0) 1f else -1f)
-            for (d in 0 until dotsOnRing) {
-                val ang = d * gap + (phase % gap)
-                val x = cx + cos(ang) * rx
-                if (x < -20f || x > 1020f) continue
-                val y = y0 + sin(ang) * sag - (1f - sin(ang)) * 0f
-                val seed = ring * 389 + d
-                // Dots blink in and out like distant traffic.
-                if (fraction(seed + (f.t * 0.8f + fraction(seed) * 9f).toInt() * 7919) < 0.12f) continue
-                val wave = if (f.busy) f.wave(x, y, 70f) + f.dragInfluence(x, y, 200f) else 0f
-                val chance = fraction(seed * 3 + 1)
-                when {
-                    wave > 0.25f || chance < 0.05f -> if (bright < 400) { points[bright * 2] = x; points[bright * 2 + 1] = y; bright++ }
-                    chance < 0.11f -> if (hot < 300) { points[1600 + hot * 2] = x; points[1600 + hot * 2 + 1] = y; hot++ }
-                    else -> if (dim < 600) { points[2800 + dim * 2] = x; points[2800 + dim * 2 + 1] = y; dim++ }
-                }
-            }
-            val nearFade = smooth(q * 4f)  // closest rings melt into the glow
-            val ringAlpha = ((if (f.night) 120f + (1f - q) * 135f else 150f + (1f - q) * 140f) * reveal * (0.55f + f.amount * 0.45f) * (0.4f + nearFade * 0.6f)).toInt()
-            // Thumbnails draw fewer, larger dots so the rings still read at gallery size.
-            p.strokeWidth = (2.1f + (1f - q) * 2.2f) * (1.9f - f.detail * 0.9f) * (if (f.night) 1f else 1.2f)
-            p.color = mix(f.c1, if (f.night) Color.WHITE else f.c1, 0.3f + (1f - q) * 0.4f)
-            p.alpha = ringAlpha
-            if (dim > 0) canvas.drawPoints(points, 2800, dim * 2, p)
-            p.color = f.c2
-            p.alpha = (ringAlpha * 1.2f).toInt().coerceAtMost(255)
-            if (hot > 0) canvas.drawPoints(points, 1600, hot * 2, p)
-            p.color = if (f.night) Color.WHITE else f.c1
-            p.alpha = (ringAlpha * 1.5f).toInt().coerceIn(0, 255)
-            p.strokeWidth *= 1.25f
-            if (bright > 0) canvas.drawPoints(points, 0, bright * 2, p)
-            // A faint continuous trace under the dots gives each ring its line.
-            if (ring % 3 == 0) {
-                k.stroke.color = f.c1
-                k.additive(k.stroke, f.night)
-                k.stroke.alpha = (ringAlpha * 0.3f).toInt()
-                k.stroke.strokeWidth = 1.2f
-                k.rect.set(cx - rx, y0 - sag, cx + rx, y0 + sag)
-                canvas.drawArc(k.rect, 0f, 180f, false, k.stroke)
-                k.reset(k.stroke)
-            }
-        }
-        k.reset(p)
-
-        horizonLine(canvas, f, horizon, reveal, 0.85f)
-        floor(canvas, f, horizon)
-        // Each tap sends a shockwave across the ground plane, foreshortened by perspective.
-        if (f.pulses > 0) {
-            val s = k.stroke
-            k.additive(s, f.night)
-            for (i in 0 until f.pulses) {
-                val r = f.pulseR[i] * 0.9f
-                k.rect.set(f.pulseX[i] - r, horizon + 30f - r * 0.12f, f.pulseX[i] + r, horizon + 30f + r * 0.12f)
-                s.color = f.c1; s.strokeWidth = 5f; s.alpha = (f.pulseA[i] * 200f).toInt().coerceIn(0, 255)
-                canvas.drawOval(k.rect, s)
-                s.color = if (f.night) Color.WHITE else f.c2; s.strokeWidth = 1.6f
-                canvas.drawOval(k.rect, s)
-            }
-            k.reset(s)
-        }
-        val stride = sin(f.t * 3.1f) * if (f.amount > 0f && f.t != 0f) 1f else 0f
-        k.figure(canvas, 500f + f.shiftX(1f), horizon + 1f, 28f,
-            if (f.night) 0xFF000000.toInt() else alpha(f.c1, 240), stride)
-    }
-
-    /** A perspective field of dots below the horizon, drifting slowly toward the viewer. */
-    private fun floor(canvas: Canvas, f: Frame, horizon: Float) {
-        val p = k.dots
-        k.additive(p, f.night)
-        val travel = (f.t * 0.12f) % 1f
-        val rows = 14
-        for (row in 0 until rows) {
-            val z = (row + 1f - travel) / rows
-            val y = horizon + z.pow(1.9f) * (f.h - horizon) * 1.05f
-            if (y > f.h + 10f) continue
-            val spread = 40f + z * 520f
-            var n = 0
-            for (col in -14..14) {
-                val x = 500f + col * spread * 0.16f + f.shiftX(1.2f) * z
-                if (x < -10f || x > 1010f) continue
-                points[n * 2] = x; points[n * 2 + 1] = y; n++
-            }
-            p.strokeWidth = 1.4f + z * 5.5f
-            p.color = if (row % 4 == 1) f.c2 else f.c1
-            // Keep the dock area calm: the floor dims as it approaches the viewer.
-            p.alpha = ((if (f.night) 120f else 80f) * (1f - z * 0.75f) * smooth(f.reveal)).toInt()
-            canvas.drawPoints(points, 0, n * 2, p)
-        }
-        k.reset(p)
-    }
-
-    // endregion
-
-    // region Ringfall
-
-    private fun ringfall(canvas: Canvas, f: Frame) {
-        val h = f.h
-        val reveal = smooth(f.reveal)
-        stars(canvas, f, 200, 0f, h, 0.2f)
-        val cx = 420f + f.shiftX(0.6f)
-        val cy = h * 0.47f + f.shiftY(0.6f)
-        val radius = 300f
-        // Drag tilts the ring plane.
-        val tilt = -16f + (f.dragX - 500f) / 500f * 14f * f.drag
-        val flat = 0.82f - (f.dragY / h - 0.5f) * 0.3f * f.drag
-        trails(canvas, f, cx, cy, flat, tilt, (1500 * f.detail).toInt(), 53, 0.9f, 1500f)
-
-        // The planet itself: an occluding disc of ground with a faintly lit face.
-        val p = k.fill
-        p.shader = null
-        k.normal(p)
-        p.color = f.c0
-        canvas.drawCircle(cx, cy, radius, p)
-        k.glow(canvas, k.glowA, cx + radius * 0.5f, cy - radius * 0.1f, radius * 0.9f, radius * 0.9f,
-            if (f.night) 16 else 26, if (f.night) RenderKit.Mode.SCREEN else RenderKit.Mode.INK)
-
-        // The burning rim: layered arcs from wide haze to a white-hot core.
-        val flare = f.wave(cx + radius, cy, 160f).coerceAtMost(1.2f)
-        val sweep = 150f * (0.2f + reveal * 0.8f)
-        val start = -70f + (150f - sweep) / 2f
-        k.rect.set(cx - radius, cy - radius, cx + radius, cy + radius)
+    /** A meteor every [period] seconds of animation time, burning out in under a second. */
+    fun meteor(canvas: Canvas, f: Frame, period: Float, offset: Float, top: Float, bottom: Float) {
+        val cycle = ((t + offset) / period).toInt()
+        val p = ((t + offset) % period) / 0.22f
+        if (t <= 0f || p >= 1f) return
+        val sx = 120f + fraction(cycle * 31 + 5) * 760f
+        val sy = top + fraction(cycle * 17 + 2) * (bottom - top)
+        val dir = if (fraction(cycle * 7) < 0.5f) -1f else 1f
+        val travel = 260f * p
+        val hx = sx + dir * travel * 0.92f
+        val hy = sy + travel * 0.38f
+        val life = sin(p * PI.toFloat())
         val s = k.stroke
         k.additive(s, f.night)
-        val layers = if (f.night) arrayOf(
-            Triple(f.c1, 42f, 26), Triple(f.c2, 20f, 70), Triple(f.c2, 9f, 150), Triple(mix(f.c2, Color.WHITE, 0.55f), 4f, 210), Triple(Color.WHITE, 1.8f, 255),
-        ) else arrayOf(
-            Triple(f.c2, 16f, 50), Triple(f.c2, 5f, 150), Triple(f.c1, 1.6f, 200),
-        )
-        for ((color, width, alphaValue) in layers) {
-            s.color = color
-            s.alpha = (alphaValue * (0.6f + reveal * 0.4f) + flare * 60f).toInt().coerceIn(0, 255)
-            s.strokeWidth = width * (1f + flare * 0.6f)
-            canvas.drawArc(k.rect, start, sweep, false, s)
-        }
-        k.reset(s)
-
-        // A thin planetary limb near the bottom, kept dim so the dock stays readable.
-        k.rect.set(-900f, h * 0.885f, 1900f, h * 0.885f + 2600f)
-        s.color = if (f.night) f.c1 else f.c1
-        k.additive(s, f.night)
-        s.alpha = (if (f.night) 110 else 120)
-        s.strokeWidth = 1.6f
-        canvas.drawArc(k.rect, 205f, 130f, false, s)
+        s.color = if (f.night) mix(f.c1, Color.WHITE, 0.5f) else f.c1
+        s.alpha = (life * 110f).toInt()
+        s.strokeWidth = 2.6f
+        canvas.drawLine(hx - dir * 90f * 0.92f, hy - 90f * 0.38f, hx, hy, s)
+        s.color = if (f.night) Color.WHITE else f.c2
+        s.alpha = (life * 220f).toInt()
+        s.strokeWidth = 1.1f
+        canvas.drawLine(hx - dir * 40f * 0.92f, hy - 40f * 0.38f, hx, hy, s)
         k.reset(s)
     }
 
     // endregion
+
+    // region Gestures
+
+    /**
+     * The finger's wake, drawn as a streak of light that is captured into orbit as it fades:
+     * older points are swung around ([cx], [cy]) on an ellipse of flatness [flat], faster
+     * when closer, in direction [turn] (+1 clockwise on screen).
+     */
+    fun wake(canvas: Canvas, f: Frame, cx: Float, cy: Float, flat: Float, turn: Float) {
+        val n = f.trail
+        if (n < 2) return
+        for (i in 0 until n) {
+            val age = 1f - f.trailA[i]
+            val dx = f.trailX[i] - cx
+            val dy = (f.trailY[i] - cy) / flat
+            val r = sqrt(dx * dx + dy * dy)
+            val swing = turn * age * age * 1.9f * (380f / max(r, 160f)).pow(0.7f)
+            val a = atan2(dy, dx) + swing
+            val rr = r * (1f - age * 0.12f)
+            wakeX[i] = cx + cos(a) * rr
+            wakeY[i] = cy + sin(a) * rr * flat
+        }
+        val s = k.stroke
+        k.additive(s, f.night)
+        val hot = if (f.night) Color.WHITE else f.c2
+        val cool = if (f.night) f.c1 else f.c1
+        // A soft halo under the streak, then the hot core; color cools as the light ages.
+        for (pass in 0 until 2) {
+            for (i in 1 until n) {
+                val a = f.trailA[i]
+                if (a < 0.02f) continue
+                s.color = if (pass == 0) cool else mix(cool, hot, a)
+                s.alpha = if (pass == 0) (a * (if (f.night) 70f else 60f)).toInt() else (a * (if (f.night) 240f else 210f)).toInt()
+                s.strokeWidth = if (pass == 0) 6f + a * 16f else 1.2f + a * 4.2f
+                canvas.drawLine(wakeX[i - 1], wakeY[i - 1], wakeX[i], wakeY[i], s)
+            }
+        }
+        if (!f.night) {
+            // Second ink, misregistered, so the day wake prints like the trails.
+            s.color = f.c1
+            for (i in 1 until n) {
+                val a = f.trailA[i]
+                s.alpha = (a * 120f).toInt()
+                s.strokeWidth = 1f + a * 2.5f
+                canvas.drawLine(wakeX[i - 1] + 3f, wakeY[i - 1] + 2f, wakeX[i] + 3f, wakeY[i] + 2f, s)
+            }
+        }
+        k.reset(s)
+        // Sparks shed along the wake drift outward as they cool.
+        for (i in 0 until n) {
+            val a = f.trailA[i]
+            for (j in 0 until 3) {
+                val seed = i * 31 + j * 7
+                val spread = (1f - a) * 46f + 4f
+                val x = wakeX[i] + (fraction(seed) - 0.5f) * spread * 2f
+                val y = wakeY[i] + (fraction(seed + 3) - 0.5f) * spread
+                if (fraction(seed + 5) > a + 0.15f) continue
+                speck(if (j == 0) WHITE else if (j == 1) EMBER else PALE, a > 0.6f, x, y)
+            }
+        }
+        val head = n - 1
+        k.glow(canvas, k.glowWhite, f.trailX[head], f.trailY[head], 40f, 40f,
+            (f.trailA[head] * f.drag * 150f).toInt(), if (f.night) RenderKit.Mode.SCREEN else RenderKit.Mode.INK)
+    }
+
+    /**
+     * A finger resting still gathers light: specks spiral in on the orbit plane (flatness
+     * [flat]) and a small bright accretion ring tightens as [Frame.charge] builds.
+     */
+    fun gather(canvas: Canvas, f: Frame, flat: Float) {
+        val c = f.charge
+        if (f.drag < 0.02f) return
+        val x0 = f.dragX
+        val y0 = f.dragY
+        val mode = if (f.night) RenderKit.Mode.SCREEN else RenderKit.Mode.INK
+        k.glow(canvas, k.glowA, x0, y0, 70f + c * 120f, (70f + c * 120f) * 0.7f, ((0.25f + c) * 70f * f.drag).toInt(), mode)
+        if (c < 0.01f) return
+        k.glow(canvas, k.glowWhite, x0, y0, 16f + c * 34f, 16f + c * 34f, (c * 230f).toInt(), mode)
+        val count = 64
+        for (i in 0 until count) {
+            val p = (f.now * (0.45f + fraction(i * 7) * 0.5f) + fraction(i * 13)) % 1f
+            val r = (50f + fraction(i * 3) * 300f) * (1f - p).pow(1.6f) * (0.4f + c * 0.6f)
+            val a = fraction(i * 5) * 2f * PI.toFloat() + p * 3.2f
+            if (fraction(i * 11 + 1) > c * 1.2f) continue
+            speck(if (p > 0.7f) WHITE else if (i % 5 == 0) EMBER else PALE, p > 0.82f,
+                x0 + cos(a) * r, y0 + sin(a) * r * flat)
+        }
+        val s = k.stroke
+        k.additive(s, f.night)
+        val r = 24f + (1f - c) * 40f + sin(f.now * 7f) * 2f
+        k.rect.set(x0 - r, y0 - r * flat, x0 + r, y0 + r * flat)
+        s.color = if (f.night) f.c2 else f.c2
+        s.alpha = (c * 150f).toInt()
+        s.strokeWidth = 4f
+        canvas.drawOval(k.rect, s)
+        s.color = if (f.night) Color.WHITE else f.c1
+        s.alpha = (c * 230f).toInt()
+        s.strokeWidth = 1.4f
+        canvas.drawOval(k.rect, s)
+        k.reset(s)
+    }
+
+    /**
+     * Each pulse as a shock ring lying in the orbit plane, with chromatic fringes. Charged
+     * bursts (power above 1) add a second, trailing ring.
+     */
+    fun shockRings(canvas: Canvas, f: Frame, flat: Float) {
+        if (f.pulses == 0) return
+        val s = k.stroke
+        k.additive(s, f.night)
+        for (i in 0 until f.pulses) {
+            val a = f.pulseA[i].coerceAtMost(1.5f)
+            val rings = if (a > 1f) 2 else 1
+            for (ring in 0 until rings) {
+                val r = f.pulseR[i] * (1f - ring * 0.28f)
+                if (r < 6f) continue
+                val fade = a * (1f - ring * 0.35f)
+                for (layer in 0 until 3) {
+                    val rr = r + (layer - 1) * 7f
+                    k.rect.set(f.pulseX[i] - rr, f.pulseY[i] - rr * flat, f.pulseX[i] + rr, f.pulseY[i] + rr * flat)
+                    s.color = when (layer) {
+                        0 -> f.c1
+                        1 -> if (f.night) Color.WHITE else f.c1
+                        else -> f.c2
+                    }
+                    s.alpha = (fade * if (layer == 1) 210f else 120f).toInt().coerceIn(0, 255)
+                    s.strokeWidth = if (layer == 1) 2f + a * 1.5f else 3.5f
+                    canvas.drawOval(k.rect, s)
+                }
+            }
+        }
+        k.reset(s)
+    }
+
+    /** How hot the scene's light source should burn right now: held charge plus fresh bursts. */
+    fun heat(f: Frame): Float {
+        var flash = 0f
+        for (i in 0 until f.pulses) flash += f.pulseA[i] * exp(-f.pulseR[i] / 420f)
+        return (f.charge * 0.8f + flash * 0.9f).coerceAtMost(1.6f)
+    }
+
+    /**
+     * The little figure with a shadow along ([shadowX], [shadowY]) in ground units of its height,
+     * lengthening with [heat]. A pulse nearby throws a second shadow, as if lit by the flash.
+     */
+    fun figure(canvas: Canvas, f: Frame, x: Float, y: Float, height: Float, shadowX: Float, shadowY: Float, heat: Float = 0f) {
+        val color = if (f.night) 0xFF010204.toInt() else alpha(mix(f.c1, Color.BLACK, 0.35f), 240)
+        val shade = if (f.night) 0xB0000000.toInt() else alpha(f.c1, 90)
+        val s = k.stroke
+        k.normal(s)
+        s.shader = null
+        s.color = shade
+        s.strokeWidth = height * 0.09f
+        val len = height * (1f + heat * 0.8f)
+        canvas.drawLine(x, y, x + shadowX * len, y + shadowY * len, s)
+        for (i in 0 until f.pulses) {
+            val dx = x - f.pulseX[i]
+            val dy = y - f.pulseY[i]
+            val d = sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
+            val lit = f.pulseA[i] * exp(-((d - f.pulseR[i]) / 140f).let { it * it })
+            if (lit < 0.03f) continue
+            s.alpha = (lit * 200f).toInt().coerceIn(0, 255)
+            s.strokeWidth = height * 0.08f
+            val len = height * (1.2f + lit * 1.8f)
+            canvas.drawLine(x, y, x + dx / d * len, y + dy / d * len * 0.25f, s)
+        }
+        k.reset(s)
+        k.figure(canvas, x, y, height, color)
+    }
+
+    // endregion
+
+    companion object {
+        const val BLUE = 0
+        const val PALE = 1
+        const val WHITE = 2
+        const val EMBER = 3
+        const val RED = 4
+        const val DEEP = 5
+        const val CLASSES = 6
+        const val BATCH = 3200
+        const val LANES = 32
+        const val PACE = 0.45f
+        const val DEG = (PI / 180.0).toFloat()
+
+        /** Label strips of a 4x4 launcher grid, as fractions of the height (with a small margin). */
+        fun inLabelRow(v: Float): Boolean {
+            for (row in 0 until 4) {
+                val top = 0.355f + row * 0.12f
+                if (v > top && v < top + 0.035f) return true
+            }
+            return false
+        }
+    }
 }

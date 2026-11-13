@@ -1,5 +1,7 @@
 # Phosphor design system
 
+[Documentation index](README.md) · [Design decisions](DESIGN_PRINCIPLES.md) · [Contributing](../CONTRIBUTING.md)
+
 **Night is light, day is color.** Every wallpaper is one scene with two treatments. At night it is emitted light on a deep, tinted ground, drawn additively so overlapping strokes build up like a long exposure. By day it is the same scene in daylight: luminous pastel color fields (the accents lifted in lightness, same hue) on two-tone paper, with crisp ink lines on top. Day never multiplies translucent ink over paper, which only ever reads as grey.
 
 The app chrome is a gallery wall: near-neutral graphite or paper, so the wallpapers carry all the color.
@@ -68,11 +70,11 @@ The wallpapers' own motion is described under Interaction below. The app respect
 
 Twenty-four-dp vector glyphs in `res/drawable/ic_*.xml`: 1.75 stroke, round caps and joins, tinted at the call site. They are drawn from the brand's two motifs, the orbit and the horizon: Wake is a sun rising over a horizon line. Icons appear only where a word would crowd: top-bar actions and the preview's two toggles.
 
-The launcher icon is an adaptive icon: a grain of light inside a tilted orbit over an ember horizon, on a night-sky gradient with faint long-exposure arcs. A clip path cuts a gap in the grain where the orbit's front arc passes, so the themed (monochrome) icon reads as a ringed world rather than an eye. The splash screen uses the same foreground.
+The launcher icon is an adaptive icon: a grain of light inside a tilted orbit over an ember horizon, on a night-sky gradient with faint long-exposure arcs. A clip path cuts a gap in the grain where the orbit's front arc passes, so the themed (monochrome) icon reads as a ringed world rather than an eye. The native splash screen uses a dedicated copy of the mark on Sky, without an icon plate. On Android 12+ the orbit settles through 12 degrees and the horizon draws in over 520 ms; earlier versions show the complete static mark. The first app frame starts a 160 ms exit fade, without waiting for the icon animation. The exit is immediate when Android animations are disabled or either the active wallpaper or editor draft uses Still mode. The system controls the launch icon animation before app preferences are available.
 
 ## Wallpaper readability
 
-Launcher labels are white at night and near-black by day. The service reports which, through `WallpaperColors` hints on Android 12+ and through the measured frame on earlier versions, so launchers switch label color with the treatment.
+The artwork is composed for white launcher labels at night and near-black labels by day. The service supplies `WallpaperColors` hints on Android 12+ and a measured frame on earlier versions so launchers can choose a matching label color. Whether a launcher uses those signals is device-dependent; see [Android compatibility](ANDROID_COMPATIBILITY.md).
 
 The artwork keeps labels readable by composition, not by dimming everything:
 
@@ -91,4 +93,4 @@ Wake reveal: on screen-on the artwork rises from its ground over 1.5 seconds. Tr
 
 ## Store assets
 
-`docs/store/` holds the Play icon (rendered from the adaptive icon's actual vector layers), a 1024×500 feature graphic and phone screenshots cropped to Play's 2:1 limit. Regenerate with the commands in `tools/store_assets.py`.
+[`docs/store/`](store) holds the Play icon (rendered from the adaptive icon's actual vector layers), a 1024×500 feature graphic and phone screenshots cropped to a maximum 2:1 long/short-side ratio. Regenerate them using the [preview and store asset workflow](TESTING.md#build-store-assets).

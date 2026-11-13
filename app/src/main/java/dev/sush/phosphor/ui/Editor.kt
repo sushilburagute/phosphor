@@ -215,7 +215,7 @@ private fun Controls(
             item { ToggleItem("Respond to touch", "Taps, drags and home-screen swipes move the artwork.", settings.parallax, { onChange(settings.copy(parallax = it)) }, !settings.reducedMotion) }
             item { ToggleItem("Still", "Keep the artwork, stop all animation.", settings.reducedMotion, { onChange(settings.copy(reducedMotion = it)) }) }
             item {
-                ChoiceItem("Frame rate", "30 fps balances smoothness and battery.") {
+                ChoiceItem("Frame rate", "30 fps balances smoothness and battery. The lock screen uses up to 15 fps, and animation pauses when hidden.") {
                     Segmented(listOf(15, 30, 60).map { Triple(it, "$it", null) }, settings.fps, { onChange(settings.copy(fps = it)) }, enabled = !settings.reducedMotion)
                 }
             }
@@ -229,8 +229,7 @@ private fun Controls(
             item { ToggleItem("Save battery when low", "Below 20% motion slows to 15 fps; at 5% it holds still. Battery Saver is always respected.", settings.lowBatteryMode, { onChange(settings.copy(lowBatteryMode = it)) }) }
         }
         Spacer(Modifier.height(32.dp))
-        Text("made by sush.dev", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.align(Alignment.CenterHorizontally))
+        AppAttribution(Modifier.align(Alignment.CenterHorizontally))
         Spacer(Modifier.height(8.dp))
     }
 }

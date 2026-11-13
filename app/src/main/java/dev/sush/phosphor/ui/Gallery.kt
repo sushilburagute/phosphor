@@ -137,8 +137,7 @@ fun Gallery(
                 }
                 if (category == "All") item(key = "import") { ImportPlate(ratio, onImport) }
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text("made by sush.dev", style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp), textAlign = TextAlign.Center)
+                    Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) { AppAttribution() }
                 }
             }
         }

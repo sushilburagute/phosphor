@@ -26,7 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import dev.sush.phosphor.BuildConfig
 import dev.sush.phosphor.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,13 +81,12 @@ fun SettingsScreen(
                 Group {
                     item { LinkItem("Private by design", "Drawn on your phone. Imported images stay on your phone. No account, ads, trackers or network access.") }
                     item { LinkItem("Open source", "MIT license. Typeset in Bricolage Grotesque under the SIL Open Font License 1.1.") }
-                    item { LinkItem("Version", trailing = BuildConfig.VERSION_NAME) }
                 }
                 Spacer(Modifier.height(32.dp))
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Phosphor", style = MaterialTheme.typography.titleLarge)
-                        Text("made by sush.dev", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                        AppAttribution()
                     }
                 }
             }
