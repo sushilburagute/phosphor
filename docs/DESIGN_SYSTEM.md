@@ -51,7 +51,7 @@ The wallpapers' own motion is described under Interaction below. The app respect
 
 Twenty-four-dp vector glyphs in `res/drawable/ic_*.xml`: 1.75 stroke, round caps and joins, tinted at the call site. They are drawn from the brand's two motifs, the orbit and the horizon: Explore is an orbit around a grain of light; Auto is a disc split by its horizon; Wake is a sun rising over a horizon line; Touch is a tap sending out rings.
 
-The launcher icon is an adaptive icon: a grain of light inside a tilted orbit over an ember horizon, on a night-sky gradient with faint long-exposure arcs. A clip path cuts a gap in the grain where the orbit's front arc passes, so the themed (monochrome) icon reads as a ringed world rather than an eye. The splash screen uses the same foreground.
+The launcher icon is an adaptive icon: a grain of light inside a tilted orbit over an ember horizon, on a night-sky gradient with faint long-exposure arcs. A clip path cuts a gap in the grain where the orbit's front arc passes, so the themed (monochrome) icon reads as a ringed world rather than an eye. The native splash screen uses a dedicated copy of the mark on Sky, without an icon plate. On Android 12+ the orbit settles through 12 degrees and the horizon draws in over 520 ms; earlier versions show the complete static mark. The first app frame starts a 160 ms exit fade, without waiting for the icon animation. The exit is immediate when Android animations are disabled or either the active wallpaper or editor draft uses Still mode. The system controls the launch icon animation before app preferences are available.
 
 ## Wallpaper readability
 

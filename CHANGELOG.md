@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Animate the orbit mark on the native Android 12+ splash screen and fade into the app as soon as its first frame is ready. Older Android versions show the static mark; the exit respects disabled animations and Still mode.
+
 ## 0.1.1
 
 - Remove creator branding from wallpapers, artwork previews, and exported still images.

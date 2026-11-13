@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phosphor mark: a grain of light in a tilted orbit, over a burning horizon.
+     A clipped gap lets the orbit pass in front of the grain, so it reads in depth. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="432dp" android:height="432dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:name="horizon" android:strokeColor="#FFFF6A3A" android:strokeWidth="3" android:strokeLineCap="round" android:pathData="M31,71H77" />
+    <path android:name="horizon_core" android:strokeColor="#FFFFE2D6" android:strokeWidth="1.1" android:strokeLineCap="round" android:pathData="M37,71H71" />
+    <group android:name="orbit" android:rotation="-20" android:pivotX="54" android:pivotY="52">
+        <!-- Back half of the orbit, behind the grain. -->
+        <path android:strokeWidth="3.6" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M30,52a24,7 0 0,1 48,0">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear" android:startX="30" android:startY="52" android:endX="78" android:endY="52">
+                    <item android:offset="0" android:color="#665C8DFF" />
+                    <item android:offset="1" android:color="#FFA9C0FF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <group android:name="grain">
+            <clip-path android:pathData="M-40,-40H148V148H-40Z M26,52A28,10.5 0 0,0 82,52L76.5,52A22.5,4.5 0 0,1 31.5,52Z" />
+            <path android:pathData="M54,52m-8.5,0a8.5,8.5 0 1,1 17,0a8.5,8.5 0 1,1 -17,0">
+                <aapt:attr name="android:fillColor">
+                    <gradient android:type="radial" android:centerX="51" android:centerY="48.5" android:gradientRadius="11">
+                        <item android:offset="0" android:color="#FFFFFFFF" />
+                        <item android:offset="0.55" android:color="#FFD7E1FF" />
+                        <item android:offset="1" android:color="#FF7D9CFF" />
+                    </gradient>
+                </aapt:attr>
+            </path>
+        </group>
+        <!-- Front half, crossing the grain through the gap. -->
+        <path android:strokeWidth="3.6" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M78,52a24,7 0 0,1 -48,0">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear" android:startX="78" android:startY="52" android:endX="30" android:endY="52">
+                    <item android:offset="0" android:color="#FFA9C0FF" />
+                    <item android:offset="1" android:color="#FFFFFFFF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
+</vector>
