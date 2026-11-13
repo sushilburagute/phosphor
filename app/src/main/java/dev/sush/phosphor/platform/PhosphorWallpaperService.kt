@@ -1,5 +1,7 @@
 package dev.sush.phosphor.platform
 
+import android.animation.ValueAnimator
+import android.app.KeyguardManager
 import android.app.WallpaperColors
 import android.app.WallpaperManager
 import android.app.wallpaper.WallpaperDescription
@@ -8,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
+import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Build
@@ -16,6 +19,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import android.provider.Settings
 import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.MotionEvent
@@ -25,6 +29,7 @@ import androidx.annotation.RequiresApi
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.render.TouchField
+import dev.sush.phosphor.render.WallpaperMotion
 import dev.sush.phosphor.render.WallpaperRenderer
 
 class PhosphorWallpaperService : WallpaperService() {
@@ -48,14 +53,20 @@ class PhosphorWallpaperService : WallpaperService() {
         private val touch = TouchField()
         private val store = SettingsStore(this@PhosphorWallpaperService)
         private val powerManager = getSystemService(PowerManager::class.java)
+        private val keyguard = getSystemService(KeyguardManager::class.java)
+        private val interaction = WallpaperMotion()
+        private val lockReveal = WallpaperReveal()
         private var settings = WallpaperSettings()
-        private var power = PowerState()
+        private var battery = WallpaperBatteryState()
         private var night = true
         private var surfaceReady = false
         private var visible = false
         private var destroyed = false
         private val ambient: Boolean get() = !powerManager.isInteractive
         private var receiverRegistered = false
+        private var animationObserverRegistered = false
+        private var pendingWake = !powerManager.isInteractive
+        private var userPresent = false
         private var hardwareCanvas = true
         private var width = 1
         private var height = 1
@@ -68,19 +79,31 @@ class PhosphorWallpaperService : WallpaperService() {
         private val frame = Runnable { drawFrame() }
         private val colorUpdate = Runnable { if (!destroyed) notifyColorsChanged() }
         private val settingsListener: () -> Unit = { refreshSettings() }
+        private val animationObserver = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean) { restartFrames() }
+        }
         private val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 when (intent?.action) {
                     Intent.ACTION_BATTERY_CHANGED -> {
-                        val next = PowerState.from(intent, powerManager.isPowerSaveMode)
-                        if (next == power) return
-                        power = next
+                        val next = WallpaperPowerPolicy.fromIntent(intent)
+                        if (next == battery) return
+                        battery = next
                     }
-                    PowerManager.ACTION_POWER_SAVE_MODE_CHANGED -> power = power.copy(batterySaver = powerManager.isPowerSaveMode)
+                    Intent.ACTION_SCREEN_OFF -> {
+                        pendingWake = true
+                        userPresent = false
+                        interaction.reset()
+                        touch.clear()
+                        lockReveal.transitionTo(locked = true, animate = false, now = SystemClock.uptimeMillis())
+                    }
                     // Wake: the artwork ignites from its ground, if the person wants that.
-                    Intent.ACTION_SCREEN_ON -> if (settings.wakeReveal && !settings.reducedMotion) revealStart = SystemClock.uptimeMillis()
+                    Intent.ACTION_SCREEN_ON -> { pendingWake = true; userPresent = false }
                     // Unlock: a bloom rises from where the unlock gesture usually ends.
-                    Intent.ACTION_USER_PRESENT -> if (settings.wakeReveal && !settings.reducedMotion) touch.tap(0.5f, 0.9f, seconds(), 1.2f)
+                    Intent.ACTION_USER_PRESENT -> {
+                        userPresent = true
+                        if (settings.wakeReveal && motionEnabled() && !powerProfile().energySaving) touch.tap(0.5f, 0.9f, seconds(), 1.2f)
+                    }
                 }
                 restartFrames()
             }
@@ -105,8 +128,12 @@ class PhosphorWallpaperService : WallpaperService() {
                 @Suppress("UnspecifiedRegisterReceiverFlag")
                 registerReceiver(receiver, filter)
             }
-            power = PowerState.from(sticky, powerManager.isPowerSaveMode)
+            battery = WallpaperPowerPolicy.fromIntent(sticky)
             receiverRegistered = true
+            contentResolver.registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE), false, animationObserver,
+            )
+            animationObserverRegistered = true
         }
 
         private fun currentSettings(): WallpaperSettings = if (isPreview) store.loadPreview() else store.load()
@@ -141,7 +168,7 @@ class PhosphorWallpaperService : WallpaperService() {
 
         override fun onVisibilityChanged(visible: Boolean) {
             this.visible = visible
-            if (!visible) touch.release()
+            if (!visible) { touch.clear(); interaction.reset() }
             restartFrames()
         }
 
@@ -179,6 +206,8 @@ class PhosphorWallpaperService : WallpaperService() {
             surfaceReady = false
             handler.removeCallbacks(frame)
             lastFrame = 0L
+            touch.clear()
+            interaction.reset()
             super.onSurfaceDestroyed(holder)
         }
 
@@ -187,21 +216,28 @@ class PhosphorWallpaperService : WallpaperService() {
             xPixelOffset: Int, yPixelOffset: Int,
         ) {
             scrollX = (xOffset.coerceIn(0f, 1f) - 0.5f) * 2f
-            if (interactive()) restartFrames()
+            if (interactive()) requestFrame()
         }
 
-        private fun interactive() = settings.parallax && !settings.reducedMotion && !ambient
+        private fun motionEnabled() = !settings.reducedMotion && !ambient && ValueAnimator.areAnimatorsEnabled()
+
+        private fun powerProfile() = WallpaperPowerPolicy.resolve(
+            settings, powerManager.isPowerSaveMode, battery.percent, battery.charging,
+        )
+
+        private fun interactive() = visible && settings.parallax && motionEnabled() && powerProfile().motionScale > 0f
 
         override fun onTouchEvent(event: MotionEvent) {
             if (!interactive()) return
             val x = event.x / width
             val y = event.y / height
+            interaction.onTouch(event.actionMasked, x, y)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { touch.press(x, y); touch.tap(x, y, seconds(), 0.7f) }
                 MotionEvent.ACTION_MOVE -> touch.move(x, y)
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> touch.release()
             }
-            restartFrames()
+            requestFrame()
         }
 
         /** Launchers report taps on empty space and icon drops as commands, not touches. */
@@ -211,7 +247,7 @@ class PhosphorWallpaperService : WallpaperService() {
                     WallpaperManager.COMMAND_TAP, WallpaperManager.COMMAND_SECONDARY_TAP -> touch.tap(x.toFloat() / width, y.toFloat() / height, seconds())
                     WallpaperManager.COMMAND_DROP -> touch.tap(x.toFloat() / width, y.toFloat() / height, seconds(), 1.3f)
                 }
-                restartFrames()
+                requestFrame()
             }
             return super.onCommand(action, x, y, z, extras, resultRequested)
         }
@@ -219,6 +255,13 @@ class PhosphorWallpaperService : WallpaperService() {
         private fun restartFrames() {
             handler.removeCallbacks(frame)
             lastFrame = 0L
+            if (!interactive()) { interaction.reset(); touch.clear() }
+            if (visible && surfaceReady && !destroyed) handler.post(frame)
+        }
+
+        /** Touches request a frame without resetting the elapsed animation clock. */
+        private fun requestFrame() {
+            handler.removeCallbacks(frame)
             if (visible && surfaceReady && !destroyed) handler.post(frame)
         }
 
@@ -233,29 +276,42 @@ class PhosphorWallpaperService : WallpaperService() {
             handler.removeCallbacks(frame)
             if (destroyed || !surfaceReady || (!visible && !force)) return
             val now = SystemClock.uptimeMillis()
-            val budget = PowerPolicy.budget(settings, power)
-            val motion = !budget.still && !ambient
-            if (lastFrame != 0L && motion) phase += ((now - lastFrame).coerceAtMost(100L) / 1000f) * settings.speed * budget.motion
+            val profile = powerProfile()
+            val motion = motionEnabled() && profile.motionScale > 0f
+            val delta = if (lastFrame == 0L) 0f else (now - lastFrame).coerceIn(0L, 100L) / 1000f
+            if (motion) phase += delta * settings.speed * profile.motionScale
             lastFrame = now
-            val reveal = if (ambient) 0f else reveal(now)
+            if (visible) {
+                val locked = !isPreview && (ambient || (!userPresent && keyguard.isKeyguardLocked))
+                lockReveal.transitionTo(locked, settings.unlockAnimation && motion && !profile.energySaving,
+                    now, wake = pendingWake && !ambient)
+                if (pendingWake && !ambient) {
+                    if (settings.wakeReveal && motion && !profile.energySaving) revealStart = now
+                    pendingWake = false
+                }
+            }
+            val reveal = if (motion && settings.wakeReveal) reveal(now) else 1f
+            val response = if (motion && settings.parallax) interaction.advance(delta) else null
             var canvas: Canvas? = null
             try {
                 if (!surfaceHolder.surface.isValid) return
                 canvas = lock()
                 if (canvas != null) {
                     // Phase already includes speed; a critical battery simply stops advancing it, freezing in place.
-                    var drawSettings = settings.copy(speed = 1f)
+                    var drawSettings = settings.copy(speed = 1f, reducedMotion = settings.reducedMotion || !ValueAnimator.areAnimatorsEnabled())
                     if (ambient) drawSettings = drawSettings.copy(darken = maxOf(settings.darken, 0.65f))
                     renderer.draw(
                         canvas, width, height, phase,
                         WallpaperCatalog.find(settings.presetId), drawSettings,
-                        if (settings.parallax && motion) scrollX * 0.8f + (touch.dragX - 0.5f) * 0.4f * touch.drag else 0f,
-                        if (settings.parallax && motion) (touch.dragY - 0.5f) * 0.4f * touch.drag else 0f,
+                        if (settings.parallax && motion) scrollX * 0.65f else 0f,
+                        0f,
                         bottomInsetPixels = bottomInsetPixels,
                         night = night,
-                        touch = if (motion || touch.isActive(now / 1000f)) touch else null,
+                        touch = if (motion) touch else null,
                         realSeconds = now / 1000f,
                         reveal = reveal,
+                        interaction = response,
+                        unlockReveal = lockReveal.value(now),
                     )
                 }
             } catch (error: IllegalStateException) {
@@ -274,11 +330,11 @@ class PhosphorWallpaperService : WallpaperService() {
                 }
             }
             val animating = motion && settings.speed > 0f
-            val responding = !ambient && (touch.isActive(now / 1000f) || reveal < 1f)
+            val responding = motion && (touch.isActive(now / 1000f) || interaction.isActive || reveal < 1f || lockReveal.isRunning(now))
             if (visible && surfaceReady && !destroyed && (animating || responding)) {
                 val spent = SystemClock.uptimeMillis() - now
-                // Touch answers stay smooth even when the ambient budget is low.
-                val fps = if (responding && !budget.still) maxOf(budget.fps, 30) else budget.fps
+                // Responses honor the same low-battery cap as ambient animation.
+                val fps = profile.fps
                 handler.postDelayed(frame, (1000L / fps.coerceIn(15, 60) - spent).coerceAtLeast(1L))
             }
         }
@@ -345,6 +401,7 @@ class PhosphorWallpaperService : WallpaperService() {
             handler.removeCallbacksAndMessages(null)
             store.removeListener(settingsListener)
             if (receiverRegistered) unregisterReceiver(receiver)
+            if (animationObserverRegistered) contentResolver.unregisterContentObserver(animationObserver)
             renderer.release()
             super.onDestroy()
         }

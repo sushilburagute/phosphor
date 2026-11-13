@@ -48,8 +48,9 @@ class SettingsStore(context: Context) {
                 imagePath = json.optString("imagePath").takeIf { it.isNotBlank() && it != "null" },
                 reducedMotion = json.optBoolean("reducedMotion", defaults.reducedMotion),
                 appearance = Appearance.entries.firstOrNull { it.name == json.optString("appearance") } ?: defaults.appearance,
-                wakeReveal = json.optBoolean("wakeReveal", defaults.wakeReveal),
+                wakeReveal = json.optBoolean("wakeReveal", json.optBoolean("unlockAnimation", defaults.wakeReveal)),
                 lowBatteryMode = json.optBoolean("lowBatteryMode", defaults.lowBatteryMode),
+                unlockAnimation = json.optBoolean("unlockAnimation", json.optBoolean("wakeReveal", defaults.unlockAnimation)),
             )
         } catch (_: org.json.JSONException) {
             defaults
@@ -69,6 +70,7 @@ class SettingsStore(context: Context) {
             put("appearance", settings.appearance.name)
             put("wakeReveal", settings.wakeReveal)
             put("lowBatteryMode", settings.lowBatteryMode)
+            put("unlockAnimation", settings.unlockAnimation)
         }
         preferences.edit().putString(key, json.toString()).apply()
     }

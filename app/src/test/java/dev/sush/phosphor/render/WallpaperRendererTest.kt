@@ -187,6 +187,7 @@ class WallpaperRendererTest {
                     WallpaperCatalog.find("image-custom"),
                     WallpaperSettings(imagePath = imageFile.absolutePath, intensity = 1f),
                     offsetX = 1f, offsetY = -1f,
+                    interaction = WallpaperInteraction(offsetX = 1f, offsetY = -1f),
                 )
                 // A tall image must still cover all four corners of a wide surface.
                 for ((x, y) in listOf(0 to 0, 359 to 0, 0 to 149, 359 to 149)) {
@@ -238,6 +239,74 @@ class WallpaperRendererTest {
         dark.recycle()
     }
 
+    @Test
+    fun everyFamilyRespondsToATapEvenWhenAmbientSpeedIsZero() {
+        for (preset in WallpaperCatalog.presets) {
+            val settings = WallpaperSettings(presetId = preset.id, speed = 0f)
+            val first = render(preset, settings)
+            val touched = render(preset, settings, interaction = WallpaperInteraction(
+                x = 0.4f, y = 0.45f, strength = 0.8f, rippleProgress = 0.3f, offsetX = 0.4f,
+            ))
+            assertTrue("${preset.id} ignores touch at zero speed", changedFraction(first, touched) > 0.02f)
+            first.recycle()
+            touched.recycle()
+        }
+    }
+
+    @Test
+    fun reducedMotionSuppressesTouchEffectsAndLockReveal() {
+        val preset = WallpaperCatalog.find("aurora-veil")
+        val settings = WallpaperSettings(reducedMotion = true)
+        val first = render(preset, settings)
+        val touched = render(preset, settings, interaction = WallpaperInteraction(strength = 1f, rippleProgress = 0.2f), reveal = 0f)
+        assertTrue(first.sameAs(touched))
+        first.recycle()
+        touched.recycle()
+    }
+
+    @Test
+    fun lockTreatmentPreservesOpaqueArtworkAndCanBeDisabled() {
+        val preset = WallpaperCatalog.find("gradient-tide")
+        val awake = render(preset)
+        val locked = render(preset, reveal = 0f)
+        assertTrue(changedFraction(awake, locked) > 0.1f)
+        assertTrue(pixels(locked).all { Color.alpha(it) == 255 })
+        val disabled = render(preset, WallpaperSettings(presetId = preset.id, unlockAnimation = false), reveal = 0f)
+        assertTrue(awake.sameAs(disabled))
+        awake.recycle()
+        locked.recycle()
+        disabled.recycle()
+    }
+
+    @Test
+    fun wakeAndUnlockTreatmentsCanBeDisabledIndependentlyInBothMoods() {
+        val preset = WallpaperCatalog.find("orbit-exposure")
+        for (night in listOf(true, false)) {
+            fun frame(settings: WallpaperSettings, wake: Float = 1f, unlock: Float = 1f): Bitmap {
+                val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+                val renderer = WallpaperRenderer()
+                try {
+                    renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, 12f, preset, settings,
+                        night = night, reveal = wake, unlockReveal = unlock)
+                } finally {
+                    renderer.release()
+                }
+                return bitmap
+            }
+            val settings = WallpaperSettings(presetId = preset.id)
+            val awake = frame(settings)
+            val wakeDisabled = frame(settings.copy(wakeReveal = false), wake = 0f)
+            val unlockDisabled = frame(settings.copy(unlockAnimation = false), unlock = 0f)
+            val waking = frame(settings.copy(unlockAnimation = false), wake = 0.2f)
+            val locked = frame(settings.copy(wakeReveal = false), unlock = 0f)
+            assertTrue(awake.sameAs(wakeDisabled))
+            assertTrue(awake.sameAs(unlockDisabled))
+            assertFalse(awake.sameAs(waking))
+            assertFalse(awake.sameAs(locked))
+            listOf(awake, wakeDisabled, unlockDisabled, waking, locked).forEach { it.recycle() }
+        }
+    }
+
     private fun render(
         preset: WallpaperPreset,
         settings: WallpaperSettings = WallpaperSettings(presetId = preset.id),
@@ -245,11 +314,13 @@ class WallpaperRendererTest {
         offsetX: Float = 0f,
         offsetY: Float = 0f,
         night: Boolean = true,
+        interaction: WallpaperInteraction? = null,
+        reveal: Float = 1f,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val renderer = WallpaperRenderer()
         try {
-            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY, night = night)
+            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY, night = night, interaction = interaction, unlockReveal = reveal)
         } finally {
             renderer.release()
         }

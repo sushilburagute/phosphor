@@ -40,6 +40,7 @@ data class WallpaperSettings(
     val appearance: Appearance = Appearance.AUTO,
     val wakeReveal: Boolean = true,
     val lowBatteryMode: Boolean = true,
+    val unlockAnimation: Boolean = true,
 )
 
 /** Stable IDs are persisted by the app and used by the live wallpaper service. */

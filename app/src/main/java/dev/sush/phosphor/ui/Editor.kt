@@ -1,13 +1,14 @@
 package dev.sush.phosphor.ui
 
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,7 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.sush.phosphor.R
@@ -73,16 +76,16 @@ fun Editor(
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Glyph(R.drawable.ic_back, "Back to wallpapers") }
-            Text(preset.name, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f).padding(start = 4.dp))
+            Text(preset.name, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f).padding(start = 4.dp).semantics { heading() })
             IconButton(onClick = onFavorite) {
                 Glyph(if (favorite) R.drawable.ic_saved_filled else R.drawable.ic_saved, if (favorite) "Remove from saved" else "Save wallpaper",
                     tint = if (favorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface)
             }
         }
         BoxWithConstraints(Modifier.weight(1f)) {
-            val wide = maxWidth >= 720.dp
+            val wide = maxWidth >= 840.dp && LocalDensity.current.fontScale < 1.4f
             // The plate is as tall as the window allows, leaving room for the controls row.
-            val plateHeight = if (wide) maxHeight - 96.dp else minOf(560.dp, maxHeight * 0.74f)
+            val plateHeight = if (wide) (maxHeight - 96.dp).coerceAtLeast(120.dp) else minOf(560.dp, maxHeight * 0.74f)
             val stage: @Composable (Modifier) -> Unit = { modifier ->
                 Stage(preset, settings, night, homeScreen, replay, plateHeight, modifier,
                     onHomeScreen = { homeScreen = it }, onReplay = { replay++ })
@@ -127,11 +130,11 @@ private fun Stage(
                 .clip(MaterialTheme.shapes.extraLarge),
         ) {
             WallpaperPreview(preset, settings, Modifier.fillMaxSize(), animate = true, night = night, replayReveal = replay)
-            androidx.compose.animation.AnimatedVisibility(visible = homeScreen, enter = fadeIn(tween(Motion.CALM)), exit = fadeOut(tween(Motion.QUICK))) {
+            androidx.compose.animation.AnimatedVisibility(visible = homeScreen, enter = fadeIn(tween(if (settings.reducedMotion) 0 else Motion.CALM)), exit = fadeOut(tween(if (settings.reducedMotion) 0 else Motion.QUICK))) {
                 HomeScreenOverlay(night)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             FilledTonalIconToggleButton(
                 checked = homeScreen, onCheckedChange = onHomeScreen,
                 modifier = Modifier.semantics { contentDescription = if (homeScreen) "Hide home screen preview" else "Show home screen preview" },
@@ -170,7 +173,7 @@ private fun Controls(
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(preset.description, style = MaterialTheme.typography.bodyLarge)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Swatches(preset.colors, 18.dp)
                 Swatches(preset.dayColors, 18.dp)
                 TextButton(onClick = onPaletteHelp) { Text("Match your phone’s colors") }
@@ -205,16 +208,17 @@ private fun Controls(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Frame rate", style = MaterialTheme.typography.titleMedium)
                 Segmented(listOf(15, 30, 60).map { Triple(it, "$it fps", null) }, settings.fps, { onChange(settings.copy(fps = it)) }, enabled = !settings.reducedMotion)
-                Text("30 fps balances smoothness and battery. Touches always answer smoothly.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("30 fps balances smoothness and battery. Touches follow the same battery limits.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
         Section("Battery and wake", R.drawable.ic_battery) {
             ToggleRow("Light up on wake", "The artwork rises from dark when you turn on the screen, and blooms when you unlock.", settings.wakeReveal, { onChange(settings.copy(wakeReveal = it)) }, !settings.reducedMotion)
+            ToggleRow("Lock and unlock animation", "Gently settle on lock and reveal on unlock. Availability depends on your phone.", settings.unlockAnimation, { onChange(settings.copy(unlockAnimation = it)) }, !settings.reducedMotion)
             ToggleRow("Save battery when low", "Below 20% and unplugged, motion slows to 15 fps. At 5%, it holds still. Battery Saver is always respected.", settings.lowBatteryMode, { onChange(settings.copy(lowBatteryMode = it)) })
         }
 
-        OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+        OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
             Glyph(R.drawable.ic_export, null, Modifier.size(20.dp))
             Text("Save a still image", modifier = Modifier.padding(start = 10.dp))
         }

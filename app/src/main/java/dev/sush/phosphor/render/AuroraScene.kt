@@ -39,7 +39,8 @@ internal class AuroraScene(private val k: RenderKit) {
         if (f.night) stars(canvas, f)
         k.glow(canvas, k.glowB, 760f, h * 0.3f, 900f, h * 0.3f, if (f.night) 40 else 34, k.modeFor(f))
         curtain(canvas, f, rayBack, h * 0.41f, 0.62f, 0.6f, 0.2f * reveal, 2.1f, 0.5f)
-        curtain(canvas, f, rayFront, h * 0.55f, 1f, 1f, 0.27f * reveal, 0f, 1f)
+        // Leave space around the middle launcher-label row as the bright hem moves.
+        curtain(canvas, f, rayFront, h * 0.56f, 1f, 1f, 0.27f * reveal, 0f, 1f)
         ridge(canvas, f)
     }
 

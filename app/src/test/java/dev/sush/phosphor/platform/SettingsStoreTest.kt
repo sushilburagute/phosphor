@@ -45,13 +45,42 @@ class SettingsStoreTest {
         val draft = WallpaperSettings(
             presetId = "photo", speed = 0.2f, intensity = 0.4f, parallax = false,
             fps = 24, darken = 0.25f, imagePath = "/private/photo.png", reducedMotion = true,
-            appearance = dev.sush.phosphor.model.Appearance.DAY, wakeReveal = false, lowBatteryMode = false,
+            appearance = dev.sush.phosphor.model.Appearance.DAY, wakeReveal = false, lowBatteryMode = false, unlockAnimation = false,
         )
         store.savePreview(draft)
         store.commitPreview()
 
         assertEquals(draft, store.load())
         assertEquals(draft, SettingsStore(context).load())
+    }
+
+    @Test
+    fun olderInstallationsReceiveBatteryAndUnlockDefaultsWithoutLosingArtwork() {
+        context.getSharedPreferences("phosphor", Context.MODE_PRIVATE).edit().putString(
+            "active", """{"presetId":"glass-prism","speed":0.25}""",
+        ).commit()
+
+        val settings = store.load()
+        assertEquals("glass-prism", settings.presetId)
+        assertEquals(0.25f, settings.speed)
+        assertEquals(true, settings.lowBatteryMode)
+        assertEquals(true, settings.unlockAnimation)
+    }
+
+    @Test
+    fun disabledRevealPreferencesFromEitherVersionStayDisabledAfterUpgrade() {
+        for (key in listOf("wakeReveal", "unlockAnimation")) {
+            context.getSharedPreferences("phosphor", Context.MODE_PRIVATE).edit().putString(
+                "active", """{"presetId":"glass-prism","$key":false}""",
+            ).commit()
+            val settings = store.load()
+            assertEquals("glass-prism", settings.presetId)
+            assertEquals(false, settings.wakeReveal)
+            assertEquals(false, settings.unlockAnimation)
+        }
+        val independent = WallpaperSettings(wakeReveal = false, unlockAnimation = true)
+        store.save(independent)
+        assertEquals(independent, SettingsStore(context).load())
     }
 
     @Test

@@ -17,6 +17,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.sush.phosphor.BuildConfig
 import dev.sush.phosphor.R
@@ -24,10 +26,10 @@ import dev.sush.phosphor.R
 @Composable
 fun SettingsScreen(theme: String, dynamic: Boolean, onTheme: (String) -> Unit, onDynamic: (Boolean) -> Unit, onPaletteHelp: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp).widthIn(max = 640.dp),
+        Modifier.widthIn(max = 680.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
-        Text("Settings", style = MaterialTheme.typography.displayMedium)
+        Text("Settings", style = MaterialTheme.typography.displayMedium, modifier = Modifier.semantics { heading() })
 
         Section("App appearance", R.drawable.ic_auto) {
             Segmented(

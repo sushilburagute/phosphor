@@ -13,14 +13,14 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -45,12 +45,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -181,9 +183,11 @@ fun PhosphorApp() {
     }
     BackHandler(selectedId != null) { selectedId = null; uncertainApply = false }
 
+    val savedScreens = rememberSaveableStateHolder()
+    val motionEnabled = !draft.reducedMotion && !active.reducedMotion
     PhosphorTheme(night = dark, dynamic = dynamic) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val rail = maxWidth >= 840.dp && selectedId == null
+            val rail = maxWidth >= 600.dp && maxHeight >= 480.dp && selectedId == null
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbar) },
                 containerColor = MaterialTheme.colorScheme.background,
@@ -199,7 +203,7 @@ fun PhosphorApp() {
                     }
                 },
             ) { padding ->
-                Row(Modifier.fillMaxSize().padding(padding)) {
+                Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
                     if (rail) NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Page.entries.forEach { item ->
                             NavigationRailItem(
@@ -212,66 +216,75 @@ fun PhosphorApp() {
                         AnimatedContent(
                             targetState = selectedId ?: page.name,
                             transitionSpec = {
-                                (fadeIn(tween(Motion.CALM, easing = Motion.Arrive)) +
-                                    slideInHorizontally(tween(Motion.CALM, easing = Motion.Arrive)) { it / 12 })
-                                    .togetherWith(fadeOut(tween(Motion.QUICK)))
+                                val duration = if (motionEnabled) Motion.CALM else 0
+                                val quick = if (motionEnabled) Motion.QUICK else 0
+                                when {
+                                    WallpaperCatalog.presets.any { it.id == targetState } ->
+                                        (fadeIn(tween(duration)) + slideInHorizontally(tween(duration, easing = Motion.Arrive)) { it / 12 }) togetherWith fadeOut(tween(quick))
+                                    WallpaperCatalog.presets.any { it.id == initialState } ->
+                                        fadeIn(tween(duration)) togetherWith (fadeOut(tween(quick)) + slideOutHorizontally(tween(duration, easing = Motion.Arrive)) { it / 12 })
+                                    else -> fadeIn(tween(duration)) togetherWith fadeOut(tween(quick))
+                                }
                             },
                             label = "screen",
                         ) { target ->
-                            val shown = WallpaperCatalog.presets.firstOrNull { it.id == target }
-                            when {
-                                shown != null -> Editor(
-                                    shown, draft, shown.id in favorites, uncertainApply, systemNight,
-                                    onBack = { selectedId = null; uncertainApply = false },
-                                    onFavorite = { favorite(shown.id) },
-                                    onChange = { draft = it; store.savePreview(it) },
-                                    onApply = {
-                                        store.savePreview(draft)
-                                        directPicker = true
-                                        try { applyLauncher.launch(WallpaperActions.previewIntent(context)) }
-                                        catch (_: ActivityNotFoundException) {
-                                            directPicker = false
-                                            try { applyLauncher.launch(WallpaperActions.pickerIntent()) }
-                                            catch (_: ActivityNotFoundException) { message("This phone has no live wallpaper picker.") }
-                                        }
-                                    },
-                                    onConfirm = { store.save(draft); active = store.load(); uncertainApply = false; message("Wallpaper settings saved") },
-                                    onExport = { exportLauncher.launch("phosphor-${shown.id}.png") },
-                                    onPaletteHelp = { showPaletteHelp = true },
-                                )
-                                target == Page.Settings.name -> SettingsScreen(
-                                    theme, dynamic,
-                                    onTheme = { theme = it; prefs.edit().putString("theme", it).apply() },
-                                    onDynamic = { dynamic = it; prefs.edit().putBoolean("dynamic", it).apply() },
-                                    onPaletteHelp = { showPaletteHelp = true },
-                                )
-                                else -> {
-                                    val saved = target == Page.Saved.name
-                                    val available = WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE || importedPath != null }
-                                    val displayed = available.filter { (!saved || it.id in favorites) && (category == "All" || it.kind.label() == category) }
-                                    Gallery(
-                                        saved, category, displayed, favorites, active, importedPath,
-                                        liveId = if (live) active.presetId else null,
-                                        night = galleryNight, onNight = { galleryNight = it },
-                                        onCategory = { category = it }, onSelect = ::edit, onFavorite = ::favorite,
-                                        onImport = { importLauncher.launch(arrayOf("image/*")) },
-                                        onExplore = { page = Page.Explore; category = "All" },
+                            savedScreens.SaveableStateProvider(target) {
+                                val shown = WallpaperCatalog.presets.firstOrNull { it.id == target }
+                                when {
+                                    shown != null -> Editor(
+                                        shown, draft, shown.id in favorites, uncertainApply, systemNight,
+                                        onBack = { selectedId = null; uncertainApply = false },
+                                        onFavorite = { favorite(shown.id) },
+                                        onChange = { draft = it; store.savePreview(it) },
+                                        onApply = {
+                                            store.savePreview(draft)
+                                            directPicker = true
+                                            try { applyLauncher.launch(WallpaperActions.previewIntent(context)) }
+                                            catch (_: ActivityNotFoundException) {
+                                                directPicker = false
+                                                try { applyLauncher.launch(WallpaperActions.pickerIntent()) }
+                                                catch (_: ActivityNotFoundException) { message("This phone has no live wallpaper picker.") }
+                                            }
+                                        },
+                                        onConfirm = { store.save(draft); active = store.load(); uncertainApply = false; message("Wallpaper settings saved") },
+                                        onExport = { exportLauncher.launch("phosphor-${shown.id}.png") },
+                                        onPaletteHelp = { showPaletteHelp = true },
                                     )
-                                }
-                            }
-                        }
-                        if (busy) Box(
-                            Modifier.fillMaxSize().background(Color.Black.copy(alpha = .55f)).clickable(enabled = true) {},
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Surface(shape = MaterialTheme.shapes.large) {
-                                Row(Modifier.padding(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                    CircularProgressIndicator(Modifier.size(24.dp))
-                                    Text("Working on your image…")
+                                    target == Page.Settings.name -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                        SettingsScreen(
+                                            theme, dynamic,
+                                            onTheme = { theme = it; prefs.edit().putString("theme", it).apply() },
+                                            onDynamic = { dynamic = it; prefs.edit().putBoolean("dynamic", it).apply() },
+                                            onPaletteHelp = { showPaletteHelp = true },
+                                        )
+                                    }
+                                    else -> {
+                                        val saved = target == Page.Saved.name
+                                        val available = WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE || importedPath != null }
+                                        val displayed = available.filter { (!saved || it.id in favorites) && (category == "All" || it.kind.label() == category) }
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                            Gallery(
+                                                saved, category, displayed, favorites, active, importedPath,
+                                                liveId = if (live) active.presetId else null,
+                                                night = galleryNight, onNight = { galleryNight = it },
+                                                onCategory = { category = it }, onSelect = ::edit, onFavorite = ::favorite,
+                                                onImport = { importLauncher.launch(arrayOf("image/*")) },
+                                                onExplore = { page = Page.Explore; category = "All" },
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+                }
+            }
+        }
+        if (busy) Dialog(onDismissRequest = {}, properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)) {
+            Surface(shape = MaterialTheme.shapes.large) {
+                Row(Modifier.padding(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CircularProgressIndicator(Modifier.size(24.dp))
+                    Text("Working on your image…")
                 }
             }
         }

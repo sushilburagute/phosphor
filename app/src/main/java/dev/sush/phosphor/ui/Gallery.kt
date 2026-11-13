@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -35,7 +37,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.sush.phosphor.R
@@ -79,14 +84,15 @@ fun Gallery(
     onExplore: () -> Unit,
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(160.dp),
+        modifier = Modifier.widthIn(max = 1200.dp).fillMaxSize(),
+        columns = GridCells.Adaptive(160.dp * LocalDensity.current.fontScale.coerceIn(1f, 1.5f)),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (saved) "Saved" else "Phosphor", style = MaterialTheme.typography.displayMedium, modifier = Modifier.weight(1f))
+                    Text(if (saved) "Saved" else "Phosphor", style = MaterialTheme.typography.displayMedium, modifier = Modifier.weight(1f).semantics { heading() })
                     MoodSwitch(night, onNight)
                 }
                 Text(
@@ -101,10 +107,10 @@ fun Gallery(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(Collections) { label ->
-                        FilterChip(selected = category == label, onClick = { onCategory(label) }, label = { Text(label) })
+                        FilterChip(selected = category == label, onClick = { onCategory(label) }, label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp))
                     }
                 }
-                if (!saved) OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                if (!saved) OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                     Glyph(R.drawable.ic_import, null, Modifier.size(20.dp))
                     Text("Bring in your own image", modifier = Modifier.padding(start = 10.dp))
                 }
@@ -126,15 +132,15 @@ fun Gallery(
             Column {
                 Box(
                     Modifier.fillMaxWidth().aspectRatio(PLATE_RATIO).clip(MaterialTheme.shapes.extraLarge)
-                        .clickable(onClickLabel = "Open ${preset.name}") { onSelect(preset) },
+                        .clickable(role = Role.Button, onClickLabel = "Open ${preset.name}") { onSelect(preset) },
                 ) {
-                    Crossfade(night, animationSpec = tween(Motion.MOOD), label = "plate") { lit ->
+                    Crossfade(night, animationSpec = tween(if (active.reducedMotion) 0 else Motion.MOOD), label = "plate") { lit ->
                         WallpaperPreview(
                             preset, active.copy(presetId = preset.id, imagePath = if (preset.kind == WallpaperKind.IMAGE) imagePath else null),
                             Modifier.fillMaxSize(), night = lit,
                         )
                     }
-                    Surface(Modifier.align(Alignment.TopEnd).padding(8.dp), shape = CircleShape, color = Color.Black.copy(alpha = .32f)) {
+                    Surface(Modifier.align(Alignment.TopEnd).padding(8.dp), shape = CircleShape, color = Color.Black.copy(alpha = .6f)) {
                         val on = preset.id in favorites
                         IconButton(onClick = { onFavorite(preset.id) }, modifier = Modifier.semantics { contentDescription = if (on) "Remove ${preset.name} from saved" else "Save ${preset.name}" }) {
                             Glyph(if (on) R.drawable.ic_saved_filled else R.drawable.ic_saved, null, tint = Color.White)

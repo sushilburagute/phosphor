@@ -77,6 +77,8 @@ class WallpaperRenderer {
         touch: TouchField? = null,
         realSeconds: Float = Float.NaN,
         reveal: Float = 1f,
+        interaction: WallpaperInteraction? = null,
+        unlockReveal: Float = 1f,
     ) {
         if (width <= 0 || height <= 0) return
         val h = 1000f * height / width
@@ -84,9 +86,10 @@ class WallpaperRenderer {
         val f = frame
         f.h = h
         f.amount = finiteUnit(settings.intensity)
-        f.t = if (still) 0f else timeSeconds.takeIf { it.isFinite() }?.times(finiteUnit(settings.speed) * 0.45f) ?: 0f
+        f.t = if (still) 0f else timeSeconds.takeIf { it.isFinite() }?.times(finiteUnit(settings.speed) * 1.35f) ?: 0f
         f.night = night
-        f.reveal = if (still) 1f else finiteUnit(reveal)
+        f.reveal = if (still || !settings.wakeReveal) 1f else finiteUnit(reveal)
+        val awake = if (still || !settings.unlockAnimation) 1f else finiteUnit(unlockReveal)
         // Thumbnails draw fewer elements; the composition is identical.
         f.detail = if (forcedDetail > 0f) forcedDetail else (width / 1080f).coerceIn(0.35f, 1f)
         f.offsetX = if (settings.parallax && !still) safeOffset(offsetX) else 0f
@@ -106,6 +109,27 @@ class WallpaperRenderer {
             f.pulses = 0
             f.drag = 0f
         }
+        // Damped dragging drives every scene; independent tap pulses still handle
+        // launcher commands and overlapping gestures.
+        if (!still && settings.parallax && interaction != null) {
+            f.offsetX = safeOffset(f.offsetX + safeOffset(interaction.offsetX))
+            f.offsetY = safeOffset(f.offsetY + safeOffset(interaction.offsetY))
+            if (touch == null) {
+                f.dragX = finiteUnit(interaction.x) * 1000f
+                f.dragY = finiteUnit(interaction.y) * h
+                f.drag = finiteUnit(interaction.strength)
+                val progress = finiteUnit(interaction.rippleProgress)
+                if (progress < 1f) {
+                    f.pulses = 1
+                    f.pulseX[0] = f.dragX
+                    f.pulseY[0] = f.dragY
+                    f.pulseR[0] = progress * 1150f
+                    f.pulseA[0] = (1f - progress) * (1f - progress)
+                }
+            } else {
+                f.drag = finiteUnit(interaction.strength)
+            }
+        }
         kit.prepare(f)
 
         val saved = canvas.save()
@@ -118,6 +142,10 @@ class WallpaperRenderer {
         canvas.drawRect(0f, 0f, 1000f, h, paint)
         ground(canvas, f)
 
+        val artworkSave = canvas.save()
+        val zoom = 1f + (1f - awake) * 0.055f +
+            if (!still && settings.parallax && interaction != null) finiteUnit(interaction.strength) * 0.018f else 0f
+        canvas.scale(zoom, zoom, 500f, h * 0.5f)
         when (preset.kind) {
             WallpaperKind.ORBIT -> orbit.draw(canvas, f, preset.id)
             WallpaperKind.AURORA -> aurora.draw(canvas, f)
@@ -128,6 +156,7 @@ class WallpaperRenderer {
             WallpaperKind.TEXTURE -> texture.draw(canvas, f, preset.id == "texture-basalt")
             WallpaperKind.IMAGE -> drawImage(canvas, f, settings)
         }
+        canvas.restoreToCount(artworkSave)
 
         veil(canvas, f, preset.kind == WallpaperKind.IMAGE)
         if (preset.kind != WallpaperKind.IMAGE) {
@@ -136,7 +165,7 @@ class WallpaperRenderer {
         // "Calm" fades toward the ground: darker at night, paler by day. Labels only gain contrast.
         paint.shader = null
         paint.color = if (night) Color.BLACK else f.c0
-        paint.alpha = (finiteUnit(settings.darken) * if (night) 210f else 190f).toInt()
+        paint.alpha = max(finiteUnit(settings.darken) * if (night) 210f else 190f, (1f - awake) * 78f).toInt()
         canvas.drawRect(0f, 0f, 1000f, h, paint)
         if (f.reveal < 1f) {
             paint.color = if (night) Color.BLACK else f.c0
@@ -189,12 +218,12 @@ class WallpaperRenderer {
         val h = f.h
         // Reserve overscan in both axes, including landscape and foldables,
         // for the combined image drift and surface parallax.
-        val margin = 64f + motion * 48f + if (settings.parallax) 70f else 0f
+        val margin = 128f + motion * 96f + if (settings.parallax) 70f else 0f
         val scale = max((1000f + margin) / bitmap.width, (h + margin) / bitmap.height)
         val bw = bitmap.width * scale
         val bh = bitmap.height * scale
-        val driftX = sin(f.t * 0.4f) * 22f * motion + f.shiftX(1f)
-        val driftY = cos(f.t * 0.31f) * 24f * motion + f.shiftY(1f)
+        val driftX = sin(f.t * 0.4f) * 32f * motion + f.shiftX(1f)
+        val driftY = cos(f.t * 0.31f) * 38f * motion + f.shiftY(1f)
         val left = (1000f - bw) * 0.5f + driftX
         val top = (h - bh) * 0.5f + driftY
         rect.set(left, top, left + bw, top + bh)
@@ -212,8 +241,9 @@ class WallpaperRenderer {
         for (i in 0 until count) {
             val x0 = fraction(i * 17 + 101) * 1100f - 50f
             val y0 = fraction(i * 31 + 503) * (f.h + 100f) - 50f
-            val x = x0 + sin(f.t * 0.33f + i * 0.83f) * 25f * f.amount + f.shiftX(1.6f)
-            val y = y0 + cos(f.t * 0.27f + i * 1.37f) * 30f * f.amount
+            val x = x0 + sin(f.t * 0.33f + i * 0.83f) * 48f * f.amount + f.shiftX(1.6f)
+            val y = ((y0 + 70f - f.t * 14f * f.amount) % (f.h + 140f) + f.h + 140f) % (f.h + 140f) - 70f +
+                cos(f.t * 0.27f + i * 1.37f) * 45f * f.amount
             paint.color = mix(f.c1, Color.WHITE, fraction(i + 200))
             paint.alpha = ((75f + fraction(i + 430) * 140f) * 0.35f + f.wave(x, y) * 120f).toInt().coerceIn(0, 255)
             canvas.drawCircle(x, y, 0.8f + fraction(i + 810) * 2.4f, paint)

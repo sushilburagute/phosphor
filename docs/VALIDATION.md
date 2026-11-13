@@ -1,5 +1,19 @@
 # Validation
 
+## PR #1 merge verification
+
+Verified the merge of `main` at `dcd301d` on 2026-11-13 on Windows with JDK 21.0.9, Android SDK Platform 36 and Build Tools 35.0.0.
+
+Command: `./gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleRelease`
+
+- Debug and unsigned release APKs built, including R8 and resource shrinking.
+- 50 tests passed with zero failures; the 4 opt-in preview and screenshot tests were skipped.
+- Android lint: zero errors, 29 warnings.
+- Both branches' motion, battery, settings and renderer tests are retained. Added checks for independent wake/unlock treatments in both moods and disabled reveal preferences migrating from either version.
+- No emulator or physical device was used for this merge verification. The visual review below describes the original production asset validation.
+
+## Production asset validation
+
 Verified on 2026-11-13 on Windows with JDK 17.0.21, Android SDK Platform 36 and Build Tools 35.0.0. **No emulator or physical device was used for this round.** Everything below ran on the JVM through Robolectric with native (Skia) graphics.
 
 ## Build and automated checks
