@@ -4,15 +4,15 @@ Living color for Android. An offline, open-source live wallpaper app [made by su
 
 ![Phosphor: blue and ember orbital light trails above a dark horizon](docs/store/feature-graphic-1024x500.jpg)
 
-Phosphor draws its wallpapers on your phone: long-exposure orbits, aurora curtains, beams of characters, gradients, glass, filaments, and etched textures. Each procedural preset has a night treatment of emitted light and a day treatment of ink on paper. Auto follows your phone's dark theme.
+Phosphor draws its wallpapers on your phone: long-exposure orbits, aurora curtains, digital rain, beams of characters, gradients, glass, filaments, and etched textures. Each procedural preset has a night treatment of emitted light on a deep, tinted ground and a day treatment of luminous color on pale paper, both built from the same color harmony. Auto follows your phone's dark theme.
 
 ## What you can do
 
-- Choose from **15 procedural presets across seven collections**, or import your own image for gentle drift, ripples, and floating light.
+- Choose from **16 procedural presets across seven collections**, or import your own image for gentle drift, ripples, and floating light.
 - Tune speed, intensity, frame rate, and how far the artwork fades into its background. Check the result in a live preview with an optional home-screen overlay.
 - Interact with taps, drags, and launcher swipes. Responses settle even when ambient speed is zero; launcher support varies.
 - Use day, night, or automatic appearance, wake reveals, lock/unlock animation, or still mode.
-- Save favorites and export a **1080 × 2400 PNG** in the selected treatment. Wallpapers, artwork previews, and exports have no branding.
+- Browse previews shown at your phone's own screen proportions, and export a **1080 × 2400 PNG** in the selected treatment. Wallpapers, artwork previews, and exports have no branding.
 - Keep rendering bounded: animation stops while hidden or screen-off, the visible lock screen is capped at 15 fps, and battery policies reduce motion at low charge.
 
 No account, ads, analytics, network permission, broad photo-library permission, or cloud backup. Images are imported through Android's document picker and copied to private app storage. The optional creator link opens in your browser.

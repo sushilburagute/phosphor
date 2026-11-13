@@ -55,7 +55,7 @@ Use `apksigner.bat` on Windows and substitute the actual signed filename if diff
 
 1. Update both version fields and the changelog on a branch.
 2. Run `./gradlew -q :app:printVersion` and `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`. Use `.\gradlew.bat` on Windows PowerShell. Inspect [test and lint reports](TESTING.md#reports); a successful build alone does not establish device compatibility.
-3. Install and check the app. Confirm the credit opens `https://sush.dev?utm_source=phosphor` from Explore, the editor, and Settings, and that the adjacent version matches the build. Check wallpaper previews, the applied wallpaper, and a still export for absence of branding. Complete the relevant [device checks](ANDROID_COMPATIBILITY.md).
+3. Install and check the app. Confirm the credit opens `https://sush.dev?utm_source=phosphor` from the gallery, the editor, and Settings, and that the adjacent version matches the build. Check wallpaper previews, the applied wallpaper, and a still export for absence of branding. Complete the relevant [device checks](ANDROID_COMPATIBILITY.md).
 4. Review and merge the version change before tagging that commit.
 
 ## Tag and distribute

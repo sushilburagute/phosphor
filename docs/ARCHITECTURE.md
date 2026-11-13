@@ -12,7 +12,7 @@ Paths below are relative to [`app/src/main/java/dev/sush/phosphor/`](../app/src/
 | --- | --- |
 | App entry | [`MainActivity.kt`](../app/src/main/java/dev/sush/phosphor/MainActivity.kt) hosts the Compose app. |
 | Models | [`model/WallpaperModels.kt`](../app/src/main/java/dev/sush/phosphor/model/WallpaperModels.kt) defines settings, day/night appearance, scene families, and the preset catalog. |
-| App flow | [`ui/PhosphorApp.kt`](../app/src/main/java/dev/sush/phosphor/ui/PhosphorApp.kt) coordinates navigation, favorites, drafts, and document/system picker results. |
+| App flow | [`ui/PhosphorApp.kt`](../app/src/main/java/dev/sush/phosphor/ui/PhosphorApp.kt) coordinates navigation (gallery, editor, settings), drafts, and document/system picker results. |
 | Screens | `ui/Gallery.kt`, `ui/Editor.kt`, and `ui/SettingsScreen.kt` provide browsing, editing, and app preferences. |
 | Preview | [`ui/WallpaperPreview.kt`](../app/src/main/java/dev/sush/phosphor/ui/WallpaperPreview.kt) hosts animated Canvas previews and cached gallery stills. |
 | Artwork | [`render/WallpaperRenderer.kt`](../app/src/main/java/dev/sush/phosphor/render/WallpaperRenderer.kt) resolves settings and dispatches to scene functions. `RenderKit.kt` supplies shared drawing helpers and frame inputs. |

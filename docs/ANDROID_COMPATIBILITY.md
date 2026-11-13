@@ -33,7 +33,7 @@ Run this checklist on a physical Pixel and a physical Samsung device before clai
 | Scenario | Expected result |
 | --- | --- |
 | Fresh install; open each wallpaper family | Preview displays without a crash; artwork is distinct and free of branding |
-| Tap creator credit in Explore, editor, and Settings | Browser opens `https://sush.dev?utm_source=phosphor`; adjacent version matches the installed app |
+| Tap creator credit in the gallery, editor, and Settings | Browser opens `https://sush.dev?utm_source=phosphor`; adjacent version matches the installed app |
 | Apply from app | Correct artwork reaches system preview and home screen |
 | Edit while already active, then cancel picker | Previously applied wallpaper remains unchanged |
 | Apply on a picker with no result | Manual confirmation can commit the chosen settings |

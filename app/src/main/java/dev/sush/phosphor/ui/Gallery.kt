@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,10 +14,8 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -24,33 +23,35 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.sush.phosphor.R
 import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.ui.theme.Motion
-import dev.sush.phosphor.ui.theme.Palette
 
-val Collections = listOf("All", "Orbit", "Aurora", "ASCII", "Gradients", "Glass", "Abstract", "Textures", "Your images")
+val Collections = listOf("All", "Orbit", "Aurora", "ASCII", "Gradients", "Glass", "Abstract", "Textures")
 
 fun WallpaperKind.label(): String = when (this) {
     WallpaperKind.ORBIT -> "Orbit"
@@ -60,18 +61,21 @@ fun WallpaperKind.label(): String = when (this) {
     WallpaperKind.GLASS -> "Glass"
     WallpaperKind.ABSTRACT -> "Abstract"
     WallpaperKind.TEXTURE -> "Textures"
-    WallpaperKind.IMAGE -> "Your images"
+    WallpaperKind.IMAGE -> "Your image"
 }
 
-/** Phone-shaped plates: wallpapers are shown at the proportions they will be used at. */
-const val PLATE_RATIO = 0.5f
+/** Plates round like a phone's own corners: a fixed share of their width. */
+val PlateShape = RoundedCornerShape(percent = 11)
 
+/**
+ * The home screen of the app: a quiet large title, one row of category pills and the
+ * wallpapers themselves, shown at this phone's real proportions. Nothing else competes.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Gallery(
-    saved: Boolean,
     category: String,
     wallpapers: List<WallpaperPreset>,
-    favorites: Set<String>,
     active: WallpaperSettings,
     imagePath: String?,
     liveId: String?,
@@ -79,88 +83,127 @@ fun Gallery(
     onNight: (Boolean) -> Unit,
     onCategory: (String) -> Unit,
     onSelect: (WallpaperPreset) -> Unit,
-    onFavorite: (String) -> Unit,
     onImport: () -> Unit,
-    onExplore: () -> Unit,
+    onSettings: () -> Unit,
 ) {
-    LazyVerticalGrid(
-        modifier = Modifier.widthIn(max = 1200.dp).fillMaxSize(),
-        columns = GridCells.Adaptive(160.dp * LocalDensity.current.fontScale.coerceIn(1f, 1.5f)),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(22.dp),
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (saved) "Saved" else "Phosphor", style = MaterialTheme.typography.displayMedium, modifier = Modifier.weight(1f).semantics { heading() })
-                    MoodSwitch(night, onNight)
-                }
-                Text(
-                    if (saved) "The wallpapers you’ve kept. They follow the same day and night switch."
-                    else "Wallpapers drawn live on your phone. At night they glow; by day they print in ink.",
-                    style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 24.dp),
-                )
-            }
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(Collections) { label ->
-                        FilterChip(selected = category == label, onClick = { onCategory(label) }, label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp))
-                    }
-                }
-                if (!saved) OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-                    Glyph(R.drawable.ic_import, null, Modifier.size(20.dp))
-                    Text("Bring in your own image", modifier = Modifier.padding(start = 10.dp))
-                }
-            }
-        }
-        if (wallpapers.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Glyph(if (saved) R.drawable.ic_saved else R.drawable.ic_import, null, Modifier.size(32.dp), MaterialTheme.colorScheme.primary)
-                Text(if (saved) "Nothing saved yet" else "Start with your own image", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    if (saved) "Tap the heart on any wallpaper to keep it here." else "Choose a photo or artwork and Phosphor adds gentle motion and light.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium,
-                )
-                TextButton(onClick = if (saved) onExplore else onImport) { Text(if (saved) "Browse wallpapers" else "Choose an image") }
-            }
-        }
-        items(wallpapers, key = { it.id }) { preset ->
-            val isActive = liveId == preset.id
-            Column {
-                Box(
-                    Modifier.fillMaxWidth().aspectRatio(PLATE_RATIO).clip(MaterialTheme.shapes.extraLarge)
-                        .clickable(role = Role.Button, onClickLabel = "Open ${preset.name}") { onSelect(preset) },
-                ) {
-                    Crossfade(night, animationSpec = tween(if (active.reducedMotion) 0 else Motion.MOOD), label = "plate") { lit ->
-                        WallpaperPreview(
-                            preset, active.copy(presetId = preset.id, imagePath = if (preset.kind == WallpaperKind.IMAGE) imagePath else null),
-                            Modifier.fillMaxSize(), night = lit,
-                        )
-                    }
-                    Surface(Modifier.align(Alignment.TopEnd).padding(8.dp), shape = CircleShape, color = Color.Black.copy(alpha = .6f)) {
-                        val on = preset.id in favorites
-                        IconButton(onClick = { onFavorite(preset.id) }, modifier = Modifier.semantics { contentDescription = if (on) "Remove ${preset.name} from saved" else "Save ${preset.name}" }) {
-                            Glyph(if (on) R.drawable.ic_saved_filled else R.drawable.ic_saved, null, tint = Color.White)
+    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scheme = MaterialTheme.colorScheme
+    val ratio = rememberScreenRatio()
+    Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
+        containerColor = scheme.background,
+        topBar = {
+            LargeTopAppBar(
+                title = { Text("Phosphor") },
+                actions = {
+                    IconButton(onClick = { onNight(!night) }, modifier = Modifier.semantics {
+                        contentDescription = if (night) "Showing night versions. Show day versions" else "Showing day versions. Show night versions"
+                    }) {
+                        Crossfade(night, animationSpec = tween(if (active.reducedMotion) 0 else Motion.MOOD), label = "mood") { lit ->
+                            Glyph(if (lit) R.drawable.ic_moon else R.drawable.ic_sun, null)
                         }
                     }
-                }
-                Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(preset.name, style = MaterialTheme.typography.titleMedium)
-                        Text(if (isActive) "On your phone" else preset.kind.label(), style = MaterialTheme.typography.bodySmall,
-                            color = if (isActive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick = onSettings) { Glyph(R.drawable.ic_settings, "Settings") }
+                },
+                colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = scheme.background, scrolledContainerColor = scheme.surfaceContainerLow),
+                scrollBehavior = scroll,
+            )
+        },
+    ) { padding ->
+        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            val size = WindowWidth.of(maxWidth)
+            // Larger text needs wider plates, so drop a column rather than squeeze the names.
+            val columns = if (LocalDensity.current.fontScale >= 1.5f) (size.columns - 1).coerceAtLeast(2) else size.columns
+            val gutter = size.gutter
+            LazyVerticalGrid(
+                modifier = Modifier.widthIn(max = 1400.dp).fillMaxSize(),
+                columns = GridCells.Fixed(columns),
+                contentPadding = PaddingValues(start = gutter, end = gutter, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 40.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (size == WindowWidth.Compact) 12.dp else 20.dp),
+                verticalArrangement = Arrangement.spacedBy(28.dp),
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        Text(
+                            "Live wallpapers drawn on your phone. They glow at night and turn to color by day.",
+                            style = MaterialTheme.typography.bodyLarge, color = scheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, end = 24.dp).widthIn(max = 520.dp),
+                        )
+                        CategoryPills(category, onCategory)
                     }
-                    Swatches(preset.palette(night), 14.dp)
                 }
-                // Ember horizon: the one place the accent appears, marking the live wallpaper.
-                if (isActive) Box(Modifier.padding(top = 6.dp).width(28.dp).height(2.dp).clip(CircleShape).background(Palette.Ember))
+                items(wallpapers, key = { it.id }) { preset ->
+                    Plate(preset, active, imagePath, ratio, night, live = liveId == preset.id, onSelect)
+                }
+                if (category == "All") item(key = "import") { ImportPlate(ratio, onImport) }
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) { AppAttribution() }
+                }
             }
         }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            AppAttribution(Modifier.fillMaxWidth().padding(top = 12.dp))
+    }
+}
+
+@Composable
+private fun CategoryPills(selected: String, onSelect: (String) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(Collections) { label ->
+            val on = selected == label
+            Box(
+                Modifier.height(40.dp).clip(CircleShape)
+                    .background(if (on) scheme.onSurface else scheme.surfaceContainer)
+                    .selectable(on, role = Role.Tab) { onSelect(label) }
+                    .padding(horizontal = 18.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, style = MaterialTheme.typography.labelLarge, color = if (on) scheme.surface else scheme.onSurfaceVariant)
+            }
         }
+    }
+}
+
+@Composable
+private fun Plate(
+    preset: WallpaperPreset, active: WallpaperSettings, imagePath: String?, ratio: Float, night: Boolean, live: Boolean,
+    onSelect: (WallpaperPreset) -> Unit,
+) {
+    Column {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(ratio).clip(PlateShape)
+                .clickable(role = Role.Button, onClickLabel = "Open ${preset.name}") { onSelect(preset) },
+        ) {
+            Crossfade(night, animationSpec = tween(if (active.reducedMotion) 0 else Motion.MOOD), label = "plate") { lit ->
+                WallpaperPreview(
+                    preset, active.copy(presetId = preset.id, imagePath = if (preset.kind == WallpaperKind.IMAGE) imagePath else null),
+                    Modifier.fillMaxSize(), night = lit,
+                )
+            }
+        }
+        Row(Modifier.padding(top = 12.dp, start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(preset.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            if (live) {
+                LiveDot(Modifier.padding(start = 8.dp))
+                Text("Live", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(start = 5.dp))
+            }
+        }
+    }
+}
+
+/** The last plate invites your own image, in the same shape as the rest. */
+@Composable
+private fun ImportPlate(ratio: Float, onImport: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(ratio).clip(PlateShape).background(scheme.surfaceContainer)
+                .clickable(role = Role.Button, onClickLabel = "Choose an image") { onImport() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(56.dp).clip(CircleShape).background(scheme.primaryContainer), contentAlignment = Alignment.Center) {
+                Glyph(R.drawable.ic_import, null, tint = scheme.onPrimaryContainer)
+            }
+        }
+        Text("Your image", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp, start = 4.dp))
     }
 }

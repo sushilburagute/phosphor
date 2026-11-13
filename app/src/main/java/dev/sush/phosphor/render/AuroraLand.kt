@@ -485,9 +485,10 @@ internal class AuroraLand(private val k: RenderKit) {
                 levelCount[l] = o + 2
             }
             val d = dot
-            d.color = if (ink == 0) f.c1 else f.c2
+            // Mid-tone inks between the pigment and the key: a soft two-color print, not soot.
+            d.color = if (ink == 0) mix(k.fieldA, f.c1, 0.35f) else mix(k.fieldB, f.c2, 0.3f)
             k.blend(d, RenderKit.Mode.INK)
-            d.alpha = 215
+            d.alpha = 170
             for (l in 1..DOT_LEVELS) {
                 val count = levelCount[l] - levelStart[l]
                 if (count <= 0) continue

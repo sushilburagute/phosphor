@@ -183,11 +183,19 @@ internal class AuroraScene(private val k: RenderKit) {
         return c.opacity[i - 1] + (c.opacity[i] - c.opacity[i - 1]) * u
     }
 
-    /** Below 0: white-hot hem toward [Frame.c1]; 0..1: [Frame.c1] toward [Frame.c2]; above 1: the fringe. */
-    private fun hue(f: Frame, h: Float): Int = when {
-        h < 0f -> if (f.night) mix(f.c1, Color.WHITE, -h * 0.62f) else mix(f.c1, Color.BLACK, -h * 0.25f)
+    /**
+     * Below 0: white-hot hem toward [Frame.c1]; 0..1: [Frame.c1] toward [Frame.c2]; above 1: the
+     * fringe. By day only the hem is ink; the body is pigment light, so the curtain stays luminous
+     * instead of stacking into dark blotches.
+     */
+    private fun hue(f: Frame, h: Float): Int = if (f.night) when {
+        h < 0f -> mix(f.c1, Color.WHITE, -h * 0.62f)
         h <= 1f -> mix(f.c1, f.c2, h)
-        else -> mix(mix(f.c1, f.c2, 0.6f), FRINGE, (h - 1f) * if (f.night) 0.8f else 0.4f)
+        else -> mix(mix(f.c1, f.c2, 0.6f), FRINGE, (h - 1f) * 0.8f)
+    } else when {
+        h < 0f -> mix(k.fieldA, f.c1, -h * 0.7f)
+        h <= 1f -> mix(k.fieldA, k.fieldB, h)
+        else -> mix(mix(k.fieldA, k.fieldB, 0.6f), FRINGE, (h - 1f) * 0.3f)
     }
 
     /**
@@ -195,8 +203,9 @@ internal class AuroraScene(private val k: RenderKit) {
      * Solstice's twilight composition.
      */
     fun draw(canvas: Canvas, f: Frame, variant: String? = null) {
-        prepare(f)
+        // The kit first: by day the ray shaders are built from its pigments.
         k.prepare(f)
+        prepare(f)
         solstice = if (variant != null) variant == "aurora-solstice" else Color.red(f.c1) > Color.green(f.c1)
         for (b in bins) b.fill(0f)
         for (b in binHem) b.fill(f.h)
