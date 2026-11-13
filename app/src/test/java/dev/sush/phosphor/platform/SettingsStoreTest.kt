@@ -45,6 +45,7 @@ class SettingsStoreTest {
         val draft = WallpaperSettings(
             presetId = "photo", speed = 0.2f, intensity = 0.4f, parallax = false,
             fps = 24, darken = 0.25f, imagePath = "/private/photo.png", reducedMotion = true,
+            appearance = dev.sush.phosphor.model.Appearance.DAY, wakeReveal = false, lowBatteryMode = false,
         )
         store.savePreview(draft)
         store.commitPreview()

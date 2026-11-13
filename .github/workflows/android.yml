@@ -16,8 +16,16 @@ jobs:
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew
-      - run: ./gradlew testDebugUnitTest lintDebug assembleDebug
+      - run: ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: phosphor-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phosphor-reports
+          path: |
+            app/build/reports/phosphor-artwork.png
+            app/build/reports/phosphor-legibility.txt
+            app/build/reports/tests/

@@ -1,1 +1,9 @@
-<resources><color name="icon_background">#161426</color></resources>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors ui/theme/PhosphorTheme.kt for window, splash and system surfaces. -->
+    <color name="sky">#FF060914</color>
+    <color name="paper">#FFEDF0F5</color>
+    <color name="phosphor">#FFA9C0FF</color>
+    <color name="ultramarine">#FF2742B8</color>
+    <color name="icon_background">#FF0B1230</color>
+</resources>

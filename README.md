@@ -2,20 +2,24 @@
 
 Living color for Android. An offline, open-source live wallpaper app **made by sush.dev**.
 
-Phosphor renders its artwork on the device: curtains of aurora light, luminous ASCII beams, flowing gradients, refracted glass, abstract filaments, and grainy terrain. Every wallpaper includes the `made by sush.dev` watermark.
+Phosphor renders its artwork on the device: long-exposure orbits of light, curtains of aurora, beams resolved into characters, stirrable gradients, fluted and lens glass, filaments and etched textures. Every wallpaper glows at night and prints in ink by day, following your phone's dark theme, so icons and widgets stay readable either way. Every wallpaper includes the `made by sush.dev` watermark.
 
 ## Features
 
-- Twelve original procedural presets across six collections.
-- Adaptive live editor with motion speed, intensity, dimming, interactive motion, still mode, lock/unlock animation, automatic low battery mode, and frame-rate controls.
-- Favorites and a gallery of still previews, so browsing does not run a dozen animations.
-- Local image import with gentle drift and a separate layer of floating light. This is a flat-image effect, not automatic subject segmentation.
-- Android's native wallpaper picker and stable wallpaper color reporting for system theming.
-- Material You dynamic colors on Android 12+, semantic Material 3 surfaces and controls, adaptive navigation, a themed launcher icon, and light/dark app themes.
-- Export a still PNG, including the watermark, through Android's document picker.
-- More visible layered motion, eased touch responses, and a visible wake/unlock reveal. Screen-off animation visibility depends on Android and the device.
-- Rendering stops when hidden. Automatic low battery mode reduces motion and caps rendering at 15 fps at 20% or below while unplugged, and holds a still frame at 5% or below. System Battery Saver is always respected.
-- No account, ads, analytics, network permission, or broad photo-library permission.
+- Fifteen original procedural presets across seven collections: Orbit, Aurora, ASCII, Gradients, Glass, Abstract and Textures, plus your own images.
+- **Day and night treatments.** Each wallpaper has a night version (emitted light) and a day version (overprinted ink on paper). Auto follows the system dark theme. The wallpaper tells launchers which treatment is showing, so they choose light or dark labels.
+- **Readable by design.** Bright features avoid typical icon rows, and veils sit behind the clock and dock. An automated test measures label contrast for every preset in both treatments.
+- **Interactive.** Taps send ripples, drags pull the artwork, and each family answers in its own way. Launcher tap and icon-drop commands are supported. Touch answers even at zero motion speed and settles to idle.
+- **Wake reveal.** The artwork rises from dark when the screen turns on and blooms on unlock. Screen-off visibility depends on Android and the device.
+- Live editor with a touchable preview, a home-screen overlay for checking readability, speed, intensity, calm (fade toward the background), frame rate, still mode and wake reveal.
+- **Battery aware.** Rendering stops when hidden. Below 20% and unplugged, motion slows to 15 fps; at 5% it holds still. System Battery Saver is always respected. Uses the GPU canvas when available.
+- Favorites, and a gallery of still previews with a day/night switch, so browsing doesn't run a dozen animations.
+- Local image import with gentle drift, ripples and floating light. This is a flat-image effect, not automatic subject segmentation.
+- Android's native wallpaper picker and stable wallpaper color reporting for system theming. A themed (monochrome) launcher icon, a splash screen, light and dark app themes, and optional Material You colors on Android 12+.
+- Export a still PNG in either treatment, including the watermark, through Android's document picker.
+- No account, ads, analytics, network permission, broad photo-library permission, or cloud backup.
+
+See [the design system](docs/DESIGN_SYSTEM.md) for color, type, icons, motion, readability rules and interaction.
 
 ## Build
 
@@ -25,6 +29,15 @@ Requires JDK 17 or newer, Android SDK Platform 36, and SDK Build Tools 35.0.0. A
 ./gradlew assembleDebug
 ./gradlew testDebugUnitTest lintDebug
 ```
+
+Full-resolution artwork previews (both treatments), app screenshots and the launcher icon render headlessly through Robolectric. Store assets are built from them:
+
+```sh
+PHOSPHOR_PREVIEWS=1 ./gradlew testDebugUnitTest --tests '*ArtworkPreviewTest*' --tests '*ScreenshotTest*' --rerun
+python tools/store_assets.py   # writes docs/store/
+```
+
+Release signing reads `PHOSPHOR_KEYSTORE`, `PHOSPHOR_KEYSTORE_PASSWORD`, `PHOSPHOR_KEY_ALIAS` and `PHOSPHOR_KEY_PASSWORD` from Gradle properties or the environment. Without them, `assembleRelease` produces an unsigned APK.
 
 On Windows, use `gradlew.bat`. Set `ANDROID_HOME` to your SDK directory or add a local, untracked `local.properties` with `sdk.dir=...`.
 
@@ -54,10 +67,13 @@ Please include provenance and a compatible license with any image asset contribu
 
 ```text
 app/src/main/java/dev/sush/phosphor/
-  model/       Presets and immutable settings
-  render/      Shared Canvas artwork renderer
-  platform/    Wallpaper service, draft/active persistence, system intents
-  ui/          Compose gallery, editor, import/export, preview view
+  model/       Presets (night and day palettes) and immutable settings
+  render/      Shared Canvas renderer, one scene per family, touch field
+  platform/    Wallpaper service, power policy, draft/active persistence, system intents
+  ui/          Compose gallery, editor, settings, components, import/export, preview view
+  ui/theme/    Design tokens: color, type, shape, spacing, motion
+docs/store/    Play icon, feature graphic and screenshots
+tools/         Store asset builder
 ```
 
 The gallery, editor, exported stills, and actual wallpaper use the same renderer. Each live wallpaper engine owns its own renderer so a system preview can coexist with the active wallpaper. Draft settings are stored separately to protect the active wallpaper when a preview is dismissed.

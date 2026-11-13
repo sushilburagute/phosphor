@@ -25,30 +25,118 @@ import java.io.FileOutputStream
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class WallpaperRendererTest {
     @Test
-    fun everyFamilyProducesOpaqueArtworkWithVisibleVariation() {
-        val sheet = Bitmap.createBitmap(620, 1600, Bitmap.Config.ARGB_8888)
+    fun everyFamilyProducesOpaqueArtworkWithVisibleVariationInBothMoods() {
+        val presets = WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE }
+        val columns = 6
+        val sheet = Bitmap.createBitmap(columns * 2 * (WIDTH + 12) + 12, (presets.size + columns - 1) / columns * (HEIGHT + 34) + 12, Bitmap.Config.ARGB_8888)
         sheet.eraseColor(0xFF18212C.toInt())
         val sheetCanvas = Canvas(sheet)
         val caption = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 13f }
-        for ((index, preset) in WallpaperCatalog.presets.withIndex()) {
-            val bitmap = render(preset)
-            val pixels = pixels(bitmap)
-            assertTrue("${preset.id} contains transparent pixels", pixels.all { Color.alpha(it) == 255 })
-            // Ignore the watermark area: the art itself must carry visible detail.
-            val art = pixels.take(WIDTH * HEIGHT * 3 / 4)
-            assertTrue("${preset.id} is effectively a solid fill", art.toSet().size > 80)
-            if (preset.kind != WallpaperKind.IMAGE) {
-                val x = 20f + (index % 3) * 200f
-                val y = 12f + (index / 3) * 400f
-                sheetCanvas.drawBitmap(bitmap, x, y, null)
-                sheetCanvas.drawText(preset.name, x, y + HEIGHT + 22f, caption)
+        for (night in listOf(true, false)) {
+            for ((index, preset) in WallpaperCatalog.presets.withIndex()) {
+                val bitmap = render(preset, night = night)
+                val pixels = pixels(bitmap)
+                assertTrue("${preset.id} contains transparent pixels", pixels.all { Color.alpha(it) == 255 })
+                // Ignore the watermark area: the art itself must carry visible detail.
+                val art = pixels.take(WIDTH * HEIGHT * 3 / 4)
+                assertTrue("${preset.id} is effectively a solid fill", art.toSet().size > 80)
+                val slot = presets.indexOf(preset)
+                if (slot >= 0) {
+                    val x = 12f + ((slot % columns) * 2 + if (night) 0 else 1) * (WIDTH + 12f)
+                    val y = 12f + (slot / columns) * (HEIGHT + 34f)
+                    sheetCanvas.drawBitmap(bitmap, x, y, null)
+                    if (night) sheetCanvas.drawText(preset.name, x, y + HEIGHT + 20f, caption)
+                }
+                bitmap.recycle()
             }
-            bitmap.recycle()
         }
         val report = File("build/reports/phosphor-artwork.png")
         report.parentFile?.mkdirs()
         FileOutputStream(report).use { sheet.compress(Bitmap.CompressFormat.PNG, 100, it) }
         sheet.recycle()
+    }
+
+    /**
+     * Launcher labels are white at night and near-black by day (the wallpaper reports which).
+     * Score every label slot of a typical 4x4 grid, plus the clock and dock zones, by the share
+     * of pixels where a label would meet WCAG 4.5:1. Rendered at full on-device detail.
+     */
+    @Test
+    fun launcherLabelsStayReadableInBothMoods() {
+        val failures = mutableListOf<String>()
+        val report = StringBuilder()
+        val w = 270
+        val h = 585
+        for (preset in WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE }) {
+            for (night in listOf(true, false)) {
+                for (time in listOf(0f, 12f, 31f)) {
+                    val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                    val renderer = WallpaperRenderer().apply { forcedDetail = 1f }
+                    renderer.draw(Canvas(bitmap), w, h, time, preset, WallpaperSettings(presetId = preset.id), night = night)
+                    renderer.release()
+                    val label = if (night) Color.WHITE else 0xFF1B1B1F.toInt()
+                    val mood = if (night) "night" else "day"
+                    val clock = readableShare(bitmap, label, 0.07f, 0.27f, 0f, 1f)
+                    val dock = readableShare(bitmap, label, 0.86f, 0.93f, 0f, 1f)
+                    var worst = 1f
+                    var sum = 0f
+                    for (row in 0 until 4) for (col in 0 until 4) {
+                        val y = 0.36f + row * 0.12f
+                        val x = 0.04f + col * 0.24f
+                        val share = readableShare(bitmap, label, y, y + 0.025f, x, x + 0.18f)
+                        worst = minOf(worst, share); sum += share
+                    }
+                    val mean = sum / 16f
+                    report.append("${preset.id} $mood t=$time clock=${"%.2f".format(clock)} dock=${"%.2f".format(dock)} labelsMean=${"%.2f".format(mean)} labelsWorst=${"%.2f".format(worst)}\n")
+                    if (clock < 0.9f || dock < 0.9f || mean < 0.85f || worst < 0.45f) {
+                        failures += "${preset.id} $mood t=$time clock=$clock dock=$dock mean=$mean worst=$worst"
+                    }
+                    bitmap.recycle()
+                }
+            }
+        }
+        File("build/reports/phosphor-legibility.txt").apply { parentFile?.mkdirs() }.writeText(report.toString())
+        assertTrue("Labels would be hard to read:\n" + failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    @Test
+    fun tapsVisiblyAnswerInEveryFamilyEvenWhenMotionSpeedIsZero() {
+        for (preset in WallpaperCatalog.presets) {
+            val settings = WallpaperSettings(presetId = preset.id, speed = 0f)
+            val calm = render(preset, settings, time = 5f)
+            val touch = TouchField().apply { tap(0.5f, 0.5f, 10f) }
+            val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+            val renderer = WallpaperRenderer()
+            try {
+                renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, 5f, preset, settings, touch = touch, realSeconds = 10.5f)
+                assertTrue("${preset.id} ignores taps", changedFraction(calm, bitmap) > 0.01f)
+                assertTrue(touch.isActive(10.5f))
+                assertFalse("pulses must end", touch.isActive(10f + TouchField.LIFE + 0.1f))
+            } finally {
+                renderer.release(); bitmap.recycle(); calm.recycle()
+            }
+        }
+    }
+
+    @Test
+    fun wakeRevealStartsFromTheGroundAndEndsAtTheFullArtwork() {
+        val preset = WallpaperCatalog.find("orbit-exposure")
+        val settings = WallpaperSettings(presetId = preset.id)
+        val dark = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+        val full = render(preset, settings)
+        val renderer = WallpaperRenderer()
+        try {
+            renderer.draw(Canvas(dark), WIDTH, HEIGHT, 12f, preset, settings, reveal = 0f)
+            val art = pixels(dark).take(WIDTH * HEIGHT * 3 / 4)
+            assertTrue("reveal should begin from black", art.all { Color.red(it) < 40 && Color.green(it) < 40 && Color.blue(it) < 40 })
+            renderer.release()
+            val done = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+            WallpaperRenderer().also { it.draw(Canvas(done), WIDTH, HEIGHT, 12f, preset, settings, reveal = 1f); it.release() }
+            assertTrue(done.sameAs(full))
+            done.recycle()
+        } finally {
+            renderer.release(); dark.recycle(); full.recycle()
+        }
     }
 
     @Test
@@ -102,7 +190,10 @@ class WallpaperRendererTest {
                 )
                 // A tall image must still cover all four corners of a wide surface.
                 for ((x, y) in listOf(0 to 0, 359 to 0, 0 to 149, 359 to 149)) {
-                    assertEquals("An uncovered wallpaper edge at $x,$y", Color.RED, bitmap.getPixel(x, y))
+                    val pixel = bitmap.getPixel(x, y)
+                    // Corners sit under the readability veil, so expect red-dominated image color.
+                    assertTrue("An uncovered wallpaper edge at $x,$y: ${Integer.toHexString(pixel)}",
+                        Color.red(pixel) > 90 && Color.red(pixel) > 4 * maxOf(Color.green(pixel), Color.blue(pixel)))
                 }
             } finally {
                 renderer.release()
@@ -153,11 +244,12 @@ class WallpaperRendererTest {
         time: Float = 12f,
         offsetX: Float = 0f,
         offsetY: Float = 0f,
+        night: Boolean = true,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val renderer = WallpaperRenderer()
         try {
-            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY)
+            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY, night = night)
         } finally {
             renderer.release()
         }
@@ -174,8 +266,29 @@ class WallpaperRendererTest {
         return a.indices.count { a[it] != b[it] }.toFloat() / a.size
     }
 
+    private fun readableShare(bitmap: Bitmap, label: Int, from: Float, to: Float, left: Float, right: Float): Float {
+        val top = (bitmap.height * from).toInt()
+        val bottom = (bitmap.height * to).toInt()
+        val x0 = (bitmap.width * left).toInt()
+        val x1 = (bitmap.width * right).toInt().coerceAtMost(bitmap.width)
+        val row = IntArray(x1 - x0)
+        val labelLum = RenderKit.luminance(label)
+        var ok = 0
+        var total = 0
+        for (y in top until bottom) {
+            bitmap.getPixels(row, 0, row.size, x0, y, row.size, 1)
+            for (pixel in row) {
+                val l = RenderKit.luminance(pixel)
+                val ratio = (maxOf(l, labelLum) + 0.05f) / (minOf(l, labelLum) + 0.05f)
+                if (ratio >= 4.5f) ok++
+                total++
+            }
+        }
+        return ok.toFloat() / total
+    }
+
     companion object {
         private const val WIDTH = 180
-        private const val HEIGHT = 360
+        private const val HEIGHT = 390
     }
 }
