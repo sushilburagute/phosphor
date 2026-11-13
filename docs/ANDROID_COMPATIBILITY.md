@@ -1,5 +1,7 @@
 # Android compatibility
 
+[Documentation index](README.md) · [User guide](USER_GUIDE.md) · [Testing](TESTING.md)
+
 Phosphor uses Android's public `WallpaperService` API, rather than a launcher-specific integration. The minimum version is Android 8.1 (API 27). Pixel and Samsung One UI are intended targets; support in code is not a claim that every device/firmware combination has been tested.
 
 ## Wallpaper colors and phone themes
@@ -16,7 +18,7 @@ Editing saves a draft independently of the active wallpaper. Opening and dismiss
 
 ## Battery and rendering
 
-- Rendering stops when the engine is hidden or its surface is destroyed.
+- Continuous rendering stops when the engine is hidden, its surface is destroyed, or the display is non-interactive. A visible lock-screen wallpaper is capped at 15 fps, including while charging; touch and scroll requests share that frame budget.
 - System Battery Saver caps animation at 15 frames per second and reduces motion. Automatic low battery mode does the same at 20% or below while unplugged, and holds a still frame at 5% or below. The automatic behavior can be disabled per wallpaper; system Battery Saver is always honored.
 - Still mode and Android's disabled-animation preference draw a stationary frame and disable animated touch/launcher parallax and unlock effects.
 - When the display becomes non-interactive, the engine draws a dimmed stationary frame if still visible. Availability of live content on an always-on display remains an OEM decision.
