@@ -1,46 +1,52 @@
 # Validation
 
-Verified on 2026-11-13 using the Android SDK 36 toolchain and a headless Android 16 / API 36 x86_64 emulator with the Pixel launcher.
+## PR #1 merge verification
+
+Verified the merge of `main` at `dcd301d` on 2026-11-13 on Windows with JDK 21.0.9, Android SDK Platform 36 and Build Tools 35.0.0.
+
+Command: `./gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleRelease`
+
+- Debug and unsigned release APKs built, including R8 and resource shrinking.
+- 50 tests passed with zero failures; the 4 opt-in preview and screenshot tests were skipped.
+- Android lint: zero errors, 29 warnings.
+- Both branches' motion, battery, settings and renderer tests are retained. Added checks for independent wake/unlock treatments in both moods and disabled reveal preferences migrating from either version.
+- No emulator or physical device was used for this merge verification. The visual review below describes the original production asset validation.
+
+## Production asset validation
+
+Verified on 2026-11-13 on Windows with JDK 17.0.21, Android SDK Platform 36 and Build Tools 35.0.0. **No emulator or physical device was used for this round.** Everything below ran on the JVM through Robolectric with native (Skia) graphics.
 
 ## Build and automated checks
 
 Command: `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`
 
-- Debug APK: built and installed successfully.
-- Optimized release APK: R8 and resource shrinking completed successfully. This APK is unsigned; distribution requires a release signing key.
-- 37 unit tests passed, with zero failures or errors.
-- Android lint: zero errors, 25 warnings. Remaining warnings cover dependency updates, optional XML/version attributes, backup-rule guidance, and Kotlin style suggestions. They are not suppressed by a baseline.
+- Debug APK built.
+- Release APK: R8 and resource shrinking completed; 1.47 MB, unsigned. Distribution requires a release signing key (see README).
+- 28 unit tests passed, with zero failures; 4 opt-in preview and screenshot tests are skipped by default.
+- Android lint: zero errors. Remaining warnings are dependency-update notices, KTX style suggestions, and attributes that older API levels ignore. No baseline is used.
 
-The tests exercise separate draft/active persistence, cancellation protection, cross-instance notifications, corrupt or nonfinite settings, actual native Skia rendering of every family, animation over time, still mode, image fallback and overscan, renderer reuse, dimming, bounded private image import, invalid-file handling, and readable PNG export.
+What the tests cover:
 
-The open-items update adds regression coverage for legacy defaults and persistence of battery/unlock preferences, battery parsing and charging state, automatic saving at the 20% and 5% boundaries, system saver precedence, lock/unlock interruption and repeated callbacks, frame-rate-independent touch response, settling to idle, zero-speed touch feedback, reduced-motion suppression of interaction/reveal, and combined imported-image motion coverage. A zero-delta spring update initially failed because of floating-point cancellation; zero elapsed time now returns the current state without integrating it.
+- **Renderer:** opaque, detailed output for every family in both treatments; animation over time; still mode freezing time and parallax; image fallback and landscape overscan; renderer reuse after release; calm/dimming; the wake reveal starting from the ground and ending on the full artwork.
+- **Readability:** for every preset, both treatments and three moments, at full on-device detail. Each of 16 label slots, the clock zone and the dock zone is scored by the share of pixels where a launcher label would reach WCAG 4.5:1. The report is written to `app/build/reports/phosphor-legibility.txt`.
+- **Touch:** a tap visibly changes every family even at zero motion speed; pulses expire; duplicate launcher taps merge; a released drag settles to rest.
+- **Power policy:** plugged-in, 20% and 5% boundaries, opting out, Battery Saver precedence, still mode; day/night resolution against the system theme.
+- **Persistence and files:** draft and active separation, preview commit, the new appearance/wake/battery settings round-trip, bounded private image import, invalid files, PNG export.
 
-## Open-items update emulator checks
+## Visual review
 
-- Installed and opened the updated debug APK on Android 16 / API 36.
-- Inspected the phone gallery/editor and a 1280 x 800 dp window. Confirmed the wide gallery uses a navigation rail and the wide editor places artwork beside scrollable settings.
-- Checked a 320 dp wide phone window at 2x font scale. The title wraps, the editor remains scrollable, sliders and control labels remain reachable, and the apply action stays visible.
-- Compared artwork-region screenshots: normal motion changes between frames; setting Android animator duration scale to zero produces matching still frames; restoring it resumes motion.
-- Simulated an unplugged, discharging battery at 5%; artwork-region screenshots match after receiver delivery. Restored normal battery reporting after the check. This verifies the critical-battery hold, not a measured energy saving.
-- Set motion speed to 0% in the editor. Idle artwork-region screenshots match; a drag changes the artwork; screenshots match again after the interaction settles.
-- Applied Northern veil to home and lock screens through Android's picker; confirmed Phosphor's active service using `dumpsys wallpaper`.
-- Enabled the emulator's swipe lock screen, slept, woke, and dismissed keyguard. The wallpaper remained available and no app runtime errors were reported. Exact visual lock/unlock timing and manufacturer-specific behavior still need physical-device validation.
+Rendered and inspected:
 
-Changing emulator display overrides during the large-text check caused the emulator process to exit. This is recorded separately from app runtime failures; the layout check was retried after restarting the emulator.
+- full-resolution (1080×2340) artwork for all 15 presets in both treatments, with a mock home screen overlaid;
+- the gallery, editor (with and without the home-screen overlay) and settings, in light and dark;
+- the adaptive launcher icon at 192, 96 and 48 px, plus the themed monochrome version.
 
-## Earlier emulator checks
-
-- Launched the gallery, filtered to ASCII, and opened live previews.
-- Opened Android's wallpaper preview and applied Signal bloom to the home screen. Confirmed the selected service with `dumpsys wallpaper` and the committed configuration in application preferences.
-- Observed the app's dynamic colors change after wallpaper application.
-- Opened Afterimage in the system preview and canceled. The draft remained Afterimage while the active wallpaper remained Signal bloom.
-- Imported a supplied JPEG reference through the system document picker. Confirmed its private PNG copy and image wallpaper preview with the watermark. The import did not change the active wallpaper.
-- Scrolled to editor controls and saved a still through Android's document picker. Retrieved the resulting nonempty PNG from Downloads.
-- Inspected generated artwork for all twelve procedural presets and the imported-image preview.
-- Checked the runtime error log: no app crashes recorded during these checks.
+Images are produced by the opt-in preview tests (see README).
 
 ## Not yet verified
 
-No physical Pixel or Samsung device has been tested. One UI palette behavior, older Android picker variations, three-button navigation across OEMs, physical foldables, independent lock-screen options, and sustained power/thermal/frame-time measurements still need the [device test matrix](ANDROID_COMPATIBILITY.md).
+- On-device behavior: the hardware canvas path, frame timing and thermal load with 3,000+ trail strokes per frame, `onCommand` taps and icon drops from real launchers, screen-on and unlock reveal timing, and battery broadcasts.
+- How Pixel and One UI launchers react to the dark-text/dark-theme color hints, and lock-screen behavior.
+- Energy use: the frame caps are policy, not a measured battery-life result.
 
-The source implements public wallpaper color reporting and dynamic app colors; this is not certification of every manufacturer's theming behavior. Reference images are local test inputs and are not included in the APK or source distribution.
+Use the [device test matrix](ANDROID_COMPATIBILITY.md) before release.

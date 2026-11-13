@@ -4,7 +4,7 @@ These changes address open items 2, 3, 4, 5, 7, 8, and 9. The implementation use
 
 ## Layout and Material You
 
-- Use Material 3 semantic color roles for app surfaces, text, controls, and selection. Android 12+ can supply the system's dynamic light/dark palette; older devices retain a complete fallback theme. Artwork keeps its own colors.
+- Use Material 3 semantic color roles for app surfaces, text, controls, and selection, filled from Phosphor’s own palette (see [the design system](DESIGN_SYSTEM.md)). Material You colors are an opt-in on Android 12+. Artwork keeps its own colors, in a night and a day treatment that follows the system theme.
 - Adapt navigation and editor layout to the available window space. Keep controls readable with bounded widths, wrapping choices, scrollable content, and system insets. Keep the apply action easy to find.
 - Use Material typography and consistent spacing to distinguish navigation, artwork, sections, and individual settings. Give interactive controls at least a 48 dp target and combine each setting's label, explanation, and switch into one accessible action.
 

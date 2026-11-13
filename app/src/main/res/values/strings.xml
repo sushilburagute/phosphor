@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Phosphor</string>
-    <string name="wallpaper_description">Living color. Auroras, ASCII, gradients, glass and tactile art. made by sush.dev</string>
+    <string name="wallpaper_description">Living light for your home screen. Orbits, auroras, ASCII, glass and textures that glow at night and print in ink by day. made by sush.dev</string>
+    <string name="wallpaper_author">sush.dev</string>
 </resources>
