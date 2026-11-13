@@ -1,5 +1,7 @@
 # Phosphor design system
 
+[Documentation index](README.md) · [Design decisions](DESIGN_PRINCIPLES.md) · [Contributing](../CONTRIBUTING.md)
+
 **Night is light, day is ink.** Every wallpaper is one scene with two physical treatments. At night it is emitted light on a deep ground, drawn additively so overlapping strokes build up like a long exposure. By day it is the same scene overprinted in two inks on cool paper, with a slight misregistration, like a risograph print. The app chrome borrows the same two materials.
 
 Tokens live in `app/src/main/java/dev/sush/phosphor/ui/theme/PhosphorTheme.kt`; window and splash colors are mirrored in `res/values/colors.xml`.
@@ -15,7 +17,7 @@ Tokens live in `app/src/main/java/dev/sush/phosphor/ui/theme/PhosphorTheme.kt`; 
 | Primary | Phosphor `#A9C0FF` | Ultramarine `#2742B8` | Actions, selection, icons in headings |
 | Ember | `#FF6A3A` | `#D5482A` | **Only** "live on your phone", the brand horizon, and a saved heart |
 
-Selection containers (chips, navigation indicator, toggles) stay in the blue family so ember keeps its single meaning. "Use your phone's colors" swaps in Material You on Android 12+; Phosphor's palette is the default.
+Selection containers (chips, navigation indicator, toggles) stay in the blue family so ember remains limited to those accents. "Use your phone's colors" swaps in Material You on Android 12+; Phosphor's palette is the default.
 
 ## Type
 
@@ -53,7 +55,7 @@ The launcher icon is an adaptive icon: a grain of light inside a tilted orbit ov
 
 ## Wallpaper readability
 
-Launcher labels are white at night and near-black by day. The service reports which, through `WallpaperColors` hints on Android 12+ and through the measured frame on earlier versions, so launchers switch label color with the treatment.
+The artwork is composed for white launcher labels at night and near-black labels by day. The service supplies `WallpaperColors` hints on Android 12+ and a measured frame on earlier versions so launchers can choose a matching label color. Whether a launcher uses those signals is device-dependent; see [Android compatibility](ANDROID_COMPATIBILITY.md).
 
 The artwork keeps labels readable by composition, not by dimming everything:
 
@@ -72,4 +74,4 @@ Wake reveal: on screen-on the artwork rises from its ground over 1.5 seconds. Tr
 
 ## Store assets
 
-`docs/store/` holds the Play icon (rendered from the adaptive icon's actual vector layers), a 1024×500 feature graphic and phone screenshots cropped to Play's 2:1 limit. Regenerate with the commands in `tools/store_assets.py`.
+[`docs/store/`](store) holds the Play icon (rendered from the adaptive icon's actual vector layers), a 1024×500 feature graphic and phone screenshots cropped to a maximum 2:1 long/short-side ratio. Regenerate them using the [preview and store asset workflow](TESTING.md#build-store-assets).

@@ -1,4 +1,10 @@
-# Validation
+# Validation history
+
+[Documentation index](README.md) · [Repeatable test commands](TESTING.md) · [Device checklist](ANDROID_COMPATIBILITY.md#device-validation-checklist)
+
+This file preserves results reported for earlier commits and branches. Counts, warnings, APK sizes, and screenshots describe those builds, not necessarily the current checkout. Re-run the [standard checks](TESTING.md#standard-checks) to validate a new change; do not infer physical-device coverage from JVM tests or earlier emulator checks.
+
+The most recent recorded integrated build below passed 65 tests and reported 33 lint warnings on 2026-11-14. Physical Pixel/One UI compatibility and energy profiling remain outstanding. No device results were added by the documentation reorganization.
 
 ## Branding branch merge verification
 

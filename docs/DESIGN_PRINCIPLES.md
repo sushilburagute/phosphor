@@ -1,10 +1,12 @@
 # Design and motion decisions
 
-These changes address open items 2, 3, 4, 5, 7, 8, and 9. The implementation uses Android's public APIs and the existing offline Canvas renderer. Sources were consulted on 2026-11-13.
+[Documentation index](README.md) · [Design system](DESIGN_SYSTEM.md) · [Architecture](ARCHITECTURE.md)
+
+This guide explains the layout, interaction, and power decisions behind Phosphor. The implementation uses Android's public APIs and the shared offline Canvas renderer. The linked guidance was consulted on 2026-11-13.
 
 ## Layout and Material You
 
-- Use Material 3 semantic color roles for app surfaces, text, controls, and selection, filled from Phosphor’s own palette (see [the design system](DESIGN_SYSTEM.md)). Material You colors are an opt-in on Android 12+. Artwork keeps its own colors, in a night and a day treatment that follows the system theme.
+- Use Material 3 semantic color roles for app surfaces, text, controls, and selection, filled from Phosphor’s own palette (see [the design system](DESIGN_SYSTEM.md)). Material You colors are an opt-in on Android 12+. Artwork keeps its own colors, with night and day treatments; Auto follows the system theme.
 - Adapt navigation and editor layout to the available window space. Keep controls readable with bounded widths, wrapping choices, scrollable content, and system insets. Keep the apply action easy to find.
 - Use Material typography and consistent spacing to distinguish navigation, artwork, sections, and individual settings. Give interactive controls at least a 48 dp target and combine each setting's label, explanation, and switch into one accessible action.
 
