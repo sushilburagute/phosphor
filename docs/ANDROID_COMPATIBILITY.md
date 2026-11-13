@@ -17,10 +17,11 @@ Editing saves a draft independently of the active wallpaper. Opening and dismiss
 ## Battery and rendering
 
 - Rendering stops when the engine is hidden or its surface is destroyed.
-- Battery Saver caps the animation at 15 frames per second.
-- Reduced motion draws a stationary frame and disables touch/launcher parallax.
+- System Battery Saver caps animation at 15 frames per second and reduces motion. Automatic low battery mode does the same at 20% or below while unplugged, and holds a still frame at 5% or below. The automatic behavior can be disabled per wallpaper; system Battery Saver is always honored.
+- Still mode and Android's disabled-animation preference draw a stationary frame and disable animated touch/launcher parallax and unlock effects.
 - When the display becomes non-interactive, the engine draws a dimmed stationary frame if still visible. Availability of live content on an always-on display remains an OEM decision.
-- Parallax uses launcher offsets and touch events. It does not run an accelerometer or other sensor; some launchers provide no offset events.
+- Interaction uses launcher offsets and touch events, with eased movement and localized light/ripple responses. It does not run an accelerometer or other sensor; some launchers provide no offset or touch events.
+- A visible lock-screen wallpaper settles into a dimmer, closer composition on wake and reveals its normal appearance on unlock. Screen-off draws a final locked appearance when a surface is available, then stops. Android may hide the wallpaper or turn the display off before any shutdown animation can be shown; no private keyguard APIs or overlays are used.
 - Each picker/home-screen engine owns its renderer and resources. Rendering does not require network access, a foreground service, or media/storage permissions.
 
 ## Device validation checklist
@@ -38,8 +39,14 @@ Run this checklist on a physical Pixel and a physical Samsung device before clai
 | Change wallpaper family or dimming | New representative colors are supplied, without per-frame palette flicker |
 | Turn screen off; open another fullscreen app | No continuing render loop while hidden |
 | Toggle Battery Saver while wallpaper visible | Frame rate caps at 15 FPS and resumes configured cap after disabling |
+| Unplug at 20%, then lower to 5%; reconnect power | Automatic saving reduces motion and caps at 15 FPS; critical battery holds a still; charging restores the selected behavior |
+| Disable automatic low battery mode; enable system Battery Saver | Automatic threshold is bypassed but system saving remains respected |
 | Enable reduced motion | One stationary frame; touch/scroll does not animate |
+| Disable system animator duration scale while visible | Artwork becomes still without leaving an animation loop running; enabling animations resumes selected motion |
+| Lock, wake, and unlock; repeat with still mode and unlock effects disabled | Visible lock/wake/unlock treatment follows the setting; hidden or non-interactive engines stop scheduling frames |
+| Touch/drag/release with ambient speed zero | A finite eased response plays and settles; the wallpaper does not retain a continuous idle animation loop |
 | Rotate / fold / unfold / change resolution | Surface fills viewport; no stale bitmap size or crash |
+| Use large text and wide windows | Settings wrap and remain reachable; wide layouts use navigation rail and editor panes |
 | Preview while existing live wallpaper runs | Engines render independently without shared resource recycling |
 | Import large portrait and landscape photos | Bounded decoding, correct center crop, motion stays within image edges |
 | Reboot; kill app process | Applied configuration and private imported image persist |

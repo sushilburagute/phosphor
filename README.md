@@ -7,13 +7,14 @@ Phosphor renders its artwork on the device: curtains of aurora light, luminous A
 ## Features
 
 - Twelve original procedural presets across six collections.
-- Live editor with motion speed, intensity, dimming, parallax, reduced motion, and frame-rate controls.
+- Adaptive live editor with motion speed, intensity, dimming, interactive motion, still mode, lock/unlock animation, automatic low battery mode, and frame-rate controls.
 - Favorites and a gallery of still previews, so browsing does not run a dozen animations.
 - Local image import with gentle drift and a separate layer of floating light. This is a flat-image effect, not automatic subject segmentation.
 - Android's native wallpaper picker and stable wallpaper color reporting for system theming.
-- Material dynamic colors on Android 12+, a themed launcher icon, and light/dark app themes.
+- Material You dynamic colors on Android 12+, semantic Material 3 surfaces and controls, adaptive navigation, a themed launcher icon, and light/dark app themes.
 - Export a still PNG, including the watermark, through Android's document picker.
-- Rendering stops when the wallpaper is hidden; Battery Saver caps the wallpaper at 15 fps.
+- More visible layered motion, eased touch responses, and a visible wake/unlock reveal. Screen-off animation visibility depends on Android and the device.
+- Rendering stops when hidden. Automatic low battery mode reduces motion and caps rendering at 15 fps at 20% or below while unplugged, and holds a still frame at 5% or below. System Battery Saver is always respected.
 - No account, ads, analytics, network permission, or broad photo-library permission.
 
 ## Build
@@ -40,6 +41,8 @@ Some launchers do not send scrolling offsets or touch events. The wallpapers con
 See [Android compatibility and device test matrix](docs/ANDROID_COMPATIBILITY.md) for preview/commit behavior and device checks still required before release. Implementing these APIs does not establish that every Pixel or Samsung version has been physically tested.
 
 See [validation results](docs/VALIDATION.md) for the builds, automated tests, and emulator checks performed on this implementation.
+
+See [design and motion decisions](docs/DESIGN_PRINCIPLES.md) for the Android and Material guidance behind the layout, animation, interaction, and power policies.
 
 ## Artwork and reference images
 

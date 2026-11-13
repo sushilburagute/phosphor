@@ -39,5 +39,5 @@ google-services.json
 .gradle-user-home/
 .android-local/
 
-# Inspiration originals are not app assets; redistribution rights are unknown.
-ref-img/
+# Inspiration originals are not app assets;
+# ref-img/
