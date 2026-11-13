@@ -239,7 +239,7 @@ internal class AbstractHorizon(private val k: RenderKit) {
                         hotter[hotterCount] = px[step]; hotter[hotterCount + 1] = py[step]
                         hotter[hotterCount + 2] = px[step + 1]; hotter[hotterCount + 3] = py[step + 1]
                         hotterCount += 4
-                    } else if (g > 0.12f && hotCount + 4 <= hot.size) {
+                    } else if (g > 0.3f && hotCount + 4 <= hot.size) {
                         hot[hotCount] = px[step]; hot[hotCount + 1] = py[step]
                         hot[hotCount + 2] = px[step + 1]; hot[hotCount + 3] = py[step + 1]
                         hotCount += 4

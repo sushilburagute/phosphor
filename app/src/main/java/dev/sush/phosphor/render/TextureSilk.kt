@@ -197,7 +197,7 @@ internal class TextureSilk(private val k: RenderKit, private val halftone: Halft
         val night = f.night
         val dx = (g.verts[2] - g.verts[0]) * 2f
         val dy = (g.y(1) - g.y(0)) * 2f
-        val deep = if (night) mix(f.c0, Color.BLACK, 0.4f) else mix(f.c1, f.c2, 0.55f)
+        val deep = if (night) mix(f.c0, Color.BLACK, 0.4f) else mix(f.c1, f.c2, 0.38f)
         val lit = if (night) f.c1 else f.c0
         val sheen = if (night) f.c2 else Color.WHITE
         val ink = if (night) Color.BLACK else f.c2
@@ -235,7 +235,7 @@ internal class TextureSilk(private val k: RenderKit, private val halftone: Halft
             if (!night) c = mix(f.c0, c, reveal)
             g.colors[at] = mix(c, sheen, s)
             // Halftone: mid-tones by night, shadows by day.
-            val dots = if (night) 0.04f + 0.36f * 4f * v * (1f - v).coerceAtLeast(0f) else (1f - v).pow(1.5f) * 0.9f * reveal
+            val dots = if (night) 0.04f + 0.36f * 4f * v * (1f - v).coerceAtLeast(0f) else (1f - v).pow(1.5f) * 0.75f * reveal
             g.overlay[at] = alpha(ink, (dots.coerceIn(0f, 1f) * 255f).toInt())
         }
     }

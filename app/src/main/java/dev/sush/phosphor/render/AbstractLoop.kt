@@ -35,7 +35,6 @@ internal class AbstractLoop(private val k: RenderKit) {
     private val ringY = FloatArray(RINGS)
     private val backFace = BooleanArray(RINGS)
     private val edge = FloatArray(8)
-    private val quad = FloatArray(8)
     private val motes = Array(3) { FloatArray(MOTES * 2) }
     private val moteCount = IntArray(3)
 
@@ -115,7 +114,6 @@ internal class AbstractLoop(private val k: RenderKit) {
 
         // Light from the upper left and in front; a held finger takes it over.
         var lx = -0.5f; var ly = -0.62f; var lz = -0.6f
-        val night = f.night
         for (i in 0 until RINGS) {
             val u = i / RINGS.toFloat() * TAU
             val wobble = t * 0.12f
@@ -196,7 +194,6 @@ internal class AbstractLoop(private val k: RenderKit) {
             while (j >= 0 && depth[order[j]] + depth[(order[j] + 1) % RINGS] < d) { order[j + 1] = order[j]; j-- }
             order[j + 1] = key
         }
-        if (!night) return
     }
 
     private var rotY = 0f
@@ -235,12 +232,12 @@ internal class AbstractLoop(private val k: RenderKit) {
         val c = f.charge
         if (f.night) {
             val lo = mix(f.c0, face, 0.08f)
-            val hi = mix(f.c0, face, 0.56f)
+            val hi = mix(f.c0, face, 0.48f)
             val light = (diff * 0.95f + 0.05f) * near
             r = Color.red(lo) + (Color.red(hi) - Color.red(lo)) * light
             g = Color.green(lo) + (Color.green(hi) - Color.green(lo)) * light
             b = Color.blue(lo) + (Color.blue(hi) - Color.blue(lo)) * light
-            val sp = (spec * (0.85f + c * 0.6f) + wave * 0.35f) * near
+            val sp = (spec * (0.72f + c * 0.7f) + wave * 0.35f) * near
             r += (225f + Color.red(face) * 0.12f) * sp; g += (230f + Color.green(face) * 0.1f) * sp; b += (235f) * sp
             val rim = fres * 0.7f * near
             r += Color.red(other) * rim; g += Color.green(other) * rim; b += Color.blue(other) * rim
@@ -301,8 +298,6 @@ internal class AbstractLoop(private val k: RenderKit) {
             val b0 = j * ROWS; val b1 = j * ROWS + ROWS - 1
             edge[0] = verts[a0 * 2]; edge[1] = verts[a0 * 2 + 1]; edge[2] = verts[b0 * 2]; edge[3] = verts[b0 * 2 + 1]
             edge[4] = verts[a1 * 2]; edge[5] = verts[a1 * 2 + 1]; edge[6] = verts[b1 * 2]; edge[7] = verts[b1 * 2 + 1]
-            val shownIn = ringX[i] != 0f || ringY[i] != 0f
-            if (!shownIn) continue
             s.strokeCap = Paint.Cap.BUTT
             k.additive(s, night)
             s.strokeWidth = 1.3f
@@ -320,7 +315,6 @@ internal class AbstractLoop(private val k: RenderKit) {
         k.reset(p)
         k.reset(s)
         s.strokeCap = Paint.Cap.ROUND
-        quad[0] = 0f
     }
 
     /**
