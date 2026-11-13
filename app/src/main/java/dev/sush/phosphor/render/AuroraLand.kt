@@ -105,7 +105,7 @@ internal class AuroraLand(private val k: RenderKit) {
             val x = fraction(i * 17 + 3) * 1010f - 5f + f.shiftX(0.12f)
             val y = fraction(i * 23 + 5).let { it * (0.6f + 0.4f * it) } * h * 0.68f + f.shiftY(0.12f)
             val mag = fraction(i * 7 + 11).let { it * it * it }
-            val twinkle = 0.7f + 0.3f * sin(f.t * (1.1f + fraction(i + 99) * 2.6f) + i)
+            val twinkle = 0.7f + 0.3f * sin(f.sky * (1.1f + fraction(i + 99) * 2.6f) + i)
             // Stars are lit in random order as the sky wakes.
             if (fraction(i * 5 + 1) > reveal) continue
             val level = ((0.25f + 0.75f * mag) * twinkle * 4f).toInt().coerceIn(0, 3)
@@ -134,8 +134,8 @@ internal class AuroraLand(private val k: RenderKit) {
     /** Now and then a meteor scratches across the upper sky; deterministic in animation time. */
     private fun meteor(canvas: Canvas, f: Frame) {
         val period = 7.3f
-        val n = floor(f.t / period).toInt()
-        val local = f.t - n * period
+        val n = floor(f.sky / period).toInt()
+        val local = f.sky - n * period
         val life = 0.9f
         if (local > life || fraction(n * 13 + 1) < 0.35f) return
         val u = local / life
@@ -279,14 +279,14 @@ internal class AuroraLand(private val k: RenderKit) {
                 val u = (r + 0.5f) / rows
                 val y = shore + 6f + depth * u * u * 0.8f + depth * u * 0.2f
                 // Wind on the water: each ripple flickers and drifts on its own.
-                val ripple = 0.5f + 0.5f * sin(f.t * (1.1f + fraction(r * 7 + b) * 1.4f) + r * 1.9f + b * 0.71f)
+                val ripple = 0.5f + 0.5f * sin(f.sky * (1.1f + fraction(r * 7 + b) * 1.4f) + r * 1.9f + b * 0.71f)
                 val v = light * 0.42f * ripple * (0.35f + 0.65f * exp(-u * 2.2f)) + f.wave(cx, y, 60f) * 0.6f +
                     (if (f.trail > 0) f.trailInfluence(cx, y, 70f) * 0.8f else 0f)
                 val level = (v * 4f).toInt()
                 if (level <= 0) continue
                 val l = min(level - 1, 3)
                 val half = (2.5f + 5f * fraction(r * 131 + b * 7)) * (0.7f + u * 1.2f)
-                val jx = sin(f.t * 0.7f + r * 0.9f + b * 0.13f) * (2f + u * 6f)
+                val jx = sin(f.sky * 0.7f + r * 0.9f + b * 0.13f) * (2f + u * 6f)
                 val arr = glint[l]
                 val o = glintCounts[l]
                 if (o + 4 > arr.size) continue
@@ -312,7 +312,7 @@ internal class AuroraLand(private val k: RenderKit) {
         for (r in 0 until 14) {
             val u = (r + 0.5f) / 14f
             val y = shore + 4f + (h * 0.9f - shore) * u * u
-            val x0 = fraction(r * 13 + 1) * 400f - 100f + sin(f.t * 0.2f + r) * 30f
+            val x0 = fraction(r * 13 + 1) * 400f - 100f + sin(f.sky * 0.2f + r) * 30f
             rl.alpha = if (f.night) 20 + (8 * (1f - u)).toInt() else 34
             canvas.drawLine(x0, y, x0 + 300f + fraction(r * 13 + 2) * 600f, y, rl)
         }
@@ -393,7 +393,7 @@ internal class AuroraLand(private val k: RenderKit) {
             val gy = top + 18f + u * u * (h * 0.85f - top)
             val b = (gx / AuroraScene.BIN_W).toInt().coerceIn(0, AuroraScene.BINS - 1)
             val light = 0.35f + smoothBins[2][b] * 0.4f + smoothBins[1][b] * 0.25f
-            val sparkle = sin(f.t * (0.9f + fraction(i + 5) * 2f) + i * 2.3f).coerceAtLeast(0f).let { it * it * it * it }
+            val sparkle = sin(f.sky * (0.9f + fraction(i + 5) * 2f) + i * 2.3f).coerceAtLeast(0f).let { it * it * it * it }
             val v = light * sparkle + f.wave(gx, gy, 70f) * 0.7f + (if (f.trail > 0) f.trailInfluence(gx, gy, 80f) else 0f)
             val level = (v * 4f).toInt()
             if (level <= 0) continue
@@ -466,7 +466,7 @@ internal class AuroraLand(private val k: RenderKit) {
                         v += light * if (hem - y < f.h * 0.04f) inkShare(scene.profile(c, yf, hem / f.h, hueTmp), hueTmp[0], ink) else rowBody[c]
                     }
                     // Fine striation: the rays show through the screen as a gentle column texture.
-                    v *= 0.55f * reveal * (0.78f + 0.22f * sin(x * 0.37f + sin(x * 0.051f + f.t * 0.3f) * 4f))
+                    v *= 0.55f * reveal * (0.78f + 0.22f * sin(x * 0.37f + sin(x * 0.051f + f.sky * 0.3f) * 4f))
                     val level = if (v > 0.012f) (sqrt(v.coerceAtMost(1f)) * DOT_LEVELS).toInt().coerceAtLeast(1) else 0
                     if (level <= 0 || cells >= MAX_CELLS) continue
                     cellLevel[cells] = level.toByte()

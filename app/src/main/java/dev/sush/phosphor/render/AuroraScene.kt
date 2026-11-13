@@ -30,6 +30,12 @@ import kotlin.math.sqrt
  *
  * Night is emitted light; day is the same sky printed as a two-ink halftone on paper.
  */
+/**
+ * Aurora clock: tuned when animation time ran at a third of today's rate, and aurora should
+ * drift rather than dance.
+ */
+internal val Frame.sky: Float get() = t * 0.34f
+
 internal class AuroraScene(private val k: RenderKit) {
     /**
      * One curtain: a ribbon whose hem moves between [lo] and [hi] (fractions of h; nearer parts
@@ -208,7 +214,7 @@ internal class AuroraScene(private val k: RenderKit) {
     private fun curtain(canvas: Canvas, f: Frame, index: Int) {
         val c = curtains[index]
         val h = f.h
-        val t = f.t
+        val t = f.sky
         val n = (c.rays * (0.45f + 0.55f * f.detail)).toInt().coerceAtMost(MAX_RAYS)
         val reveal = smooth(f.reveal)
         val shift = f.shiftX(c.depth)
