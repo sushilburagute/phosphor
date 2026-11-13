@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!-- Phosphor mark: a grain of light in a tilted orbit, over a burning horizon.
      A clipped gap lets the orbit pass in front of the grain, so it reads in depth. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -40,4 +40,3 @@
         </path>
     </group>
 </vector>
-
