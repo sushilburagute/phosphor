@@ -47,8 +47,8 @@ internal class AsciiScene(private val k: RenderKit) {
         val saved = canvas.save()
         canvas.translate(ax, ay)
         canvas.rotate(Math.toDegrees(kotlin.math.atan2(dy, dx).toDouble()).toFloat())
-        k.glow(canvas, k.glowA, 60f, 50f, 900f, 150f, if (f.night) 70 else 45, mode)
-        k.glow(canvas, k.glowB, -60f, -70f, 820f, 110f, if (f.night) 60 else 40, mode)
+        k.glow(canvas, k.glowA, 60f, 50f, 900f, 150f, if (f.night) 70 else 200, mode)
+        k.glow(canvas, k.glowB, -60f, -70f, 820f, 110f, if (f.night) 60 else 170, mode)
         if (f.night) k.glow(canvas, k.glowWhite, 0f, 0f, 620f, 46f, (60 * reveal).toInt(), RenderKit.Mode.SCREEN)
         // Streaks: long hairlines parallel to the axis, flowing along it.
         val s = k.stroke
@@ -99,7 +99,7 @@ internal class AsciiScene(private val k: RenderKit) {
                     else mix(Color.WHITE, f.c1, chroma)
                 if (!f.night) color = if (chroma < 0f) mix(f.c1, f.c2, -chroma) else f.c1
                 glyph.color = color
-                glyph.alpha = ((if (f.night) 245f else 220f) * lum).toInt().coerceIn(0, 255)
+                glyph.alpha = ((if (f.night) 245f else 300f) * lum).toInt().coerceIn(0, 255)
                 canvas.drawText(text, x, y, glyph)
             }
         }
@@ -115,7 +115,8 @@ internal class AsciiScene(private val k: RenderKit) {
         val reveal = smooth(f.reveal)
         k.prepare(f)
         val mode = k.modeFor(f)
-        k.glow(canvas, k.glowA, 500f, h * 0.55f, 820f, h * 0.22f, if (f.night) 55 else 40, mode)
+        k.glow(canvas, k.glowA, 500f, h * 0.55f, 820f, h * 0.22f, if (f.night) 55 else 190, mode)
+        if (!f.night) k.glow(canvas, k.glowB, 500f, h * 0.7f, 900f, h * 0.2f, 120, mode)
         val cellW = 21f
         val cellH = 24f
         glyph.textSize = 20f
@@ -159,7 +160,7 @@ internal class AsciiScene(private val k: RenderKit) {
                 val text = if (wave > 0.2f) noise[hash(cell + (f.now * 18f).toInt()) % noise.size]
                     else ramp[(lum * (ramp.size - 1) + fraction(cell) * 0.8f).toInt().coerceIn(0, ramp.size - 1)]
                 glyph.color = if (f.night) (if (lum > 0.7f) mix(f.c1, Color.WHITE, 0.5f) else mix(f.c2, f.c1, lum)) else mix(f.c2, f.c1, lum)
-                glyph.alpha = ((if (f.night) 245f else 225f) * lum).toInt().coerceIn(0, 255)
+                glyph.alpha = ((if (f.night) 245f else 340f) * lum).toInt().coerceIn(0, 255)
                 canvas.drawText(text, x, y, glyph)
             }
         }

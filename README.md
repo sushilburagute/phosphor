@@ -2,18 +2,18 @@
 
 Living color for Android. An offline, open-source live wallpaper app **made by sush.dev**.
 
-Phosphor renders its artwork on the device: long-exposure orbits of light, curtains of aurora, beams resolved into characters, stirrable gradients, fluted and lens glass, filaments and etched textures. Every wallpaper glows at night and prints in ink by day, following your phone's dark theme, so icons and widgets stay readable either way. Every wallpaper includes the `made by sush.dev` watermark.
+Phosphor renders its artwork on the device: long-exposure orbits of light, curtains of aurora, digital rain, beams resolved into characters, stirrable gradients, fluted and lens glass, filaments and etched textures. Every wallpaper glows at night and turns to daylight color by day, following your phone's dark theme, so icons and widgets stay readable either way. Every wallpaper includes the `made by sush.dev` watermark.
 
 ## Features
 
-- Fifteen original procedural presets across seven collections: Orbit, Aurora, ASCII, Gradients, Glass, Abstract and Textures, plus your own images.
-- **Day and night treatments.** Each wallpaper has a night version (emitted light) and a day version (overprinted ink on paper). Auto follows the system dark theme. The wallpaper tells launchers which treatment is showing, so they choose light or dark labels.
+- Sixteen original procedural presets across seven collections: Orbit, Aurora, ASCII, Gradients, Glass, Abstract and Textures, plus your own images.
+- **Day and night treatments.** Each wallpaper has a night version (emitted light on a deep, tinted ground) and a day version (luminous color fields with crisp ink on sunlit paper). Palettes are built in OKLCH from color harmonies, so both versions share their hues. Auto follows the system dark theme. The wallpaper tells launchers which treatment is showing, so they choose light or dark labels.
 - **Readable by design.** Bright features avoid typical icon rows, and veils sit behind the clock and dock. An automated test measures label contrast for every preset in both treatments.
 - **Interactive.** Taps send ripples, drags pull the artwork, and each family answers in its own way. Launcher tap and icon-drop commands are supported. Touch answers even at zero motion speed and settles to idle.
 - **Wake reveal.** The artwork rises from dark when the screen turns on and blooms on unlock. Screen-off visibility depends on Android and the device.
 - Live editor with a touchable preview, a home-screen overlay for checking readability, speed, intensity, calm (fade toward the background), frame rate, still mode and wake reveal.
 - **Battery aware.** Rendering stops when hidden. Below 20% and unplugged, motion slows to 15 fps; at 5% it holds still. System Battery Saver is always respected. Uses the GPU canvas when available.
-- Favorites, and a gallery of still previews with a day/night switch, so browsing doesn't run a dozen animations.
+- A minimal gallery of still previews, shown at your phone's own screen proportions, with a day/night switch, so browsing doesn't run a dozen animations.
 - Local image import with gentle drift, ripples and floating light. This is a flat-image effect, not automatic subject segmentation.
 - Android's native wallpaper picker and stable wallpaper color reporting for system theming. A themed (monochrome) launcher icon, a splash screen, light and dark app themes, and optional Material You colors on Android 12+.
 - Export a still PNG in either treatment, including the watermark, through Android's document picker.

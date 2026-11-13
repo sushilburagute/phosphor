@@ -8,6 +8,8 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import dev.sush.phosphor.render.RenderKit.Companion.alpha
@@ -57,7 +59,18 @@ internal class Halftone {
         }
     }
 
-    fun release() { tile?.recycle(); tile = null; shader = null }
+    private var tintColor = 0
+    private var tintFilter: PorterDuffColorFilter? = null
+
+    /** Recolors the black dots, cached per color. */
+    fun tint(color: Int): PorterDuffColorFilter {
+        val cached = tintFilter
+        if (cached != null && color == tintColor) return cached
+        tintColor = color
+        return PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN).also { tintFilter = it }
+    }
+
+    fun release() { tile?.recycle(); tile = null; shader = null; tintFilter = null }
 }
 
 /** Mesh-like gradient blobs that you can stir with a finger, under a halftone screen. */
@@ -86,9 +99,11 @@ internal class GradientScene(private val k: RenderKit, private val halftone: Hal
         halftone.ensure(k.fill)
         val p = k.fill
         p.shader = halftone.shader
-        p.alpha = if (f.night) 110 else 36
-        if (!f.night) k.blend(p, RenderKit.Mode.INK)
+        // By day the screen prints in the key ink, not grey.
+        if (!f.night) p.colorFilter = halftone.tint(f.c1)
+        p.alpha = if (f.night) 110 else 40
         canvas.drawRect(0f, 0f, 1000f, h, p)
+        p.colorFilter = null
         k.reset(p)
 
         ripples(canvas, f, k)
@@ -154,8 +169,8 @@ internal class GlassScene(private val k: RenderKit) {
         val lampY = h * 0.42f + cos(t * 0.37f) * h * 0.14f * a
         val lx = lampX + (f.dragX - lampX) * f.drag
         val ly = lampY + (f.dragY - lampY) * f.drag
-        k.glow(canvas, k.glowB, 120f + cos(t * 0.3f) * 120f * a, h * 0.7f, 760f, h * 0.42f, if (f.night) 170 else 150, mode)
-        k.glow(canvas, k.glowA, lx, ly, 680f, h * 0.3f, if (f.night) 130 else 190, mode)
+        k.glow(canvas, k.glowB, 120f + cos(t * 0.3f) * 120f * a, h * 0.7f, 760f, h * 0.42f, if (f.night) 170 else 235, mode)
+        k.glow(canvas, k.glowA, lx, ly, 680f, h * 0.3f, if (f.night) 130 else 255, mode)
         k.glow(canvas, k.glowWhite, lx + 40f, ly - 20f, 230f, h * 0.08f, if (f.night) 45 else 120,
             if (f.night) RenderKit.Mode.SCREEN else RenderKit.Mode.NORMAL)
     }
@@ -277,8 +292,8 @@ internal class AbstractScene(private val k: RenderKit) {
     fun draw(canvas: Canvas, f: Frame, loop: Boolean) {
         val h = f.h
         val mode = k.modeFor(f)
-        k.glow(canvas, k.glowA, 140f, h * 0.65f, 650f, h * 0.45f, if (f.night) 60 else 70, mode)
-        k.glow(canvas, k.glowB, 850f, h * 0.25f, 530f, h * 0.25f, if (f.night) 50 else 60, mode)
+        k.glow(canvas, k.glowA, 140f, h * 0.65f, 650f, h * 0.45f, if (f.night) 60 else 150, mode)
+        k.glow(canvas, k.glowB, 850f, h * 0.25f, 530f, h * 0.25f, if (f.night) 50 else 140, mode)
         if (loop) loop(canvas, f) else filaments(canvas, f)
     }
 
@@ -406,17 +421,18 @@ internal class TextureScene(private val k: RenderKit, private val halftone: Half
         }
         halftone.ensure(p)
         p.shader = halftone.shader
-        p.alpha = if (f.night) 90 else 40
-        if (!f.night) k.blend(p, RenderKit.Mode.INK)
+        if (!f.night) p.colorFilter = halftone.tint(f.c1)
+        p.alpha = if (f.night) 90 else 46
         canvas.drawRect(0f, 0f, 1000f, h, p)
+        p.colorFilter = null
         k.reset(p)
     }
 
     private fun basalt(canvas: Canvas, f: Frame) {
         val h = f.h
         val mode = k.modeFor(f)
-        k.glow(canvas, k.glowA, 760f, h * 0.22f, 900f, h * 0.5f, if (f.night) 70 else 60, mode)
-        k.glow(canvas, k.glowB, 160f, h * 0.8f, 700f, h * 0.35f, if (f.night) 30 else 40, mode)
+        k.glow(canvas, k.glowA, 760f, h * 0.22f, 900f, h * 0.5f, if (f.night) 70 else 170, mode)
+        k.glow(canvas, k.glowB, 160f, h * 0.8f, 700f, h * 0.35f, if (f.night) 30 else 150, mode)
         val s = k.stroke
         k.luminous(s, f.night)
         val spacing = if (f.detail > 0.6f) 15f else 22f
@@ -441,7 +457,7 @@ internal class TextureScene(private val k: RenderKit, private val halftone: Half
             val major = i % 5 == 0
             s.color = if (major) f.c2 else f.c1
             s.strokeWidth = if (major) 1.8f else 1.1f
-            s.alpha = ((if (major) 110 else 60) * smooth(f.reveal)).toInt()
+            s.alpha = ((if (major) 110 else 60) * (if (f.night) 1f else 1.5f) * smooth(f.reveal)).toInt()
             canvas.drawPath(k.path, s)
         }
         k.reset(s)

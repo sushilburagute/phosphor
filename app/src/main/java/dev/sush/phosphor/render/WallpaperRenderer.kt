@@ -40,6 +40,7 @@ class WallpaperRenderer {
     private val orbit = OrbitScene(kit)
     private val aurora = AuroraScene(kit)
     private val ascii = AsciiScene(kit)
+    private val rain = RainScene(kit)
     private val gradient = GradientScene(kit, halftone)
     private val glass = GlassScene(kit)
     private val abstract = AbstractScene(kit)
@@ -149,7 +150,7 @@ class WallpaperRenderer {
         when (preset.kind) {
             WallpaperKind.ORBIT -> orbit.draw(canvas, f, preset.id)
             WallpaperKind.AURORA -> aurora.draw(canvas, f)
-            WallpaperKind.ASCII -> ascii.draw(canvas, f, preset.id == "ascii-terminal")
+            WallpaperKind.ASCII -> if (preset.id == "ascii-rain") rain.draw(canvas, f) else ascii.draw(canvas, f, preset.id == "ascii-terminal")
             WallpaperKind.GRADIENT -> gradient.draw(canvas, f)
             WallpaperKind.GLASS -> glass.draw(canvas, f, preset.id == "glass-orbit")
             WallpaperKind.ABSTRACT -> abstract.draw(canvas, f, preset.id == "abstract-orbit")
@@ -160,7 +161,7 @@ class WallpaperRenderer {
 
         veil(canvas, f, preset.kind == WallpaperKind.IMAGE)
         if (preset.kind != WallpaperKind.IMAGE) {
-            drawNoise(canvas, h, if (night) 15 else 22, preset.kind == WallpaperKind.TEXTURE)
+            drawNoise(canvas, h, if (night) 15 else 9, preset.kind == WallpaperKind.TEXTURE)
         }
         // "Calm" fades toward the ground: darker at night, paler by day. Labels only gain contrast.
         paint.shader = null
@@ -178,10 +179,15 @@ class WallpaperRenderer {
         canvas.restoreToCount(saved)
     }
 
-    /** A quiet base gradient so the ground is never a flat fill. */
+    /**
+     * The ground is never a flat fill. At night a faint lift of the key light crosses the
+     * frame. By day the paper is two-tone: the key's pigment at the top, the accent's at the
+     * foot, so the inks always sit on a temperature contrast.
+     */
     private fun ground(canvas: Canvas, f: Frame) {
-        val lift = if (f.night) mix(f.c0, f.c1, 0.07f) else mix(f.c0, Color.WHITE, 0.5f)
-        paint.shader = LinearGradient(0f, 0f, 1000f, f.h, intArrayOf(f.c0, lift, f.c0), null, Shader.TileMode.CLAMP)
+        val colors = if (f.night) intArrayOf(f.c0, mix(f.c0, f.c1, 0.07f), f.c0)
+            else intArrayOf(mix(f.c0, kit.fieldA, 0.3f), f.c0, mix(f.c0, kit.fieldB, 0.42f))
+        paint.shader = LinearGradient(0f, 0f, 1000f * 0.35f, f.h, colors, null, Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, 1000f, f.h, paint)
         paint.shader = null
     }

@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Phosphor icon set: 24dp, 1.75 stroke, round caps. Tinted at the call site. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24" android:autoMirrored="false">
-    <path android:strokeColor="#FF000000" android:strokeWidth="1.75" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M12,20.2C6.6,16.4 3.2,13.3 3.2,9.2C3.2,6.5 5.3,4.5 7.8,4.5C9.6,4.5 11.1,5.5 12,7C12.9,5.5 14.4,4.5 16.2,4.5C18.7,4.5 20.8,6.5 20.8,9.2C20.8,13.3 17.4,16.4 12,20.2Z" />
-</vector>

@@ -23,12 +23,15 @@ internal class AuroraScene(private val k: RenderKit) {
         val next = f.c1.toLong() * 31 + f.c2 + if (f.night) 1 else 2
         if (next == key && rayFront != null) return
         key = next
+        // By day the rays are pigment light (pastels of the same hues) and only the hem is ink.
+        val a = if (f.night) f.c1 else k.fieldA
+        val b = if (f.night) f.c2 else k.fieldB
         // Local coordinates: y = 0 is the fold, y = -1 the top of the ray.
         rayFront = LinearGradient(0f, 0f, 0f, -1f,
-            intArrayOf(alpha(mix(f.c1, Color.WHITE, if (f.night) 0.35f else 0f), 255), alpha(f.c1, 190), alpha(mix(f.c1, f.c2, 0.6f), 80), alpha(f.c2, 0)),
+            intArrayOf(alpha(mix(a, Color.WHITE, if (f.night) 0.35f else 0f), 255), alpha(a, 190), alpha(mix(a, b, 0.6f), 80), alpha(b, 0)),
             floatArrayOf(0f, 0.08f, 0.45f, 1f), Shader.TileMode.CLAMP)
         rayBack = LinearGradient(0f, 0f, 0f, -1f,
-            intArrayOf(alpha(f.c2, 200), alpha(f.c2, 110), alpha(f.c2, 0)),
+            intArrayOf(alpha(b, 200), alpha(b, 110), alpha(b, 0)),
             floatArrayOf(0f, 0.3f, 1f), Shader.TileMode.CLAMP)
     }
 
@@ -37,7 +40,7 @@ internal class AuroraScene(private val k: RenderKit) {
         val h = f.h
         val reveal = smooth(f.reveal)
         if (f.night) stars(canvas, f)
-        k.glow(canvas, k.glowB, 760f, h * 0.3f, 900f, h * 0.3f, if (f.night) 40 else 34, k.modeFor(f))
+        k.glow(canvas, k.glowB, 760f, h * 0.3f, 900f, h * 0.3f, if (f.night) 40 else 120, k.modeFor(f))
         curtain(canvas, f, rayBack, h * 0.41f, 0.62f, 0.6f, 0.2f * reveal, 2.1f, 0.5f)
         // Leave space around the middle launcher-label row as the bright hem moves.
         curtain(canvas, f, rayFront, h * 0.56f, 1f, 1f, 0.27f * reveal, 0f, 1f)
@@ -73,7 +76,7 @@ internal class AuroraScene(private val k: RenderKit) {
             val shimmer = 0.5f + 0.5f * sin(x * 0.047f + f.t * 1.6f + sin(x * 0.013f + f.t * 0.3f) * 3f)
             val streak = fraction(index * 31 + (f.t * 0.6f).toInt())  // rays flicker independently
             val ray = h * length * (0.55f + 0.45f * sin(x * 0.009f - f.t * 0.35f + phase) + streak * 0.35f) * (1f + flare * 0.35f)
-            val a = (if (f.night) 50f + 110f * shimmer else 48f + 80f * shimmer) * strength * (0.55f + f.amount * 0.45f) + flare * 110f
+            val a = (if (f.night) 50f + 110f * shimmer else 90f + 120f * shimmer) * strength * (0.55f + f.amount * 0.45f) + flare * 110f
             p.alpha = a.toInt().coerceIn(0, 255)
             val saved = canvas.save()
             canvas.translate(x + shift, y)
@@ -135,10 +138,10 @@ internal class AuroraScene(private val k: RenderKit) {
         path.lineTo(1040f, h + 40f)
         path.close()
         val p = k.fill
+        // By day the ridge is a hazy, key-tinted hill that fades into the paper at its foot.
         p.shader = RenderKit.vertical(
-            if (f.night) mix(f.c0, Color.BLACK, 0.3f) else alpha(f.c1, 70),
-            if (f.night) Color.BLACK else alpha(f.c1, 30), base - 100f, h)
-        if (!f.night) k.blend(p, RenderKit.Mode.INK)
+            if (f.night) mix(f.c0, Color.BLACK, 0.3f) else mix(f.c0, f.c1, 0.3f),
+            if (f.night) Color.BLACK else mix(f.c0, k.fieldA, 0.35f), base - 100f, h)
         canvas.drawPath(path, p)
         k.reset(p)
     }

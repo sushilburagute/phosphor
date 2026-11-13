@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import android.graphics.Canvas
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onNodeWithText
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -33,6 +34,20 @@ class ScreenshotTest {
 
     @Test @Config(sdk = [35], qualifiers = "w400dp-h880dp-night-xhdpi")
     fun night() = capture("night")
+
+    /** A small phone and a tablet: gutters, columns and plate ratio follow the screen. */
+    @Test @Config(sdk = [35], qualifiers = "w360dp-h740dp-notnight-xxhdpi")
+    fun compactPhone() = gallery("gallery-compact-day")
+
+    @Test @Config(sdk = [35], qualifiers = "w900dp-h1280dp-night-xhdpi")
+    fun tablet() = gallery("gallery-tablet-night")
+
+    private fun gallery(name: String) {
+        assumeTrue(System.getenv("PHOSPHOR_PREVIEWS") == "1")
+        compose.setContent { PhosphorApp() }
+        compose.waitForIdle()
+        save(name)
+    }
 
     /** The adaptive launcher icon, rendered from its vector layers: preview and Play icon. */
     @Test @Config(sdk = [35])
@@ -73,9 +88,12 @@ class ScreenshotTest {
         compose.onNode(androidx.compose.ui.test.hasContentDescription("Show home screen preview")).performClick()
         compose.mainClock.advanceTimeBy(800)
         save("editor-home-$mood")
+        compose.onNodeWithText("Battery and wake").performScrollTo()
+        compose.mainClock.advanceTimeBy(400)
+        save("editor-controls-$mood")
         compose.onNode(androidx.compose.ui.test.hasContentDescription("Back to wallpapers")).performClick()
         compose.mainClock.advanceTimeBy(800)
-        compose.onNodeWithText("Settings").performClick()
+        compose.onNode(androidx.compose.ui.test.hasContentDescription("Settings")).performClick()
         compose.mainClock.advanceTimeBy(800)
         save("settings-$mood")
     }

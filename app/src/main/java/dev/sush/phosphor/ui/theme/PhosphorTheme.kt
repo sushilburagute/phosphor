@@ -29,46 +29,50 @@ import dev.sush.phosphor.R
 /**
  * Phosphor design tokens.
  *
- * Concept: night is light, day is ink. The fallback palette borrows from the artwork's two
- * treatments: deep sky with a pale phosphor blue at night; cool paper with ultramarine ink by
- * day. Ember is reserved for one meaning: "live on your phone."
+ * The chrome is a gallery wall: near-neutral surfaces with only a breath of the brand blue, so
+ * the wallpapers carry all the color. Night is graphite, day is soft paper. One accent family
+ * (phosphor blue / ultramarine) marks actions and selection; ember means only "live on your
+ * phone".
  */
 object Palette {
-    // Night
-    val Sky = Color(0xFF060914)
-    val SkyRaised = Color(0xFF0E1324)
-    val SkyHigh = Color(0xFF161C33)
-    val SkyLine = Color(0xFF2A3253)
-    val Starlight = Color(0xFFE9ECF6)
-    val Haze = Color(0xFFA5ACC6)
-    val Phosphor = Color(0xFFA9C0FF)
-    val PhosphorDeep = Color(0xFF213A94)
+    // Night: graphite, with a faint cool cast.
+    val Sky = Color(0xFF0D0E12)
+    val SkyLow = Color(0xFF131419)
+    val SkyRaised = Color(0xFF1A1B21)
+    val SkyHigh = Color(0xFF22242B)
+    val SkyHighest = Color(0xFF2B2D35)
+    val SkyLine = Color(0xFF2E3039)
+    val Starlight = Color(0xFFEEEEF2)
+    val Haze = Color(0xFFA4A6B2)
+    val Phosphor = Color(0xFFB3C3FF)
+    val PhosphorDeep = Color(0xFF2B3B85)
 
-    // Day
-    val Paper = Color(0xFFEDF0F5)
-    val PaperRaised = Color(0xFFF7F8FB)
-    val PaperLow = Color(0xFFE2E6EE)
-    val PaperLine = Color(0xFFC3C9D8)
-    val Ink = Color(0xFF12141C)
-    val InkSoft = Color(0xFF4A5068)
-    val Ultramarine = Color(0xFF2742B8)
-    val UltramarineWash = Color(0xFFD8E0FF)
+    // Day: soft paper, white cards.
+    val Paper = Color(0xFFF4F4F7)
+    val PaperRaised = Color(0xFFFFFFFF)
+    val PaperLow = Color(0xFFEAEAEF)
+    val PaperHigh = Color(0xFFE2E2E9)
+    val PaperLine = Color(0xFFDADBE2)
+    val Ink = Color(0xFF121318)
+    val InkSoft = Color(0xFF5B5D69)
+    val Ultramarine = Color(0xFF2E47C7)
+    val UltramarineWash = Color(0xFFDFE5FF)
 
-    // Shared accent: the horizon line.
+    // Shared accent: the horizon line, "live on your phone".
     val Ember = Color(0xFFFF6A3A)
     val EmberInk = Color(0xFFD5482A)
 }
 
 private val NightScheme = darkColorScheme(
     primary = Palette.Phosphor,
-    onPrimary = Color(0xFF07185A),
+    onPrimary = Color(0xFF0A1850),
     primaryContainer = Palette.PhosphorDeep,
-    onPrimaryContainer = Color(0xFFDCE4FF),
+    onPrimaryContainer = Color(0xFFDDE3FF),
     secondary = Palette.Ember,
     onSecondary = Color(0xFF3A0B00),
     // Selection containers stay in the blue family; ember is reserved for "live".
-    secondaryContainer = Color(0xFF1D2A5C),
-    onSecondaryContainer = Color(0xFFDCE4FF),
+    secondaryContainer = Color(0xFF263160),
+    onSecondaryContainer = Color(0xFFDDE3FF),
     tertiary = Color(0xFF8CE6D2),
     background = Palette.Sky,
     onBackground = Palette.Starlight,
@@ -76,12 +80,12 @@ private val NightScheme = darkColorScheme(
     onSurface = Palette.Starlight,
     surfaceVariant = Palette.SkyHigh,
     onSurfaceVariant = Palette.Haze,
-    surfaceContainerLowest = Color(0xFF03050B),
-    surfaceContainerLow = Color(0xFF0A0E1C),
+    surfaceContainerLowest = Color(0xFF08090C),
+    surfaceContainerLow = Palette.SkyLow,
     surfaceContainer = Palette.SkyRaised,
     surfaceContainerHigh = Palette.SkyHigh,
-    surfaceContainerHighest = Color(0xFF1E2540),
-    outline = Color(0xFF4A5378),
+    surfaceContainerHighest = Palette.SkyHighest,
+    outline = Color(0xFF5C5F6B),
     outlineVariant = Palette.SkyLine,
     inverseSurface = Palette.Paper,
     inverseOnSurface = Palette.Ink,
@@ -94,11 +98,11 @@ private val DayScheme = lightColorScheme(
     primary = Palette.Ultramarine,
     onPrimary = Color.White,
     primaryContainer = Palette.UltramarineWash,
-    onPrimaryContainer = Color(0xFF0B1A5C),
+    onPrimaryContainer = Color(0xFF0C1A5E),
     secondary = Palette.EmberInk,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFDDE3F7),
-    onSecondaryContainer = Color(0xFF0B1A5C),
+    secondaryContainer = Color(0xFFE2E6F8),
+    onSecondaryContainer = Color(0xFF0C1A5E),
     tertiary = Color(0xFF167A6A),
     background = Palette.Paper,
     onBackground = Palette.Ink,
@@ -107,11 +111,11 @@ private val DayScheme = lightColorScheme(
     surfaceVariant = Palette.PaperLow,
     onSurfaceVariant = Palette.InkSoft,
     surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Palette.PaperRaised,
-    surfaceContainer = Color(0xFFE8EBF2),
+    surfaceContainerLow = Color(0xFFFAFAFC),
+    surfaceContainer = Palette.PaperRaised,
     surfaceContainerHigh = Palette.PaperLow,
-    surfaceContainerHighest = Color(0xFFD9DEE8),
-    outline = Color(0xFF7A8098),
+    surfaceContainerHighest = Palette.PaperHigh,
+    outline = Color(0xFF878995),
     outlineVariant = Palette.PaperLine,
     inverseSurface = Palette.SkyRaised,
     inverseOnSurface = Palette.Starlight,
@@ -134,22 +138,24 @@ private fun bricolage(weight: Int, opsz: Float, width: Float) = FontFamily(
 )
 
 object PhosphorType {
-    val Display = bricolage(640, 96f, 82f)
-    val Headline = bricolage(600, 48f, 88f)
-    val Title = bricolage(560, 20f, 96f)
+    val Display = bricolage(600, 96f, 88f)
+    val Headline = bricolage(580, 48f, 92f)
+    val Title = bricolage(540, 20f, 98f)
     val Text = bricolage(400, 14f, 100f)
-    val TextStrong = bricolage(540, 14f, 100f)
+    val TextStrong = bricolage(520, 14f, 100f)
 }
 
-// Scale steps by roughly 1.25 (a major third), anchored at 16sp body text.
+// Scale steps by roughly 1.25 (a major third), anchored at 16sp body text. Large type is set
+// tight; small type gets air (1.5 line height) so dense settings still breathe.
 private val PhosphorTypography = Typography(
-    displayLarge = TextStyle(fontFamily = PhosphorType.Display, fontSize = 56.sp, lineHeight = 54.sp, letterSpacing = (-0.035).em),
-    displayMedium = TextStyle(fontFamily = PhosphorType.Display, fontSize = 44.sp, lineHeight = 44.sp, letterSpacing = (-0.03).em),
-    displaySmall = TextStyle(fontFamily = PhosphorType.Display, fontSize = 36.sp, lineHeight = 38.sp, letterSpacing = (-0.025).em),
-    headlineLarge = TextStyle(fontFamily = PhosphorType.Headline, fontSize = 32.sp, lineHeight = 36.sp, letterSpacing = (-0.02).em),
-    headlineMedium = TextStyle(fontFamily = PhosphorType.Headline, fontSize = 26.sp, lineHeight = 30.sp, letterSpacing = (-0.015).em),
+    displayLarge = TextStyle(fontFamily = PhosphorType.Display, fontSize = 56.sp, lineHeight = 58.sp, letterSpacing = (-0.035).em),
+    displayMedium = TextStyle(fontFamily = PhosphorType.Display, fontSize = 44.sp, lineHeight = 48.sp, letterSpacing = (-0.03).em),
+    displaySmall = TextStyle(fontFamily = PhosphorType.Display, fontSize = 36.sp, lineHeight = 40.sp, letterSpacing = (-0.025).em),
+    headlineLarge = TextStyle(fontFamily = PhosphorType.Display, fontSize = 34.sp, lineHeight = 40.sp, letterSpacing = (-0.025).em),
+    // The large top bar's expanded title.
+    headlineMedium = TextStyle(fontFamily = PhosphorType.Display, fontSize = 34.sp, lineHeight = 40.sp, letterSpacing = (-0.025).em),
     headlineSmall = TextStyle(fontFamily = PhosphorType.Headline, fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = (-0.01).em),
-    titleLarge = TextStyle(fontFamily = PhosphorType.Title, fontSize = 20.sp, lineHeight = 26.sp, letterSpacing = (-0.005).em),
+    titleLarge = TextStyle(fontFamily = PhosphorType.Headline, fontSize = 20.sp, lineHeight = 26.sp, letterSpacing = (-0.01).em),
     titleMedium = TextStyle(fontFamily = PhosphorType.Title, fontSize = 16.sp, lineHeight = 22.sp),
     titleSmall = TextStyle(fontFamily = PhosphorType.Title, fontSize = 14.sp, lineHeight = 20.sp),
     bodyLarge = TextStyle(fontFamily = PhosphorType.Text, fontSize = 16.sp, lineHeight = 24.sp),
@@ -168,8 +174,8 @@ private val PhosphorShapes = Shapes(
     extraSmall = RoundedCornerShape(6.dp),
     small = RoundedCornerShape(10.dp),
     medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(22.dp),
-    extraLarge = RoundedCornerShape(30.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(28.dp),
 )
 
 /** Spacing on a 4dp grid, plus motion tokens tuned to feel physical rather than springy. */

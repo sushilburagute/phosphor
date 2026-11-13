@@ -18,7 +18,7 @@ import kotlin.math.sqrt
  * speed (inner orbits are faster), so the field shears and reforms instead of rotating rigidly.
  *
  * Night draws additive light, so crossing trails brighten like a real long exposure. Day draws
- * the same trails as two overprinted inks with a slight misregistration, like a riso print.
+ * the same trails in ink, from deep key to its pastel, over a sunrise band of the accent.
  */
 internal class OrbitScene(private val k: RenderKit) {
     private val points = FloatArray(4096)
@@ -109,7 +109,12 @@ internal class OrbitScene(private val k: RenderKit) {
             }
 
             val hot = (u in hotLow..hotLow + 0.03f) || (u in hotHigh..hotHigh + 0.02f) || fraction(s + 5) < 0.03f
-            val base = when {
+            // By day the trails range from deep key ink to its pastel pigment, never toward grey.
+            val base = if (ink) when {
+                hot -> f.c2
+                fraction(s + 6) < 0.2f -> k.fieldA
+                else -> mix(f.c1, k.fieldA, fraction(s + 7) * 0.6f)
+            } else when {
                 hot -> if (!ink && fraction(s + 10) < 0.3f) mix(f.c2, Color.WHITE, 0.0f) else if (ink) f.c2 else mix(f.c2, Color.WHITE, fraction(s + 10) * 0.35f)
                 u < 0.1f -> if (ink) f.c1 else mix(f.c1, Color.WHITE, 0.5f - u * 3f)
                 fraction(s + 6) < 0.16f -> mix(f.c1, f.c2, 0.4f)  // violet crossovers
@@ -139,8 +144,8 @@ internal class OrbitScene(private val k: RenderKit) {
                     // Second ink, offset like a riso misregistration.
                     canvas.save()
                     canvas.translate(2.6f, 1.8f)
-                    p.color = f.c1
-                    p.alpha = (a * 0.35f).toInt().coerceIn(0, 255)
+                    p.color = k.fieldB
+                    p.alpha = (a * 0.5f).toInt().coerceIn(0, 255)
                     p.strokeWidth = width
                     canvas.drawArc(k.rect, headDeg - sweep, sweep, false, p)
                     canvas.restore()
@@ -166,9 +171,11 @@ internal class OrbitScene(private val k: RenderKit) {
             canvas.drawLine(500f - span * 1.2f, y + 4f, 500f + span * 1.2f, y + 4f, p)
             k.reset(p)
         } else {
-            k.glow(canvas, k.glowB, 500f, y, span * 1.6f, 30f, (70 * strength).toInt(), RenderKit.Mode.INK)
+            // Daylight: the horizon is a sunrise band of the accent's pigment.
+            k.glow(canvas, k.glowB, 500f, y, span * 2f, 150f * strength, (230 * strength).toInt(), RenderKit.Mode.INK)
+            k.glow(canvas, k.glowB, 500f, y, span * 1.4f, 34f * strength, (200 * strength).toInt(), RenderKit.Mode.INK)
             val p = k.stroke
-            k.blend(p, RenderKit.Mode.INK)
+            k.normal(p)
             p.color = f.c2; p.alpha = (190 * strength).toInt(); p.strokeWidth = 2.6f
             canvas.drawLine(500f - span * 1.2f, y - 2f, 500f + span * 1.2f, y - 2f, p)
             p.color = f.c1; p.alpha = (170 * strength).toInt(); p.strokeWidth = 1.4f
@@ -219,7 +226,9 @@ internal class OrbitScene(private val k: RenderKit) {
             k.glow(canvas, k.glowA, 500f, horizon, 820f, h * 0.26f, (95 * reveal).toInt(), RenderKit.Mode.SCREEN)
             k.glow(canvas, k.glowWhite, 500f, horizon, 380f, h * 0.06f, (150 * reveal).toInt(), RenderKit.Mode.SCREEN)
         } else {
-            k.glow(canvas, k.glowA, 500f, horizon, 820f, h * 0.28f, (90 * reveal).toInt(), RenderKit.Mode.INK)
+            // A cool key-colored sky over a warm dawn dome rising from the horizon.
+            k.glow(canvas, k.glowA, 500f, horizon - h * 0.3f, 1100f, h * 0.36f, (130 * reveal).toInt(), RenderKit.Mode.INK)
+            k.glow(canvas, k.glowB, 500f, horizon, 900f, h * 0.3f, (235 * reveal).toInt(), RenderKit.Mode.INK)
         }
         canvas.restoreToCount(sky)
         if (f.night) k.glow(canvas, k.glowA, 500f, horizon, 700f, h * 0.035f, (60 * reveal).toInt(), RenderKit.Mode.SCREEN)
@@ -258,9 +267,9 @@ internal class OrbitScene(private val k: RenderKit) {
                 }
             }
             val nearFade = smooth(q * 4f)  // closest rings melt into the glow
-            val ringAlpha = ((if (f.night) 120f + (1f - q) * 135f else 110f + (1f - q) * 120f) * reveal * (0.55f + f.amount * 0.45f) * (0.4f + nearFade * 0.6f)).toInt()
+            val ringAlpha = ((if (f.night) 120f + (1f - q) * 135f else 150f + (1f - q) * 140f) * reveal * (0.55f + f.amount * 0.45f) * (0.4f + nearFade * 0.6f)).toInt()
             // Thumbnails draw fewer, larger dots so the rings still read at gallery size.
-            p.strokeWidth = (2.1f + (1f - q) * 2.2f) * (1.9f - f.detail * 0.9f)
+            p.strokeWidth = (2.1f + (1f - q) * 2.2f) * (1.9f - f.detail * 0.9f) * (if (f.night) 1f else 1.2f)
             p.color = mix(f.c1, if (f.night) Color.WHITE else f.c1, 0.3f + (1f - q) * 0.4f)
             p.alpha = ringAlpha
             if (dim > 0) canvas.drawPoints(points, 2800, dim * 2, p)

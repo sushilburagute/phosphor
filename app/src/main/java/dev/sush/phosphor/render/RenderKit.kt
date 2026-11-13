@@ -12,6 +12,7 @@ import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.os.Build
+import dev.sush.phosphor.model.ColorTheory
 import kotlin.math.exp
 import kotlin.math.sqrt
 
@@ -92,6 +93,13 @@ class RenderKit {
     val rect = RectF()
 
     private var key: Long = 0
+    /**
+     * Color-field versions of the two accents. At night they are the lights themselves. By day
+     * they are the accents lifted to luminous pastels of the same hue (see ColorTheory.pigment),
+     * because translucent dark ink over paper only ever reads as grey.
+     */
+    var fieldA = Color.WHITE; private set
+    var fieldB = Color.WHITE; private set
     var glowA: Shader? = null; private set
     var glowB: Shader? = null; private set
     var glowWhite: Shader? = null; private set
@@ -104,8 +112,10 @@ class RenderKit {
         val next = (f.c0.toLong() * 31 + f.c1) * 31 + f.c2 + if (f.night) 7 else 3
         if (next == key && glowA != null) return
         key = next
-        glowA = radial(f.c1)
-        glowB = radial(f.c2)
+        fieldA = if (f.night) f.c1 else ColorTheory.pigment(f.c1, 0.8f)
+        fieldB = if (f.night) f.c2 else ColorTheory.pigment(f.c2, 0.83f)
+        glowA = radial(fieldA)
+        glowB = radial(fieldB)
         glowWhite = radial(if (f.night) Color.WHITE else mix(f.c0, Color.WHITE, 0.6f))
         glowGround = radial(f.c0)
     }
@@ -116,11 +126,14 @@ class RenderKit {
         floatArrayOf(0f, 0.32f, 0.66f, 1f), Shader.TileMode.CLAMP,
     )
 
-    /** Emitted light at night: overlapping strokes build up like a long exposure. */
-    fun additive(paint: Paint, night: Boolean) = blend(paint, if (night) Mode.ADD else Mode.INK)
+    /**
+     * Emitted light at night: overlapping strokes build up like a long exposure. By day, lines
+     * are laid down cleanly; multiplying colored ink over tinted paper muddies it toward brown.
+     */
+    fun additive(paint: Paint, night: Boolean) = blend(paint, if (night) Mode.ADD else Mode.NORMAL)
 
-    /** Soft light at night, overprinted ink by day. */
-    fun luminous(paint: Paint, night: Boolean) = blend(paint, if (night) Mode.SCREEN else Mode.INK)
+    /** Soft light at night, clean ink by day. */
+    fun luminous(paint: Paint, night: Boolean) = blend(paint, if (night) Mode.SCREEN else Mode.NORMAL)
 
     fun normal(paint: Paint) = blend(paint, Mode.NORMAL)
 
