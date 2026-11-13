@@ -71,7 +71,7 @@ fun SettingsScreen(theme: String, dynamic: Boolean, onTheme: (String) -> Unit, o
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Glyph(R.drawable.ic_explore, null, Modifier.size(28.dp), MaterialTheme.colorScheme.primary)
             Text("Phosphor ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.headlineSmall)
-            Text("made by sush.dev", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
+            AppAttribution()
         }
     }
 }

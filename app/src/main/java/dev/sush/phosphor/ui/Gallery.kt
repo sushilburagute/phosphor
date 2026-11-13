@@ -160,8 +160,7 @@ fun Gallery(
             }
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Text("made by sush.dev", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            AppAttribution(Modifier.fillMaxWidth().padding(top = 12.dp))
         }
     }
 }

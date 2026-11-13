@@ -24,7 +24,6 @@ import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
-import android.view.WindowInsets
 import androidx.annotation.RequiresApi
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
@@ -74,7 +73,6 @@ class PhosphorWallpaperService : WallpaperService() {
         private var hardwareCanvas = true
         private var width = 1
         private var height = 1
-        private var bottomInsetPixels = 0
         private var phase = 0f
         private var lastFrame = 0L
         private var revealStart = -1L
@@ -176,17 +174,6 @@ class PhosphorWallpaperService : WallpaperService() {
             this.visible = visible
             if (visible) refreshDeviceState()
             if (!visible) { touch.clear(); interaction.reset() }
-            restartFrames()
-        }
-
-        override fun onApplyWindowInsets(insets: WindowInsets) {
-            super.onApplyWindowInsets(insets)
-            bottomInsetPixels = if (Build.VERSION.SDK_INT >= 30) {
-                insets.getInsetsIgnoringVisibility(WindowInsets.Type.navigationBars() or WindowInsets.Type.displayCutout()).bottom
-            } else {
-                @Suppress("DEPRECATION")
-                insets.systemWindowInsetBottom
-            }
             restartFrames()
         }
 
@@ -320,7 +307,6 @@ class PhosphorWallpaperService : WallpaperService() {
                         WallpaperCatalog.find(settings.presetId), drawSettings,
                         if (settings.parallax && motion) scrollX * 0.65f else 0f,
                         0f,
-                        bottomInsetPixels = bottomInsetPixels,
                         night = night,
                         touch = if (motion) touch else null,
                         realSeconds = now / 1000f,

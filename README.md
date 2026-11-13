@@ -1,8 +1,8 @@
 # Phosphor
 
-Living color for Android. An offline, open-source live wallpaper app **made by sush.dev**.
+Living color for Android. An offline, open-source live wallpaper app **[made by sush.dev](https://sush.dev?utm_source=phosphor)**.
 
-Phosphor renders its artwork on the device: long-exposure orbits of light, curtains of aurora, beams resolved into characters, stirrable gradients, fluted and lens glass, filaments and etched textures. Every wallpaper glows at night and prints in ink by day, following your phone's dark theme, so icons and widgets stay readable either way. Every wallpaper includes the `made by sush.dev` watermark.
+Phosphor renders its artwork on the device: long-exposure orbits of light, curtains of aurora, beams resolved into characters, stirrable gradients, fluted and lens glass, filaments and etched textures. Every wallpaper glows at night and prints in ink by day, following your phone's dark theme, so icons and widgets stay readable either way. Wallpapers, previews, and exported stills are free of branding. Creator credits and the installed version appear inside the app.
 
 ## Features
 
@@ -16,7 +16,7 @@ Phosphor renders its artwork on the device: long-exposure orbits of light, curta
 - Favorites, and a gallery of cached still previews with a day/night switch, so browsing reuses rendered artwork.
 - Local image import with gentle drift, ripples and floating light. This is a flat-image effect, not automatic subject segmentation.
 - Android's native wallpaper picker and stable wallpaper color reporting for system theming. A themed (monochrome) launcher icon, a splash screen, light and dark app themes, and optional Material You colors on Android 12+.
-- Export a still PNG in either treatment, including the watermark, through Android's document picker.
+- Export a still PNG in either treatment without a watermark through Android's document picker.
 - No account, ads, analytics, network permission, broad photo-library permission, or cloud backup.
 
 See [the design system](docs/DESIGN_SYSTEM.md) for color, type, icons, motion, readability rules and interaction.
@@ -42,6 +42,12 @@ Release signing reads `PHOSPHOR_KEYSTORE`, `PHOSPHOR_KEYSTORE_PASSWORD`, `PHOSPH
 On Windows, use `gradlew.bat`. Set `ANDROID_HOME` to your SDK directory or add a local, untracked `local.properties` with `sdk.dir=...`.
 
 The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Open this repository in Android Studio to run on a device or emulator. The app supports Android 8.1 (API 27) and newer and targets API 36. Release builds require your own signing configuration; no signing keys are included.
+
+## Versioning
+
+[`version.properties`](version.properties) is the single source for the semantic version name and Android version code. Gradle uses it for APK metadata and the version displayed beside the app's clickable creator credit. Run `./gradlew -q :app:printVersion` to read the current version.
+
+See [release steps](docs/RELEASING.md) for version bumps, tags, signing, and CI behavior, and [CHANGELOG.md](CHANGELOG.md) for changes by version.
 
 ## Pixel and Samsung One UI
 

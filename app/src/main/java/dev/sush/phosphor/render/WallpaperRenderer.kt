@@ -10,7 +10,6 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
-import android.graphics.Typeface
 import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
@@ -46,10 +45,6 @@ class WallpaperRenderer {
     private val texture = TextureScene(kit, halftone)
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-    private val watermarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        textAlign = Paint.Align.CENTER
-    }
     private val rect = RectF()
     private var noise: Bitmap? = null
     private var noiseShader: Shader? = null
@@ -76,7 +71,6 @@ class WallpaperRenderer {
         settings: WallpaperSettings,
         offsetX: Float = 0f,
         offsetY: Float = 0f,
-        bottomInsetPixels: Int = 0,
         night: Boolean = true,
         touch: TouchField? = null,
         realSeconds: Float = Float.NaN,
@@ -178,7 +172,6 @@ class WallpaperRenderer {
             canvas.drawRect(0f, 0f, 1000f, h, paint)
         }
         paint.alpha = 255
-        drawWatermark(canvas, h, bottomInsetPixels.coerceAtLeast(0) * 1000f / width, night)
         canvas.restoreToCount(saved)
     }
 
@@ -306,21 +299,6 @@ class WallpaperRenderer {
         canvas.drawRect(0f, 0f, 1000f, h, paint)
         paint.alpha = 255
         paint.shader = null
-    }
-
-    private fun drawWatermark(canvas: Canvas, h: Float, bottomInset: Float, night: Boolean) {
-        watermarkPaint.textSize = 22f
-        if (night) {
-            watermarkPaint.color = 0xD9FFFFFF.toInt()
-            watermarkPaint.setShadowLayer(4f, 0f, 1f, 0xB3000000.toInt())
-        } else {
-            watermarkPaint.color = 0xCC1B1E26.toInt()
-            watermarkPaint.setShadowLayer(4f, 0f, 1f, 0x99FFFFFF.toInt())
-        }
-        // Sit below launcher docks, while respecting gesture/three-button navigation.
-        val inset = max(66f, bottomInset + 24f).coerceAtMost(h * 0.3f)
-        canvas.drawText("made by sush.dev", 500f, h - inset, watermarkPaint)
-        watermarkPaint.clearShadowLayer()
     }
 
     fun release() {

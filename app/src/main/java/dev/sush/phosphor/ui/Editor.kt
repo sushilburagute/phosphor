@@ -222,8 +222,7 @@ private fun Controls(
             Glyph(R.drawable.ic_export, null, Modifier.size(20.dp))
             Text("Save a still image", modifier = Modifier.padding(start = 10.dp))
         }
-        Text("made by sush.dev", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.align(Alignment.CenterHorizontally))
+        AppAttribution(Modifier.align(Alignment.CenterHorizontally))
         Spacer(Modifier.height(4.dp))
     }
 }
