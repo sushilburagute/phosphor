@@ -16,6 +16,7 @@ Sources: [Material 3 in Compose](https://developer.android.com/develop/ui/compos
 
 - Use short transitions to explain navigation and state changes. Keep the application chrome quiet so the wallpaper remains the focus.
 - Let touch affect the artwork with eased movement and a settling response. Continue a finite interaction even when ambient motion speed is zero, then stop requesting frames.
+- Every family answers the same four gestures in its own material: a tap sends a pulse; a held finger is a presence the art leans toward; a swipe has a velocity and leaves a fading wake (a light streak captured into orbit, a fold in the aurora, ink stirred through a gradient, a fissure etched in stone); a finger resting still gathers a visible charge, and lifting it releases a stronger pulse. Each preset's interaction hint names its signature gesture. The renderer tests require a visible wake and charge in every family, in both moods.
 - Give each wallpaper family visible internal movement, rather than depending entirely on translating a flat canvas. Keep still gallery thumbnails and exported images deterministic.
 - Respect both the app's still mode and Android's disabled-animation preference. Stop animation when hidden, detached, or paused; resume without advancing through time spent in the background.
 

@@ -104,8 +104,7 @@ class WallpaperRenderer {
             touch.advance(real)
             touch.fill(f, real)
         } else {
-            f.pulses = 0
-            f.drag = 0f
+            f.clearTouch()
         }
         // Damped dragging drives every scene; independent tap pulses still handle
         // launcher commands and overlapping gestures.
@@ -146,9 +145,9 @@ class WallpaperRenderer {
         canvas.scale(zoom, zoom, 500f, h * 0.5f)
         when (preset.kind) {
             WallpaperKind.ORBIT -> orbit.draw(canvas, f, preset.id)
-            WallpaperKind.AURORA -> aurora.draw(canvas, f)
+            WallpaperKind.AURORA -> aurora.draw(canvas, f, preset.id)
             WallpaperKind.ASCII -> ascii.draw(canvas, f, preset.id == "ascii-terminal")
-            WallpaperKind.GRADIENT -> gradient.draw(canvas, f)
+            WallpaperKind.GRADIENT -> gradient.draw(canvas, f, preset.id == "gradient-tide")
             WallpaperKind.GLASS -> glass.draw(canvas, f, preset.id == "glass-orbit")
             WallpaperKind.ABSTRACT -> abstract.draw(canvas, f, preset.id == "abstract-orbit")
             WallpaperKind.TEXTURE -> texture.draw(canvas, f, preset.id == "texture-basalt")
@@ -309,6 +308,8 @@ class WallpaperRenderer {
         noise = null
         noiseShader = null
         halftone.release()
+        aurora.release()
+        ascii.release()
         gradient.release()
         glass.release()
         kit.release()

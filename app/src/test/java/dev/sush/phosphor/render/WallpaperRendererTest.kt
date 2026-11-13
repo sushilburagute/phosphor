@@ -116,6 +116,57 @@ class WallpaperRendererTest {
         }
     }
 
+    /** The wake and the finger's velocity must show, not just where the finger ends up. */
+    @Test
+    fun swipesLeaveAVisibleWakeInEveryFamily() {
+        for (preset in WallpaperCatalog.presets) {
+            for (night in listOf(true, false)) {
+                val swipe = Gestures.swipe()
+                val end = swipe.touch
+                val still = Gestures.hold(swipe.now - 10f, end.dragX, end.dragY)
+                val moving = renderGesture(preset, swipe, night)
+                val resting = renderGesture(preset, still, night)
+                try {
+                    assertTrue("${preset.id} ${if (night) "night" else "day"} shows no wake behind a swipe",
+                        changedFraction(moving, resting) > 0.01f)
+                } finally {
+                    moving.recycle(); resting.recycle()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun holdingStillVisiblyGathersChargeInEveryFamily() {
+        for (preset in WallpaperCatalog.presets) {
+            val early = renderGesture(preset, Gestures.hold(0.6f))
+            val full = renderGesture(preset, Gestures.hold(TouchField.FULL_HOLD))
+            try {
+                assertTrue("${preset.id} does not show a held charge", changedFraction(early, full) > 0.005f)
+            } finally {
+                early.recycle(); full.recycle()
+            }
+        }
+    }
+
+    @Test
+    fun gesturesSettleSoTheWallpaperCanStopDrawing() {
+        val swipe = Gestures.swipe()
+        swipe.touch.release(swipe.now)
+        assertTrue(swipe.touch.isActive(swipe.now + 0.1f))
+        var now = swipe.now
+        repeat(240) { now += 1f / 60f; swipe.touch.advance(now) }
+        assertFalse("swipe glide and wake must end", swipe.touch.isActive(now))
+
+        val burst = Gestures.burst(0f)
+        val frame = Frame()
+        burst.touch.fill(frame, burst.now + 0.01f)
+        assertTrue("a charged release bursts", (0 until frame.pulses).any { frame.pulseA[it] > 1f })
+        now = burst.now
+        repeat(((TouchField.LIFE + 1f) * 60f).toInt()) { now += 1f / 60f; burst.touch.advance(now) }
+        assertFalse("the burst must end", burst.touch.isActive(now))
+    }
+
     @Test
     fun wakeRevealStartsFromTheGroundAndEndsAtTheFullArtwork() {
         val preset = WallpaperCatalog.find("orbit-exposure")
@@ -319,6 +370,18 @@ class WallpaperRendererTest {
         val renderer = WallpaperRenderer()
         try {
             renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY, night = night, interaction = interaction, unlockReveal = reveal)
+        } finally {
+            renderer.release()
+        }
+        return bitmap
+    }
+
+    private fun renderGesture(preset: WallpaperPreset, gesture: Gestures.Gesture, night: Boolean = true): Bitmap {
+        val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+        val renderer = WallpaperRenderer()
+        try {
+            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, 12f, preset, WallpaperSettings(presetId = preset.id),
+                night = night, touch = gesture.touch, realSeconds = gesture.now)
         } finally {
             renderer.release()
         }
