@@ -90,14 +90,16 @@ internal class TextureBasalt(private val k: RenderKit) {
 
     /** Domain-warped value-noise relief, normalized to roughly -1..1. */
     private fun terrain(x: Float, y: Float): Float {
-        val wx = x + 70f * noise(x / 380f + 3.1f, y / 380f, 11)
-        val wy = y + 70f * noise(x / 380f, y / 380f + 7.7f, 23)
+        val wx = x + 80f * noise((x * 0.7f - y * 0.7f) / 380f + 3.1f, (x * 0.7f + y * 0.7f) / 380f, 11)
+        val wy = y + 80f * noise((x * 0.9f + y * 0.4f) / 380f, (y * 0.9f - x * 0.4f) / 380f + 7.7f, 23)
         // Broad swells, then ridged octaves: sharp crests like cooled lava flows.
-        var sum = noise(wx / 700f, wy / 700f, 7) * 0.9f
+        var sum = noise((wx * 0.8f + wy * 0.6f) / 700f, (wy * 0.8f - wx * 0.6f) / 700f, 7) * 0.9f
         var amp = 0.75f
         var freq = 1f / 340f
-        for (o in 0 until 4) {
-            val n = 1f - abs(noise(wx * freq, wy * freq, 101 + o * 37))
+        for (o in 0 until 3) {
+            // Each octave on its own rotated lattice, so no grid direction shows through.
+            val c = cos(0.5f + o * 1.13f); val sn = sin(0.5f + o * 1.13f)
+            val n = 1f - abs(noise((wx * c - wy * sn) * freq, (wx * sn + wy * c) * freq, 101 + o * 37))
             sum += (n * n - 0.45f) * amp
             amp *= 0.5f; freq *= 2.07f
         }
@@ -213,14 +215,14 @@ internal class TextureBasalt(private val k: RenderKit) {
     private fun shade(f: Frame, lx: Float, ly: Float, lz: Float, reveal: Float) {
         val g = grid
         val night = f.night
-        val dark = if (night) mix(f.c0, Color.BLACK, 0.3f) else mix(f.c0, f.c1, 0.68f)
-        val light = if (night) mix(f.c0, f.c1, 0.5f) else mix(f.c0, Color.WHITE, 0.7f)
+        val dark = if (night) mix(f.c0, Color.BLACK, 0.2f) else mix(f.c0, f.c1, 0.42f)
+        val light = if (night) mix(f.c0, f.c1, 0.4f) else f.c0
         for (at in height.indices) {
             val nx = nX[at]; val ny = nY[at]
             val shade = ((nx * lx + ny * ly + lz) / sqrt(nx * nx + ny * ny + 1f)).coerceIn(0f, 1f)
             // Higher ground is slightly lighter, low ground pools darker.
             val lift = 0.82f + 0.18f * (height[at] * 0.5f + 0.5f).coerceIn(0f, 1f)
-            val v = (shade.pow(1.7f) * lift * 1.25f).coerceIn(0f, 1f)
+            val v = (shade.pow(1.35f) * lift * 1.15f).coerceIn(0f, 1f)
             val c = mix(dark, light, v)
             g.colors[at] = mix(if (night) f.c0 else f.c0, c, reveal)
         }

@@ -197,8 +197,8 @@ internal class TextureSilk(private val k: RenderKit, private val halftone: Halft
         val night = f.night
         val dx = (g.verts[2] - g.verts[0]) * 2f
         val dy = (g.y(1) - g.y(0)) * 2f
-        val deep = if (night) mix(f.c0, Color.BLACK, 0.3f) else mix(f.c1, f.c2, 0.3f)
-        val lit = if (night) mix(f.c0, f.c1, 0.86f) else mix(f.c0, f.c1, 0.1f)
+        val deep = if (night) mix(f.c0, Color.BLACK, 0.4f) else mix(f.c1, f.c2, 0.55f)
+        val lit = if (night) f.c1 else f.c0
         val sheen = if (night) f.c2 else Color.WHITE
         val ink = if (night) Color.BLACK else f.c2
         val lamp = f.drag > 0.01f
@@ -224,13 +224,13 @@ internal class TextureSilk(private val k: RenderKit, private val halftone: Halft
                 pool = 1f - m * 0.35f + m * 0.9f * exp(-d2 / (330f * 330f))
             }
             // Wrapped diffuse keeps silk soft; height adds occlusion in the valleys.
-            val diffuse = ((nx * ex + ny * ey + nz * ez + 0.08f) / 1.08f).coerceIn(0f, 1f).pow(1.4f)
+            val diffuse = ((nx * ex + ny * ey + nz * ez + 0.08f) / 1.08f).coerceIn(0f, 1f).pow(1.9f)
             val occlusion = 0.25f + 0.75f * smooth(height[at] / (FOLD * 1.7f) * 0.5f + 0.5f)
             var hx = ex; var hy = ey; var hz = ez + 1f
             val hl = sqrt(hx * hx + hy * hy + hz * hz); hx /= hl; hy /= hl; hz /= hl
             val spec = (nx * hx + ny * hy + nz * hz).coerceAtLeast(0f).pow(14f)
             val v = (diffuse * occlusion * pool).coerceIn(0f, 1.2f) * reveal
-            val s = (spec * 0.4f * occlusion * pool * reveal).coerceIn(0f, 1f)
+            val s = (spec * 0.65f * occlusion * pool * reveal).coerceIn(0f, 1f)
             var c = mix(deep, lit, v.coerceAtMost(1f))
             if (!night) c = mix(f.c0, c, reveal)
             g.colors[at] = mix(c, sheen, s)
