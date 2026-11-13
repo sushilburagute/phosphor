@@ -61,7 +61,7 @@ internal class GradientSilk {
         val bitmap = streaks ?: return
         val rad = angle * PI.toFloat() / 180f
         val ca = cos(rad); val sa = sin(rad)
-        val t = f.t
+        val t = f.t * GRADIENT_PACE
         // Cover the screen in the stream's frame, with room for the folds' sway.
         val a0 = -150f; val a1 = 1000f * ca + f.h * sa + 150f
         val c0 = -1000f * sa - 300f; val c1 = f.h * ca + 300f

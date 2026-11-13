@@ -12,6 +12,12 @@ import kotlin.math.exp
 import kotlin.math.sqrt
 
 /**
+ * Gradient and glass motion rates are written for this pace of [Frame.t]: a field of light
+ * should drift and breathe, never churn, even at the fastest speed setting.
+ */
+internal const val GRADIENT_PACE = 0.4f
+
+/**
  * A low-resolution colour field computed on the CPU and stretched over the canvas with bilinear
  * filtering. Real domain warping, smearing and lensing need per-point maths that radial glows
  * can't express; at ~48 columns this costs well under a millisecond and one small texture upload.

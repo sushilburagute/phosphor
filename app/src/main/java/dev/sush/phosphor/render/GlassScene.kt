@@ -93,8 +93,8 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
         prepare(f)
         // The lamp drifts on its own; a held finger carries it.
         val a = f.amount
-        val baseX = if (lenses) 560f + sin(f.t * 0.41f) * 240f * a else 640f + sin(f.t * 0.5f) * 280f * a
-        val baseY = f.h * (if (lenses) 0.46f else 0.5f) + cos(f.t * 0.37f) * f.h * 0.12f * a
+        val baseX = if (lenses) 560f + sin(f.t * GRADIENT_PACE * 0.41f) * 240f * a else 640f + sin(f.t * GRADIENT_PACE * 0.5f) * 280f * a
+        val baseY = f.h * (if (lenses) 0.46f else 0.5f) + cos(f.t * GRADIENT_PACE * 0.37f) * f.h * 0.12f * a
         lampX = baseX + (f.dragX - baseX) * f.drag
         lampY = baseY + (f.dragY - baseY) * f.drag
         field.ensure(f, 40)
@@ -110,7 +110,7 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
         val sx = x + out.dx + f.shiftX(0.4f)
         val sy = y + out.dy + f.shiftY(0.3f)
         val v = y / f.h
-        val t = f.t
+        val t = f.t * GRADIENT_PACE
         val base = if (f.night) 0.14f + 0.22f * smooth((v - 0.1f) / 0.32f) - 0.2f * smooth((v - 0.84f) / 0.08f)
             else 0.45f + 0.3f * smooth((v - 0.1f) / 0.4f)
         // The lamp tightens and brightens as a held finger gathers charge.
@@ -183,7 +183,7 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
 
     private fun fluted(canvas: Canvas, f: Frame) {
         val h = f.h
-        val t = f.t
+        val t = f.t * GRADIENT_PACE
         val a = f.amount
         val p = k.fill
         val s = k.stroke
@@ -257,7 +257,7 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
 
     private fun lenses(canvas: Canvas, f: Frame) {
         val h = f.h
-        val t = f.t
+        val t = f.t * GRADIENT_PACE
         val a = f.amount
         // The backdrop: soft light printed through a halftone, so the lenses have detail to bend.
         k.reset(plain)
@@ -344,7 +344,7 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
         canvas.restoreToCount(flipped)
         canvas.translate(x, y)
         canvas.save()
-        canvas.rotate(f.t * 9f + x * 0.2f)
+        canvas.rotate(f.t * GRADIENT_PACE * 9f + x * 0.2f)
         k.stroke.shader = holo
         k.stroke.strokeWidth = r * 0.07f
         k.stroke.alpha = if (night) 120 else 110

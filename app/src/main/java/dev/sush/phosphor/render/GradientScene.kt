@@ -105,7 +105,7 @@ internal class GradientScene(private val k: RenderKit, @Suppress("unused") halft
      * and the label rows only get their dim, coloured undersides at night.
      */
     private fun cloudAt(f: Frame, x: Float, y: Float, screenX: Float, v: Float) {
-        val t = f.t
+        val t = f.t * GRADIENT_PACE
         var px = x / 1000f * 1.5f
         var py = y / 1000f * 1.5f
         px += 0.62f * sin(py * 1.3f + t * 0.23f + 0.5f)
@@ -142,7 +142,7 @@ internal class GradientScene(private val k: RenderKit, @Suppress("unused") halft
      * Blue hour above; the turquoise pools low, in the gap over the dock.
      */
     private fun silkAt(f: Frame, x: Float, y: Float, screenX: Float, v: Float) {
-        val t = f.t
+        val t = f.t * GRADIENT_PACE
         val along = (x * COS + y * SIN) / 1000f
         val across = (-x * SIN + y * COS) / 1000f
         val c = across + fibres.warp(along, across, t)
