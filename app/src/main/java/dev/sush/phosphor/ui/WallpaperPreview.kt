@@ -143,7 +143,11 @@ private class PreviewView(context: Context) : View(context) {
                 touch.tap(event.x / width.coerceAtLeast(1), event.y / height.coerceAtLeast(1), SystemClock.uptimeMillis() / 1000f, 0.8f)
             }
             MotionEvent.ACTION_MOVE -> touch.move(event.x / width.coerceAtLeast(1), event.y / height.coerceAtLeast(1))
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { touch.release(); parent?.requestDisallowInterceptTouchEvent(false) }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                // Only a real lift releases a held charge; a cancelled gesture just lets go.
+                touch.release(if (event.actionMasked == MotionEvent.ACTION_UP) SystemClock.uptimeMillis() / 1000f else Float.NaN)
+                parent?.requestDisallowInterceptTouchEvent(false)
+            }
         }
         motion.onTouch(event.actionMasked, event.x / width.coerceAtLeast(1), event.y / height.coerceAtLeast(1))
         invalidate()

@@ -235,7 +235,8 @@ class PhosphorWallpaperService : WallpaperService() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { touch.press(x, y); touch.tap(x, y, seconds(), 0.7f) }
                 MotionEvent.ACTION_MOVE -> touch.move(x, y)
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> touch.release()
+                MotionEvent.ACTION_UP -> touch.release(seconds())
+                MotionEvent.ACTION_CANCEL -> touch.release()
             }
             requestFrame()
         }

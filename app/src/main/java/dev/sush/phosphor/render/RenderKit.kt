@@ -45,6 +45,18 @@ class Frame {
     var dragY = 1000f
     var drag = 0f
 
+    /** Finger velocity in artwork units per second; keeps gliding briefly after release. */
+    var flowX = 0f
+    var flowY = 0f
+    /** 0..1 energy of a finger resting in place. Release turns it into a strong pulse. */
+    var charge = 0f
+
+    /** The finger's recent path, oldest first, with 0..1 freshness in [trailA]. */
+    val trailX = FloatArray(TouchField.TRAIL)
+    val trailY = FloatArray(TouchField.TRAIL)
+    val trailA = FloatArray(TouchField.TRAIL)
+    var trail = 0
+
     /** Horizontal parallax shift for a layer; distant layers pass small depths. */
     fun shiftX(depth: Float) = offsetX * 34f * depth * (0.4f + amount * 0.6f)
     fun shiftY(depth: Float) = offsetY * 26f * depth * (0.4f + amount * 0.6f)
@@ -80,7 +92,35 @@ class Frame {
         return exp(-(dx * dx + dy * dy) / (radius * radius)) * drag
     }
 
-    val busy: Boolean get() = pulses > 0 || drag > 0.001f
+    /** Speed of the finger (or its glide after release), artwork units per second. */
+    val flowSpeed: Float get() = sqrt(flowX * flowX + flowY * flowY)
+
+    /** Strongest wake influence at a point: fresh, nearby trail points count most. */
+    fun trailInfluence(x: Float, y: Float, radius: Float): Float {
+        var best = 0f
+        val r2 = radius * radius
+        for (i in 0 until trail) {
+            val dx = x - trailX[i]
+            val dy = y - trailY[i]
+            val d2 = dx * dx + dy * dy
+            if (d2 > r2 * 9f) continue
+            val v = exp(-d2 / r2) * trailA[i]
+            if (v > best) best = v
+        }
+        return best
+    }
+
+    /** Clear every gesture input; frames drawn without a touch surface are deterministic. */
+    fun clearTouch() {
+        pulses = 0
+        drag = 0f
+        flowX = 0f
+        flowY = 0f
+        charge = 0f
+        trail = 0
+    }
+
+    val busy: Boolean get() = pulses > 0 || drag > 0.001f || trail > 0 || flowX != 0f || flowY != 0f
 }
 
 /** Shared paints, cached palette shaders and pure helpers. One kit per renderer. */

@@ -143,5 +143,3 @@ internal class AuroraScene(private val k: RenderKit) {
         k.reset(p)
     }
 }
-
-internal fun RenderKit.modeFor(f: Frame) = if (f.night) RenderKit.Mode.SCREEN else RenderKit.Mode.INK

@@ -106,8 +106,7 @@ class WallpaperRenderer {
             touch.advance(real)
             touch.fill(f, real)
         } else {
-            f.pulses = 0
-            f.drag = 0f
+            f.clearTouch()
         }
         // Damped dragging drives every scene; independent tap pulses still handle
         // launcher commands and overlapping gestures.

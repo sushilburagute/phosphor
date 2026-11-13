@@ -16,8 +16,13 @@ import java.io.FileOutputStream
 
 /**
  * Full-resolution renders for design review and store screenshots. Slow, so opt-in:
- * `PHOSPHOR_PREVIEWS=1 ./gradlew testDebugUnitTest --tests '*ArtworkPreviewTest*'`
- * Set PHOSPHOR_PREVIEW_ONLY to a preset id prefix to render a subset.
+ * `PHOSPHOR_PREVIEWS=1 ./gradlew testDebugUnitTest --tests '*ArtworkPreviewTest*' --rerun`
+ *
+ * - PHOSPHOR_PREVIEW_ONLY: a preset id prefix, to render a subset.
+ * - PHOSPHOR_PREVIEW_GESTURES: comma-separated gestures from [Gestures.named] (tap, swipe,
+ *   hold, burst), each saved as `<id>-<mood>-<gesture>.png`.
+ * - PHOSPHOR_PREVIEW_TIMES: comma-separated animation times; extra times are saved as
+ *   `<id>-<mood>-t<time>.png`. The first time (default 12) is the plain `<id>-<mood>.png`.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -27,22 +32,44 @@ class ArtworkPreviewTest {
     fun renderFullResolutionPreviews() {
         assumeTrue(System.getenv("PHOSPHOR_PREVIEWS") == "1")
         val only = System.getenv("PHOSPHOR_PREVIEW_ONLY").orEmpty()
+        val gestures = list("PHOSPHOR_PREVIEW_GESTURES")
+        val times = list("PHOSPHOR_PREVIEW_TIMES").mapNotNull { it.toFloatOrNull() }.ifEmpty { listOf(12f) }
         val directory = File("build/reports/previews").apply { mkdirs() }
         for (preset in WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE && it.id.startsWith(only) }) {
             for (night in listOf(true, false)) {
-                val bitmap = Bitmap.createBitmap(1080, 2340, Bitmap.Config.ARGB_8888)
-                val renderer = WallpaperRenderer()
-                val touch = System.getenv("PHOSPHOR_PREVIEW_TAP")?.let { TouchField().apply { tap(0.5f, 0.45f, 10f); press(0.3f, 0.6f) } }
-                // Warm the touch easing so a held finger is fully present.
-                touch?.let { repeat(40) { i -> it.advance(10f + i * 0.016f) } }
-                renderer.draw(Canvas(bitmap), 1080, 2340, 12f, preset, WallpaperSettings(presetId = preset.id),
-                    night = night, touch = touch, realSeconds = if (touch != null) 10.7f else Float.NaN)
-                FileOutputStream(File(directory, "${preset.id}-${if (night) "night" else "day"}.png")).use {
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+                val mood = if (night) "night" else "day"
+                for ((index, time) in times.withIndex()) {
+                    save(directory, if (index == 0) "${preset.id}-$mood" else "${preset.id}-$mood-t${time.toInt()}") { canvas, renderer ->
+                        renderer.draw(canvas, W, H, time, preset, WallpaperSettings(presetId = preset.id), night = night)
+                    }
                 }
-                renderer.release()
-                bitmap.recycle()
+                for (name in gestures) {
+                    val gesture = Gestures.named(name) ?: continue
+                    save(directory, "${preset.id}-$mood-$name") { canvas, renderer ->
+                        renderer.draw(canvas, W, H, times.first(), preset, WallpaperSettings(presetId = preset.id),
+                            night = night, touch = gesture.touch, realSeconds = gesture.now)
+                    }
+                }
             }
         }
+    }
+
+    private fun list(name: String) = System.getenv(name).orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
+    private fun save(directory: File, name: String, draw: (Canvas, WallpaperRenderer) -> Unit) {
+        val bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+        val renderer = WallpaperRenderer()
+        try {
+            draw(Canvas(bitmap), renderer)
+            FileOutputStream(File(directory, "$name.png")).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        } finally {
+            renderer.release()
+            bitmap.recycle()
+        }
+    }
+
+    private companion object {
+        const val W = 1080
+        const val H = 2340
     }
 }
