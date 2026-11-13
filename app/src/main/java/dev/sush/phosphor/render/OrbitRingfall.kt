@@ -92,7 +92,7 @@ internal class OrbitRingfall(private val o: OrbitKit) {
             val r2 = fraction(s + 6)
             val near = 1f - smooth(u * 9f)
             // Orbits near the lit limb (lower right) catch its fire.
-            val fire = near > 0.3f && fraction(s + 7) < near * 0.8f
+            val fire = near > 0.5f && fraction(s + 7) < near * 0.35f
             val step = (r1 * 4f).toInt().coerceAtMost(3) / 3f
             val color = if (night) when {
                 fire -> if (r1 < 0.3f) mix(f.c2, Color.WHITE, 0.55f) else f.c2
@@ -186,7 +186,7 @@ internal class OrbitRingfall(private val o: OrbitKit) {
         k.path.addCircle(px, py, R, Path.Direction.CW)
         canvas.clipPath(k.path)
         k.glow(canvas, k.glowB, px + R * 1.0f, py + R * 0.2f, R * 0.6f, R * 0.75f,
-            ((if (night) 40 else 30) * reveal * (1f + heat)).toInt(), if (night) RenderKit.Mode.SCREEN else RenderKit.Mode.INK)
+            ((if (night) 40 else 30) * reveal * (1f + heat * 0.4f)).toInt(), if (night) RenderKit.Mode.SCREEN else RenderKit.Mode.INK)
         canvas.restoreToCount(saved)
 
         // A flare runs along the limb when a pulse reaches it; holding grows the burn.
@@ -208,10 +208,11 @@ internal class OrbitRingfall(private val o: OrbitKit) {
         k.rect.set(px - R, py - R, px + R, py + R)
         val ignite = 0.2f + reveal * 0.8f
         if (night) {
-            limb(canvas, f.c2, 46f, 34, -40f, 120f, ignite, grow, flare)
-            limb(canvas, f.c2, 18f, 110, -50f, 112f, ignite, grow, flare)
-            limb(canvas, mix(f.c2, Color.WHITE, 0.45f), 8f, 190, -80f, 70f, ignite, grow, flare)
-            limb(canvas, Color.WHITE, 3.2f, 255, -100f, 35f, ignite, grow, flare)
+            limb(canvas, f.c2, 70f, 30, -30f, 120f, ignite, grow, flare)
+            limb(canvas, f.c2, 30f, 90, -45f, 112f, ignite, grow, flare)
+            limb(canvas, f.c2, 14f, 170, -55f, 100f, ignite, grow, flare)
+            limb(canvas, mix(f.c2, Color.WHITE, 0.45f), 9f, 210, -85f, 65f, ignite, grow, flare)
+            limb(canvas, Color.WHITE, 4.5f, 255, -105f, 35f, ignite, grow, flare)
             k.rect.set(px - R - 24f, py - R - 24f, px + R + 24f, py + R + 24f)
             limb(canvas, f.c1, 2f, 130, -110f, 90f, ignite, grow, flare)
         } else {
@@ -234,8 +235,9 @@ internal class OrbitRingfall(private val o: OrbitKit) {
             val v = flare.coerceAtMost(1.6f)
             k.glow(canvas, k.glowWhite, sx, sy, 60f + v * 120f, 60f + v * 120f, (v * 160f).toInt(), mode)
             k.glow(canvas, k.glowB, sx, sy, 140f + v * 200f, 140f + v * 200f, (v * 70f).toInt(), mode)
-            k.glow(canvas, k.glowWhite, sx, sy, 300f + v * 500f, 4f + v * 3f, (v * 200f).toInt(), mode)
-            k.glow(canvas, k.glowWhite, sx, sy, 3f + v * 2f, 80f + v * 160f, (v * 150f).toInt(), mode)
+            // A soft anamorphic streak and a shorter vertical spike, like a lens catching the sun.
+            k.glow(canvas, k.glowWhite, sx, sy, 160f + v * 220f, 7f + v * 5f, (v * 110f).toInt(), mode)
+            k.glow(canvas, k.glowWhite, sx, sy, 5f + v * 3f, 50f + v * 90f, (v * 90f).toInt(), mode)
         }
     }
 
@@ -245,7 +247,7 @@ internal class OrbitRingfall(private val o: OrbitKit) {
         val half = (to - from) * 0.5f * ignite * grow
         s.color = color
         s.alpha = (opacity * (0.55f + ignite * 0.45f) + flare * 50f).toInt().coerceIn(0, 255)
-        s.strokeWidth = width * (1f + flare * 0.5f)
+        s.strokeWidth = width * (1f + flare.coerceAtMost(1f) * 0.25f)
         canvas.drawArc(k.rect, mid - half, half * 2f, false, s)
     }
 
@@ -289,7 +291,7 @@ internal class OrbitRingfall(private val o: OrbitKit) {
             val z = row / (rows - 1f)
             val y = horizon + 22f + z.pow(1.4f) * (f.h - horizon) * 0.9f
             val size = 34f + z * 120f
-            val pitch = size * 1.5f
+            val pitch = size * 1.25f
             val n = (1300f / pitch).toInt() + 2
             val span = n * pitch
             val drift = o.t * (6f - z * 4f) + f.shiftX(0.3f + z)
@@ -302,20 +304,20 @@ internal class OrbitRingfall(private val o: OrbitKit) {
                 val base = y + (fraction(seed + 5) - 0.5f) * size * 0.3f
                 for (lobe in 0 until 4) {
                     val ls = seed * 5 + lobe
-                    val r = size * (0.42f + fraction(ls + 1) * 0.3f) * (if (lobe == 1 || lobe == 2) 1.15f else 0.85f)
-                    val lx = x + (lobe - 1.5f) * size * 0.5f + (fraction(ls + 2) - 0.5f) * size * 0.2f
-                    val ly = base - r * 0.55f - (if (lobe == 1 || lobe == 2) size * 0.18f else 0f)
+                    val r = size * (0.3f + fraction(ls + 1) * 0.45f) * (if (lobe == 1 || lobe == 2) 1.15f else 0.8f)
+                    val lx = x + (lobe - 1.5f) * size * 0.45f + (fraction(ls + 2) - 0.5f) * size * 0.35f
+                    val ly = base - r * 0.5f - (if (lobe == 1 || lobe == 2) size * 0.12f + fraction(ls + 3) * size * 0.25f else 0f)
                     p.shader = null
                     k.normal(p)
-                    p.color = if (night) mix(f.c0, f.c1, 0.06f + light * 0.16f) else f.c0
+                    p.color = if (night) mix(f.c0, f.c1, 0.05f + light * 0.26f) else f.c0
                     canvas.drawCircle(lx, ly, r, p)
                     // The silver lining along the lobe's top, facing the light.
                     k.rect.set(lx - r, ly - r, lx + r, ly + r)
                     k.additive(s, night)
                     s.color = if (night) mix(f.c1, Color.WHITE, 0.6f) else f.c1
-                    s.alpha = ((if (night) 30f + light * 120f else 50f + light * 60f) * reveal).toInt()
-                    s.strokeWidth = 1.2f + light * 1.6f
-                    canvas.drawArc(k.rect, 205f, 130f, false, s)
+                    s.alpha = ((if (night) 10f + light * 110f else 18f + light * 70f) * reveal).toInt()
+                    s.strokeWidth = 1f + light * 1.6f
+                    canvas.drawArc(k.rect, 225f + fraction(ls + 4) * 20f, 70f + fraction(ls + 5) * 30f, false, s)
                     k.reset(s)
                     if (night && light > 0.2f) {
                         k.glow(canvas, k.glowWhite, lx, ly - r * 0.5f, r * 0.9f, r * 0.5f, (light * 40f * reveal).toInt(), RenderKit.Mode.SCREEN)
@@ -325,6 +327,8 @@ internal class OrbitRingfall(private val o: OrbitKit) {
                     }
                 }
             }
+            // Horizon light scattered through the row softens the lobes into one bank.
+            if (night) k.glow(canvas, k.glowA, 520f, y - size * 0.3f, 1100f, size * 0.7f, (light * 50f * reveal).toInt(), RenderKit.Mode.SCREEN)
         }
         k.reset(p)
     }

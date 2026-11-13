@@ -43,9 +43,9 @@ internal class OrbitThreshold(private val o: OrbitKit) {
         glow(canvas, f, horizon, cx, reveal, heat)
         rays(canvas, f, horizon, cx, reveal, heat)
         bowl(canvas, f, horizon, cx, reveal)
-        o.flushSpecks(canvas, f, (0.3f + reveal * 0.7f) * (0.6f + f.amount * 0.4f))
+        o.flushSpecks(canvas, f, (0.35f + reveal * 0.75f) * (0.7f + f.amount * 0.4f), 1.15f)
         floor(canvas, f, horizon, cx, reveal)
-        o.flushSpecks(canvas, f, reveal)
+        o.flushSpecks(canvas, f, reveal * 1.2f, 1.3f)
         horizonLine(canvas, f, horizon, cx, reveal, heat)
         if (f.trail > 1) o.wake(canvas, f, cx, horizon - h * 0.2f, 0.22f, if (f.flowX >= 0f) 1f else -1f)
         o.gather(canvas, f, 0.3f)
@@ -94,7 +94,7 @@ internal class OrbitThreshold(private val o: OrbitKit) {
             }
             k.rect.set(cx - rx, cy - ry, cx + rx, cy + ry)
             p.shader = o.lane(f, color)
-            p.alpha = ((if (night) 40f + (1f - q) * 140f else 34f + (1f - q) * 90f) * gain * (0.6f + bright * 0.7f))
+            p.alpha = ((if (night) 55f + (1f - q) * 170f else 34f + (1f - q) * 100f) * gain * (0.6f + bright * 0.7f))
                 .toInt().coerceIn(0, 255)
             p.strokeWidth = 0.8f + (1f - q) * 2.4f
             canvas.drawArc(k.rect, 0f, 180f, false, p)

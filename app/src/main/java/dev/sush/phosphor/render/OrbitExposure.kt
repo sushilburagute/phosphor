@@ -118,9 +118,9 @@ internal class OrbitExposure(private val o: OrbitKit) {
             val violet = !inner && !ember && !deep && fraction(s + 10) < 0.1f
             val presence = when (tier) {
                 0 -> 1f
-                1 -> 0.8f
-                2 -> 0.62f
-                3 -> 0.55f
+                1 -> 0.9f
+                2 -> 0.72f
+                3 -> 0.6f
                 else -> 0.3f
             } * (if (up) 1f else 1.08f)
             val r1 = fraction(s + 12)
