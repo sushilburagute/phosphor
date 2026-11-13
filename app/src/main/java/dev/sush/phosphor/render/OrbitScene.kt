@@ -61,7 +61,14 @@ internal class OrbitKit(val k: RenderKit) {
     var spin = 0f; private set
     private var spinVelocity = 0f
 
+    /**
+     * Scene time. The renderer's clock runs fast enough for the field scenes; long exposures
+     * read best slower, so orbits, twinkle and meteors all run on this calmer clock.
+     */
+    var t = 0f; private set
+
     fun step(f: Frame) {
+        t = f.t * PACE
         if (!f.busy && f.dt == 0f) { spin = 0f; spinVelocity = 0f; return }
         if (f.dt <= 0f) return
         // A sideways swipe spins the orbits up; the extra speed glides away over about a second.
@@ -209,7 +216,7 @@ internal class OrbitKit(val k: RenderKit) {
             val x = fraction(i * 13 + 7) * 1040f - 20f + f.shiftX(depth)
             val y = top + fraction(i * 29 + 3) * (bottom - top) + f.shiftY(depth)
             if (avoidLabels && inLabelRow(y / f.h) && fraction(i * 41) < 0.6f) continue
-            val twinkle = sin(f.t * (0.9f + fraction(i + 99) * 2.6f) + i * 1.7f)
+            val twinkle = sin(t * (0.9f + fraction(i + 99) * 2.6f) + i * 1.7f)
             val tint = fraction(i * 3 + 11)
             val big = fraction(i * 5 + 1) > 0.9f
             val boost = if (f.pulses > 0) f.wave(x, y, 70f) else 0f
@@ -227,9 +234,9 @@ internal class OrbitKit(val k: RenderKit) {
 
     /** A meteor every [period] seconds of animation time, burning out in under a second. */
     fun meteor(canvas: Canvas, f: Frame, period: Float, offset: Float, top: Float, bottom: Float) {
-        val cycle = ((f.t + offset) / period).toInt()
-        val p = ((f.t + offset) % period) / 0.8f
-        if (f.t <= 0f || p >= 1f) return
+        val cycle = ((t + offset) / period).toInt()
+        val p = ((t + offset) % period) / 0.22f
+        if (t <= 0f || p >= 1f) return
         val sx = 120f + fraction(cycle * 31 + 5) * 760f
         val sy = top + fraction(cycle * 17 + 2) * (bottom - top)
         val dir = if (fraction(cycle * 7) < 0.5f) -1f else 1f
@@ -433,6 +440,7 @@ internal class OrbitKit(val k: RenderKit) {
         const val CLASSES = 6
         const val BATCH = 3200
         const val LANES = 32
+        const val PACE = 0.45f
         const val DEG = (PI / 180.0).toFloat()
 
         /** Label strips of a 4x4 launcher grid, as fractions of the height (with a small margin). */

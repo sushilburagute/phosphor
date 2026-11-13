@@ -71,11 +71,11 @@ internal class OrbitRingfall(private val o: OrbitKit) {
             val s = i * 131 + 53 * 7919
             val u = fraction(s + 1).pow(1.6f)
             var r = R + 14f + u * 1250f
-            val cx = px + (r - R) * 0.16f + f.flowX * 0.015f * u
-            val cy = py + (r - R) * 0.22f
-            var ry = r * (0.94f - u * 0.18f)
+            val cx = px + (r - R) * 0.3f + f.flowX * 0.015f * u
+            val cy = py + (r - R) * 0.36f
+            var ry = r * (0.95f - u * 0.32f)
             val omega = 30f * (520f / r).pow(1.3f) * (0.8f + fraction(s + 3) * 0.4f)
-            val head = fraction(s + 2) * 360f + f.t * omega + o.spin * omega / 25f
+            val head = fraction(s + 2) * 360f + o.t * omega + o.spin * omega / 25f
             val sweep = (24f + fraction(s + 4).pow(0.7f) * 120f) * (0.3f + reveal * 0.7f) * smear
 
             var boost = 0f
@@ -149,7 +149,7 @@ internal class OrbitRingfall(private val o: OrbitKit) {
             val cx = 500f + (fraction(s + 5) - 0.5f) * 900f + f.flowX * 0.03f
             val cy = top + ry
             val omega = 6f * (1600f / rx) * (0.7f + fraction(s + 6) * 0.6f)
-            val head = 270f + ((fraction(s + 7) * 120f - 60f + f.t * omega + o.spin * 0.4f) % 120f + 120f) % 120f - 60f
+            val head = 270f + ((fraction(s + 7) * 120f - 60f + o.t * omega + o.spin * 0.4f) % 120f + 120f) % 120f - 60f
             val sweep = (8f + fraction(s + 8) * 26f) * (1f + (f.flowSpeed / 2600f).coerceAtMost(1.3f))
             val close = (top / h - 0.6f) / (HORIZON - 0.6f)
             val wave = if (f.pulses > 0) f.wave(cx + cos(head * DEG) * rx, top, 90f) else 0f
@@ -185,12 +185,12 @@ internal class OrbitRingfall(private val o: OrbitKit) {
         k.path.reset()
         k.path.addCircle(px, py, R, Path.Direction.CW)
         canvas.clipPath(k.path)
-        k.glow(canvas, k.glowB, px + R * 0.95f, py + R * 0.45f, R * 0.7f, R * 0.7f,
+        k.glow(canvas, k.glowB, px + R * 1.0f, py + R * 0.2f, R * 0.6f, R * 0.75f,
             ((if (night) 40 else 30) * reveal * (1f + heat)).toInt(), if (night) RenderKit.Mode.SCREEN else RenderKit.Mode.INK)
         canvas.restoreToCount(saved)
 
         // A flare runs along the limb when a pulse reaches it; holding grows the burn.
-        val flare = f.wave(px + R * 0.8f, py + R * 0.55f, 180f).coerceAtMost(1.4f) + heat * 0.6f
+        val flare = f.wave(px + R * 0.95f, py, 180f).coerceAtMost(1.4f) + heat * 0.6f
         val grow = 1f + flare * 0.25f
         val s = k.stroke
         k.additive(s, night)
@@ -208,28 +208,28 @@ internal class OrbitRingfall(private val o: OrbitKit) {
         k.rect.set(px - R, py - R, px + R, py + R)
         val ignite = 0.2f + reveal * 0.8f
         if (night) {
-            limb(canvas, f.c2, 46f, 34, -30f, 150f, ignite, grow, flare)
-            limb(canvas, f.c2, 18f, 110, -40f, 140f, ignite, grow, flare)
-            limb(canvas, mix(f.c2, Color.WHITE, 0.45f), 8f, 190, -55f, 105f, ignite, grow, flare)
-            limb(canvas, Color.WHITE, 3.2f, 255, -68f, 70f, ignite, grow, flare)
+            limb(canvas, f.c2, 46f, 34, -40f, 120f, ignite, grow, flare)
+            limb(canvas, f.c2, 18f, 110, -50f, 112f, ignite, grow, flare)
+            limb(canvas, mix(f.c2, Color.WHITE, 0.45f), 8f, 190, -80f, 70f, ignite, grow, flare)
+            limb(canvas, Color.WHITE, 3.2f, 255, -100f, 35f, ignite, grow, flare)
             k.rect.set(px - R - 24f, py - R - 24f, px + R + 24f, py + R + 24f)
-            limb(canvas, f.c1, 2f, 130, -60f, 130f, ignite, grow, flare)
+            limb(canvas, f.c1, 2f, 130, -110f, 90f, ignite, grow, flare)
         } else {
-            limb(canvas, f.c2, 30f, 40, -30f, 150f, ignite, grow, flare)
-            limb(canvas, f.c2, 9f, 190, -45f, 140f, ignite, grow, flare)
+            limb(canvas, f.c2, 30f, 40, -40f, 120f, ignite, grow, flare)
+            limb(canvas, f.c2, 9f, 190, -60f, 112f, ignite, grow, flare)
             k.rect.offset(3f, 2f)
-            limb(canvas, f.c1, 2.4f, 200, -66f, 120f, ignite, grow, flare)
+            limb(canvas, f.c1, 2.4f, 200, -105f, 80f, ignite, grow, flare)
             k.rect.offset(-3f, -2f)
             k.normal(s)
             // The white-hot core is bare paper, knocked out of the red ink.
-            limb(canvas, f.c0, 2.4f, 240, -60f, 80f, ignite, grow, flare)
+            limb(canvas, f.c0, 2.4f, 240, -95f, 40f, ignite, grow, flare)
         }
         k.reset(s)
 
         // Holding builds a sun about to rise behind the limb; release lets it flare.
         if (flare > 0.02f) {
-            val sx = px + cos(18f * DEG) * R
-            val sy = py + sin(18f * DEG) * R
+            val sx = px + cos(-12f * DEG) * R
+            val sy = py + sin(-12f * DEG) * R
             val mode = if (night) RenderKit.Mode.SCREEN else RenderKit.Mode.INK
             val v = flare.coerceAtMost(1.6f)
             k.glow(canvas, k.glowWhite, sx, sy, 60f + v * 120f, 60f + v * 120f, (v * 160f).toInt(), mode)
@@ -276,41 +276,52 @@ internal class OrbitRingfall(private val o: OrbitKit) {
     }
 
     /**
-     * A bank of clouds below the horizon: rows of soft puffs, larger as they come closer, each a
-     * dark body with a top lit by the horizon. Far rows drift faster than near ones.
+     * A bank of clouds below the horizon. Each cloud is a cumulus mound of overlapping lobes,
+     * backlit by the horizon: far rows glow silver, near rows are dark with bright linings.
+     * Rows drift at their own speeds, far ones faster across the frame.
      */
     private fun clouds(canvas: Canvas, f: Frame, horizon: Float, reveal: Float) {
         val night = f.night
         val p = k.fill
-        val rows = 7
-        val mode = if (night) RenderKit.Mode.SCREEN else RenderKit.Mode.INK
+        val s = k.stroke
+        val rows = 6
         for (row in 0 until rows) {
             val z = row / (rows - 1f)
-            val y = horizon + 14f + z.pow(1.5f) * (f.h - horizon) * 0.95f
-            val radius = 16f + z * 90f
-            val n = (1300f / (radius * 1.25f)).toInt() + 2
-            val drift = f.t * (5f - z * 3f) + f.shiftX(0.4f + z)
-            val light = 1f - z * 0.75f
+            val y = horizon + 22f + z.pow(1.4f) * (f.h - horizon) * 0.9f
+            val size = 34f + z * 120f
+            val pitch = size * 1.5f
+            val n = (1300f / pitch).toInt() + 2
+            val span = n * pitch
+            val drift = o.t * (6f - z * 4f) + f.shiftX(0.3f + z)
+            val light = (1f - z).pow(1.6f)
             for (i in 0 until n) {
                 val seed = row * 97 + i
-                val span = n * radius * 1.25f
-                var x = (i * radius * 1.25f + drift + fraction(seed) * radius) % span
+                var x = (i * pitch + drift + fraction(seed) * size * 0.6f) % span
                 if (x < 0f) x += span
                 x -= 150f
-                val r = radius * (0.7f + fraction(seed + 3) * 0.6f)
-                val cy = y + (fraction(seed + 5) - 0.5f) * radius * 0.5f
-                p.shader = null
-                k.normal(p)
-                p.color = if (night) mix(f.c0, f.c1, 0.07f + light * 0.06f) else f.c0
-                canvas.drawCircle(x, cy, r, p)
-                if (night) {
-                    k.glow(canvas, k.glowWhite, x, cy - r * 0.45f, r * 0.95f, r * 0.55f, (light * light * 46f * reveal).toInt(), mode)
-                    k.glow(canvas, k.glowA, x, cy - r * 0.2f, r * 1.1f, r * 0.8f, (light * 30f * reveal).toInt(), mode)
-                } else {
-                    // Riso clouds: paper bodies with blue ink pooled in their undersides.
-                    k.glow(canvas, k.glowA, x, cy + r * 0.45f, r * 0.95f, r * 0.55f, (34f * reveal).toInt(), mode)
-                    if (z < 0.2f && fraction(seed + 7) < 0.3f) {
-                        k.glow(canvas, k.glowB, x, cy - r * 0.5f, r * 0.7f, r * 0.25f, (40f * reveal).toInt(), mode)
+                val base = y + (fraction(seed + 5) - 0.5f) * size * 0.3f
+                for (lobe in 0 until 4) {
+                    val ls = seed * 5 + lobe
+                    val r = size * (0.42f + fraction(ls + 1) * 0.3f) * (if (lobe == 1 || lobe == 2) 1.15f else 0.85f)
+                    val lx = x + (lobe - 1.5f) * size * 0.5f + (fraction(ls + 2) - 0.5f) * size * 0.2f
+                    val ly = base - r * 0.55f - (if (lobe == 1 || lobe == 2) size * 0.18f else 0f)
+                    p.shader = null
+                    k.normal(p)
+                    p.color = if (night) mix(f.c0, f.c1, 0.06f + light * 0.16f) else f.c0
+                    canvas.drawCircle(lx, ly, r, p)
+                    // The silver lining along the lobe's top, facing the light.
+                    k.rect.set(lx - r, ly - r, lx + r, ly + r)
+                    k.additive(s, night)
+                    s.color = if (night) mix(f.c1, Color.WHITE, 0.6f) else f.c1
+                    s.alpha = ((if (night) 30f + light * 120f else 50f + light * 60f) * reveal).toInt()
+                    s.strokeWidth = 1.2f + light * 1.6f
+                    canvas.drawArc(k.rect, 205f, 130f, false, s)
+                    k.reset(s)
+                    if (night && light > 0.2f) {
+                        k.glow(canvas, k.glowWhite, lx, ly - r * 0.5f, r * 0.9f, r * 0.5f, (light * 40f * reveal).toInt(), RenderKit.Mode.SCREEN)
+                    } else if (!night) {
+                        // Riso clouds: paper bodies with blue ink pooled in their undersides.
+                        k.glow(canvas, k.glowA, lx, ly + r * 0.5f, r * 0.9f, r * 0.45f, (30f * reveal).toInt(), RenderKit.Mode.INK)
                     }
                 }
             }
@@ -325,13 +336,13 @@ internal class OrbitRingfall(private val o: OrbitKit) {
         if (ridgeKey != h) {
             ridgeKey = h
             crest.reset()
-            crest.moveTo(-40f, h * 0.875f)
-            crest.cubicTo(60f, h * 0.86f, 150f, h * 0.838f, 238f, h * 0.834f)
-            crest.cubicTo(300f, h * 0.832f, 360f, h * 0.848f, 470f, h * 0.872f)
-            crest.cubicTo(560f, h * 0.89f, 640f, h * 0.9f, 760f, h * 0.93f)
-            crest.cubicTo(820f, h * 0.945f, 900f, h * 0.97f, 1040f, h * 1.0f)
+            crest.moveTo(-40f, h * 0.9f)
+            crest.cubicTo(50f, h * 0.885f, 140f, h * 0.858f, 214f, h * 0.853f)
+            crest.cubicTo(262f, h * 0.85f, 300f, h * 0.858f, 360f, h * 0.874f)
+            crest.cubicTo(440f, h * 0.896f, 520f, h * 0.93f, 640f, h * 0.97f)
+            crest.cubicTo(700f, h * 0.99f, 760f, h * 1.0f, 800f, h * 1.02f)
             ridge.set(crest)
-            ridge.lineTo(1040f, h + 40f)
+            ridge.lineTo(800f, h + 40f)
             ridge.lineTo(-40f, h + 40f)
             ridge.close()
         }
@@ -350,7 +361,7 @@ internal class OrbitRingfall(private val o: OrbitKit) {
         canvas.drawPath(crest, s)
         k.reset(s)
         canvas.restoreToCount(saved)
-        o.figure(canvas, f, 238f + dx, h * 0.834f, 24f, -1.1f, 0.1f, heat)
+        o.figure(canvas, f, 238f + dx, h * 0.8515f, 22f, -1.1f, 0.1f, heat)
     }
 
     private companion object {

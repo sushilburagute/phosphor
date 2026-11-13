@@ -79,7 +79,7 @@ internal class OrbitThreshold(private val o: OrbitKit) {
             val sag = 160f + q * 140f
             val cy = yb - sag
             val omega = (12f + (1f - q) * 30f) * (0.85f + fraction(ring * 3) * 0.3f)
-            val phase = f.t * omega + o.spin * (1.4f - q) + fraction(ring * 11) * 360f
+            val phase = o.t * omega + o.spin * (1.4f - q) + fraction(ring * 11) * 360f
             val lift = if (f.busy) f.wave(cx, yb, 120f) * 30f + f.dragInfluence(f.dragX, yb, 260f) * 14f else 0f
             val ry = sag + lift
             val bright = fraction(ring * 13 + 1)
@@ -121,7 +121,7 @@ internal class OrbitThreshold(private val o: OrbitKit) {
                     wave > 0.25f -> WHITE
                     tint < 0.04f + near * 0.04f -> RED
                     tint < 0.1f -> EMBER
-                    tint < 0.1f + near * near * 0.45f -> if (near > 0.75f) WHITE else PALE
+                    tint < 0.1f + near * near * 0.6f -> if (near > 0.7f) WHITE else PALE
                     q > 0.6f && tint > 0.6f -> DEEP
                     else -> BLUE
                 }
@@ -159,7 +159,7 @@ internal class OrbitThreshold(private val o: OrbitKit) {
         val length = f.h * 0.34f
         for (i in 0 until 11) {
             val side = (i - 5f) / 5f
-            val sway = sin(f.t * 0.11f + i * 1.9f) * 3f
+            val sway = sin(o.t * 0.11f + i * 1.9f) * 3f
             val angle = side * 52f + sway + (fraction(i * 7) - 0.5f) * 8f
             val saved = canvas.save()
             canvas.rotate(angle, cx, horizon)
@@ -171,8 +171,8 @@ internal class OrbitThreshold(private val o: OrbitKit) {
 
     /** A perspective field of colored specks below the horizon, drifting toward the viewer. */
     private fun floor(canvas: Canvas, f: Frame, horizon: Float, cx: Float, reveal: Float) {
-        val travel = f.t * 0.1f - floor(f.t * 0.1f)
-        val passed = floor(f.t * 0.1f).toInt()
+        val travel = o.t * 0.1f - floor(o.t * 0.1f)
+        val passed = floor(o.t * 0.1f).toInt()
         val rows = (44 * (0.6f + f.detail * 0.4f)).toInt()
         val span = f.h - horizon
         for (row in 0 until rows) {
@@ -251,13 +251,13 @@ internal class OrbitThreshold(private val o: OrbitKit) {
     /** A satellite crossing the top of the sky every couple of minutes, glinting as it turns. */
     private fun satellite(canvas: Canvas, f: Frame) {
         val period = 70f
-        val u = ((f.t + 20f) % period) / period
-        val cycle = ((f.t + 20f) / period).toInt()
-        if (f.t <= 0f) return
+        val u = ((o.t + 20f) % period) / period
+        val cycle = ((o.t + 20f) / period).toInt()
+        if (o.t <= 0f) return
         val y0 = f.h * (0.02f + fraction(cycle * 3) * 0.05f)
         val x = -20f + u * 1040f
         val y = y0 + u * f.h * 0.03f
-        val glint = 0.4f + 0.6f * abs(sin(f.t * 1.7f))
+        val glint = 0.4f + 0.6f * abs(sin(o.t * 1.7f))
         o.speck(if (glint > 0.85f) WHITE else PALE, false, x, y)
         o.flushSpecks(canvas, f, glint)
     }

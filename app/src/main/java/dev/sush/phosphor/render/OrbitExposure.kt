@@ -96,7 +96,7 @@ internal class OrbitExposure(private val o: OrbitKit) {
 
             val size = ry + rx * 0.2f
             val omega = 40f * (220f / (size + 40f)).pow(0.9f) * (0.75f + fraction(s + 6) * 0.5f)
-            val head = fraction(s + 7) * 360f + turn * f.t * omega + spun * omega / 30f
+            val head = fraction(s + 7) * 360f + turn * o.t * omega + spun * omega / 30f
             val sweep = (36f + fraction(s + 8).pow(0.7f) * 170f) * (0.3f + reveal * 0.7f) * smear
 
             var boost = 0f
@@ -250,7 +250,7 @@ internal class OrbitExposure(private val o: OrbitKit) {
             val y = horizon + if (up) -d else d
             val close = (1f - d / 100f).pow(1.5f)
             // Each stratum breathes on its own slow phase, like heat shimmer over the line.
-            val shimmer = 0.65f + 0.35f * sin(f.t * (0.3f + fraction(i * 3) * 0.9f) + i * 2.3f)
+            val shimmer = 0.65f + 0.35f * sin(o.t * (0.3f + fraction(i * 3) * 0.9f) + i * 2.3f)
             p.color = if (f.night) {
                 if (up) mix(f.c2, f.c1, u * 1.4f) else mix(f.c1, Color.WHITE, (1f - u) * 0.35f)
             } else if (up && u < 0.35f) f.c2 else f.c1
