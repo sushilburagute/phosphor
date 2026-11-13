@@ -43,5 +43,24 @@ class WallpaperPowerPolicyTest {
         assertEquals(60, WallpaperPowerPolicy.resolve(settings.copy(fps = 200), false, null, false).fps)
     }
 
+    @Test
+    fun lockScreenCapsRenderingAndUnlockRestoresTheSelectedRate() {
+        val locked = WallpaperPowerPolicy.resolve(settings, false, 90, false, locked = true)
+        assertEquals(15, locked.fps)
+        assertEquals(1f, locked.motionScale)
+        assertFalse(locked.energySaving)
+        assertEquals(60, WallpaperPowerPolicy.resolve(settings, false, 90, false, locked = false).fps)
+        assertEquals(15, WallpaperPowerPolicy.resolve(settings, false, 90, true, locked = true).fps)
+    }
+
+    @Test
+    fun lockScreenNeverOverridesCriticalBatteryHoldOrSystemSaver() {
+        assertEquals(0f, WallpaperPowerPolicy.resolve(settings, false, 5, false, locked = true).motionScale)
+        val saver = WallpaperPowerPolicy.resolve(settings, true, 90, true, locked = true)
+        assertEquals(15, saver.fps)
+        assertEquals(0.45f, saver.motionScale)
+        assertTrue(saver.energySaving)
+    }
+
     private fun profile(percent: Int?) = WallpaperPowerPolicy.resolve(settings, false, percent, false)
 }

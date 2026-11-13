@@ -14,6 +14,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew
       - name: Read and verify app version
@@ -26,8 +28,16 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match version.properties (v$version)" >&2
             exit 1
           fi
-      - run: ./gradlew testDebugUnitTest lintDebug assembleDebug
+      - run: ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: phosphor-${{ steps.version.outputs.name }}-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phosphor-reports
+          path: |
+            app/build/reports/phosphor-artwork.png
+            app/build/reports/phosphor-legibility.txt
+            app/build/reports/tests/

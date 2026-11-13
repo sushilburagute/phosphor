@@ -2,6 +2,7 @@ package dev.sush.phosphor.platform
 
 import android.content.Context
 import android.content.SharedPreferences
+import dev.sush.phosphor.model.Appearance
 import dev.sush.phosphor.model.WallpaperSettings
 import org.json.JSONObject
 
@@ -46,8 +47,10 @@ class SettingsStore(context: Context) {
                 darken = number(json, "darken", defaults.darken, 0f, 1f),
                 imagePath = json.optString("imagePath").takeIf { it.isNotBlank() && it != "null" },
                 reducedMotion = json.optBoolean("reducedMotion", defaults.reducedMotion),
+                appearance = Appearance.entries.firstOrNull { it.name == json.optString("appearance") } ?: defaults.appearance,
+                wakeReveal = json.optBoolean("wakeReveal", json.optBoolean("unlockAnimation", defaults.wakeReveal)),
                 lowBatteryMode = json.optBoolean("lowBatteryMode", defaults.lowBatteryMode),
-                unlockAnimation = json.optBoolean("unlockAnimation", defaults.unlockAnimation),
+                unlockAnimation = json.optBoolean("unlockAnimation", json.optBoolean("wakeReveal", defaults.unlockAnimation)),
             )
         } catch (_: org.json.JSONException) {
             defaults
@@ -64,6 +67,8 @@ class SettingsStore(context: Context) {
             put("darken", bounded(settings.darken, 0f))
             put("imagePath", settings.imagePath ?: JSONObject.NULL)
             put("reducedMotion", settings.reducedMotion)
+            put("appearance", settings.appearance.name)
+            put("wakeReveal", settings.wakeReveal)
             put("lowBatteryMode", settings.lowBatteryMode)
             put("unlockAnimation", settings.unlockAnimation)
         }

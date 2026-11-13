@@ -6,7 +6,9 @@ Keep the app offline and minimize permissions. Avoid per-frame disk access, bitm
 
 Version names and Android version codes live in `version.properties`. Follow [the release process](docs/RELEASING.md) when preparing a release and record user-facing changes in [CHANGELOG.md](CHANGELOG.md).
 
-To add artwork, create a stable preset ID in `WallpaperCatalog` and implement the corresponding renderer behavior. Test portrait and landscape, reduced motion, dimming, touch/scroll offsets, and at least two frame times. Existing preset IDs are persisted; do not rename them without a migration.
+To add artwork, create a stable preset ID in `WallpaperCatalog` with both a night palette (deep ground) and a day palette (pale ground), and implement the scene. It must answer taps and drags through `Frame.wave`/`Frame.dragInfluence`, honor `Frame.reveal`, and pass `launcherLabelsStayReadableInBothMoods`: keep bright features out of typical icon rows rather than dimming everything. Check the result with the full-resolution previews (see README). Test portrait and landscape, reduced motion, dimming, touch/scroll offsets, and at least two frame times. Existing preset IDs are persisted; do not rename them without a migration.
+
+UI work follows [the design system](docs/DESIGN_SYSTEM.md): use the theme tokens and `ic_*` glyphs, and keep ember for "live on your phone" only.
 
 Do not copy the local `ref-img/` folder into application assets. Contributed external assets need a source, author, redistribution license, and attribution. Never include personal images, signing keys, device logs with personal data, or SDK paths.
 

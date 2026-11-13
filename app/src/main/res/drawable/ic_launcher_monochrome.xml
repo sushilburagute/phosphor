@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon layer: one alpha mask, tinted by the system. A clipped gap lets the
+     orbit pass in front of the grain, so it reads as a ringed world, not an eye. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3" android:strokeLineCap="round" android:pathData="M31,71H77" />
+    <group android:rotation="-20" android:pivotX="54" android:pivotY="52">
+        <!-- Back half of the orbit, behind the grain. -->
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.6" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M30,52a24,7 0 0,1 48,0" />
+        <group android:name="grain">
+            <clip-path android:pathData="M-40,-40H148V148H-40Z M26,52A28,10.5 0 0,0 82,52L76.5,52A22.5,4.5 0 0,1 31.5,52Z" />
+            <path android:fillColor="#FFFFFFFF" android:pathData="M54,52m-8.5,0a8.5,8.5 0 1,1 17,0a8.5,8.5 0 1,1 -17,0" />
+        </group>
+        <!-- Front half, crossing the grain through the gap. -->
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.6" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M78,52a24,7 0 0,1 -48,0" />
+    </group>
+</vector>
