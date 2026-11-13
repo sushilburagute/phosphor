@@ -285,7 +285,7 @@ internal class AbstractHorizon(private val k: RenderKit) {
         for (p in 0 until count) {
             val seed = p * 7919 + 3
             val i = if (p % 9 == 0) crisp + perGroup[1] + perGroup[2] + p % perGroup[3] else p % crisp
-            val s = (fraction(seed) + f.t * (0.012f + fraction(seed + 1) * 0.03f)) % 1f
+            val s = (fraction(seed) + f.t * (0.006f + fraction(seed + 1) * 0.016f)) % 1f
             if (s < 0.08f || s > 1f - (1f - reveal) * 0.9f && reveal < 1f) continue
             point(f, i, s, 1f)
             val bucket = when {
@@ -322,7 +322,7 @@ internal class AbstractHorizon(private val k: RenderKit) {
             val seed = i * 4099 + 77
             val x = fraction(seed) * 1000f + f.shiftX(0.15f)
             val y = fraction(seed + 1) * f.h * 0.8f + f.shiftY(0.15f)
-            val tw = 0.5f + 0.5f * sin(f.t * (0.6f + fraction(seed + 2)) + fraction(seed + 3) * 6.28f)
+            val tw = 0.5f + 0.5f * sin(f.t * (0.3f + fraction(seed + 2) * 0.5f) + fraction(seed + 3) * 6.28f)
             val bucket = (tw * 2.99f).toInt()
             val at = starCount[bucket] * 2
             stars[bucket][at] = x; stars[bucket][at + 1] = y
@@ -389,7 +389,7 @@ internal class AbstractHorizon(private val k: RenderKit) {
         }
         val s = k.stroke
         k.additive(s, f.night)
-        val flicker = 0.85f + 0.15f * sin(f.t * 1.7f)
+        val flicker = 0.85f + 0.15f * sin(f.t * 0.8f)
         if (f.night) {
             s.color = f.c2
             s.strokeWidth = 18f; s.alpha = (22 * reveal).toInt(); canvas.drawPath(path, s)

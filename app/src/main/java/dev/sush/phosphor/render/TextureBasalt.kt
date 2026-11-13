@@ -72,7 +72,7 @@ internal class TextureBasalt(private val k: RenderKit) {
             shaped = !touched
         }
         // A low sun circling slowly.
-        val az = 0.6f + f.t * 0.085f
+        val az = 0.6f + f.t * 0.04f
         val el = 0.62f
         val lx = cos(az) * cos(el); val ly = sin(az) * cos(el); val lz = sin(el)
         shade(f, lx, ly, lz, reveal)
@@ -275,7 +275,7 @@ internal class TextureBasalt(private val k: RenderKit) {
             val facet = fraction(seed + 2) * 6.283f
             val c = cos(az - facet)
             var glint = if (c > 0f) c.pow(36f) else 0f
-            glint *= 0.7f + 0.3f * sin(f.t * 2.3f + seed)
+            glint *= 0.7f + 0.3f * sin(f.t * 1.1f + seed)
             if (f.busy) {
                 glint += f.wave(x, y, 70f) * 1.1f
                 if (f.drag > 0.01f) glint += f.dragInfluence(x, y, 130f + f.charge * 60f) * f.charge

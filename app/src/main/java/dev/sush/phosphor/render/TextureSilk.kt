@@ -318,7 +318,7 @@ internal class TextureSilk(private val k: RenderKit, private val halftone: Halft
                 if (inside && have) {
                     // Brightness: fold amplitude, a slow shimmer travelling along the line, and the lamp.
                     val m = 0.78f + 0.22f * sin(b * 0.0031f + f.t * 0.09f)
-                    var v = m * (0.55f + 0.45f * sin(b * 0.006f - f.t * 0.5f + n * 1.7f))
+                    var v = m * (0.55f + 0.45f * sin(b * 0.006f - f.t * 0.22f + n * 1.7f))
                     if (f.drag > 0.01f) {
                         val d2 = (x - f.dragX) * (x - f.dragX) + (y - f.dragY) * (y - f.dragY)
                         v = v * (1f - f.drag * 0.5f) + f.drag * 1.2f * exp(-d2 / (300f * 300f))

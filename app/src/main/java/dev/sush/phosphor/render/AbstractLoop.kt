@@ -118,7 +118,7 @@ internal class AbstractLoop(private val k: RenderKit) {
         val night = f.night
         for (i in 0 until RINGS) {
             val u = i / RINGS.toFloat() * TAU
-            val wobble = t * 0.23f
+            val wobble = t * 0.12f
             // Centerline: an ellipse with a saddle undulation, so it never sits flat.
             val px = RX * cos(u)
             val py = RY * sin(u)
@@ -132,7 +132,7 @@ internal class AbstractLoop(private val k: RenderKit) {
             len = sqrt(bx * bx + by * by + bz * bz); bx /= len; by /= len; bz /= len
             nx = by * tz - bz * ty; ny = bz * tx - bx * tz; nz = bx * ty - by * tx
             // Two full twists around the loop, drifting, plus the wound-up spring.
-            val tau = 2f * u + t * 0.15f + twist * (0.5f + 0.5f * cos(u - 1.2f))
+            val tau = 2f * u + t * 0.07f + twist * (0.5f + 0.5f * cos(u - 1.2f))
             val ct = cos(tau); val st = sin(tau)
             val wx = nx * ct + bx * st; val wy = ny * ct + by * st; val wz = nz * ct + bz * st
             val sx = bx * ct - nx * st; val sy = by * ct - ny * st; val sz = bz * ct - nz * st
@@ -380,7 +380,7 @@ internal class AbstractLoop(private val k: RenderKit) {
             val x0 = fraction(seed + 1) * 1100f - 50f
             val y0 = fraction(seed + 2) * (f.h + 200f)
             var x = x0 + sin(f.t * 0.13f + seed) * 30f * f.amount + f.shiftX(d) + f.flowX * 0.02f * d
-            var y = (y0 - f.t * (5f + z * 9f) + f.shiftY(d) + f.flowY * 0.02f * d) % (f.h + 200f)
+            var y = (y0 - f.t * (2.5f + z * 4.5f) + f.shiftY(d) + f.flowY * 0.02f * d) % (f.h + 200f)
             if (y < 0f) y += f.h + 200f
             y -= 100f
             if (f.pulses > 0) {
