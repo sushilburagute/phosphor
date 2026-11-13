@@ -39,8 +39,8 @@ internal class GradientScene(private val k: RenderKit, @Suppress("unused") halft
     private var hot = 0f
 
     /**
-     * [silk] picks Low tide's treatment. The renderer doesn't pass the preset here, so the
-     * default reads it from the palette: cool accents flow as silk, warm ones print as halftone.
+     * [silk] picks Low tide's treatment. Without a preset (the image fallback) the default reads
+     * it from the palette: cool accents flow as silk, warm ones print as halftone.
      */
     fun draw(canvas: Canvas, f: Frame, silk: Boolean = Color.blue(f.c1) > Color.red(f.c1)) {
         flowing = silk

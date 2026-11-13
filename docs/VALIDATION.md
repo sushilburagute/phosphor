@@ -40,13 +40,15 @@ Rendered and inspected:
 - full-resolution (1080×2340) artwork for all 15 presets in both treatments, with a mock home screen overlaid;
 - the gallery, editor (with and without the home-screen overlay) and settings, in light and dark;
 - the adaptive launcher icon at 192, 96 and 48 px, plus the themed monochrome version.
+- each preset mid-gesture (swipe, hold and charged release) in both treatments, via `PHOSPHOR_PREVIEW_GESTURES=swipe,hold,burst`.
 
 Images are produced by the opt-in preview tests (see README).
 
 ## Not yet verified
 
-- On-device behavior: the hardware canvas path, frame timing and thermal load with 3,000+ trail strokes per frame, `onCommand` taps and icon drops from real launchers, screen-on and unlock reveal timing, and battery broadcasts.
+- On-device behavior: the hardware canvas path, frame timing and thermal load at the heaviest scenes (Long exposure draws about 2,400 arcs per frame, Threshold 8,000–10,000 points, Event horizon about 10,000 line segments), `onCommand` taps and icon drops from real launchers, screen-on and unlock reveal timing, and battery broadcasts.
 - How Pixel and One UI launchers react to the dark-text/dark-theme color hints, and lock-screen behavior.
+- Shaded meshes (Chromatic loop, Rose silk) use `drawVertices`; Android 8.1–9 hardware canvases fall back to flat-colored cells, which is untested on a device.
 - Energy use: the frame caps are policy, not a measured battery-life result.
 
 Use the [device test matrix](ANDROID_COMPATIBILITY.md) before release.

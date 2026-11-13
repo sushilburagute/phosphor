@@ -191,8 +191,8 @@ internal class AuroraScene(private val k: RenderKit) {
     }
 
     /**
-     * [variant] is the preset id. The renderer does not pass it yet, so without one a warm
-     * palette (red leading green) is read as Solstice's twilight composition.
+     * [variant] is the preset id. Without one, a warm palette (red leading green) is read as
+     * Solstice's twilight composition.
      */
     fun draw(canvas: Canvas, f: Frame, variant: String? = null) {
         prepare(f)
