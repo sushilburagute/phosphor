@@ -1,5 +1,7 @@
 # Android compatibility
 
+[Documentation index](README.md) · [User guide](USER_GUIDE.md) · [Testing](TESTING.md)
+
 Phosphor uses Android's public `WallpaperService` API, rather than a launcher-specific integration. The minimum version is Android 8.1 (API 27). Pixel and Samsung One UI are intended targets; support in code is not a claim that every device/firmware combination has been tested.
 
 ## Wallpaper colors and phone themes
@@ -16,7 +18,7 @@ Editing saves a draft independently of the active wallpaper. Opening and dismiss
 
 ## Battery and rendering
 
-- Rendering stops when the engine is hidden or its surface is destroyed.
+- Continuous rendering stops when the engine is hidden, its surface is destroyed, or the display is non-interactive. A visible lock-screen wallpaper is capped at 15 fps, including while charging; touch and scroll requests share that frame budget.
 - System Battery Saver caps animation at 15 frames per second and reduces motion. Automatic low battery mode does the same at 20% or below while unplugged, and holds a still frame at 5% or below. The automatic behavior can be disabled per wallpaper; system Battery Saver is always honored.
 - Still mode and Android's disabled-animation preference draw a stationary frame and disable animated touch/launcher parallax and unlock effects.
 - When the display becomes non-interactive, the engine draws a dimmed stationary frame if still visible. Availability of live content on an always-on display remains an OEM decision.
@@ -30,7 +32,8 @@ Run this checklist on a physical Pixel and a physical Samsung device before clai
 
 | Scenario | Expected result |
 | --- | --- |
-| Fresh install; open each wallpaper family | Preview displays without a crash; artwork is distinct; watermark is legible |
+| Fresh install; open each wallpaper family | Preview displays without a crash; artwork is distinct and free of branding |
+| Tap creator credit in Explore, editor, and Settings | Browser opens `https://sush.dev?utm_source=phosphor`; adjacent version matches the installed app |
 | Apply from app | Correct artwork reaches system preview and home screen |
 | Edit while already active, then cancel picker | Previously applied wallpaper remains unchanged |
 | Apply on a picker with no result | Manual confirmation can commit the chosen settings |
@@ -50,7 +53,7 @@ Run this checklist on a physical Pixel and a physical Samsung device before clai
 | Preview while existing live wallpaper runs | Engines render independently without shared resource recycling |
 | Import large portrait and landscape photos | Bounded decoding, correct center crop, motion stays within image edges |
 | Reboot; kill app process | Applied configuration and private imported image persist |
-| Export still image | Saved image matches selected artwork and includes attribution |
+| Export still image | Saved image matches selected artwork without a watermark |
 | Observe 10-minute run / Android Studio profiler | No sustained growth; record actual CPU, frame timing, and thermal behavior |
 
 Use Android Studio's profiler and `adb shell dumpsys wallpaper` for diagnostics. Battery behavior and sustained FPS depend on device resolution and Canvas performance; no unmeasured battery-life claim is made.

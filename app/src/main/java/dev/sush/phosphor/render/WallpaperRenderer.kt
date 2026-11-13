@@ -10,7 +10,6 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
-import android.graphics.Typeface
 import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
@@ -46,10 +45,6 @@ class WallpaperRenderer {
     private val texture = TextureScene(kit, halftone)
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-    private val watermarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        textAlign = Paint.Align.CENTER
-    }
     private val rect = RectF()
     private var noise: Bitmap? = null
     private var noiseShader: Shader? = null
@@ -59,6 +54,10 @@ class WallpaperRenderer {
     private var veilKey = 0L
     private var veilTop: Shader? = null
     private var veilBottom: Shader? = null
+    private var groundShader: Shader? = null
+    private var groundColor = 0
+    private var groundLift = 0
+    private var groundHeight = 0f
 
     /** Tests measure small bitmaps at full on-device density; 0 means derive from width. */
     internal var forcedDetail = 0f
@@ -72,7 +71,6 @@ class WallpaperRenderer {
         settings: WallpaperSettings,
         offsetX: Float = 0f,
         offsetY: Float = 0f,
-        bottomInsetPixels: Int = 0,
         night: Boolean = true,
         touch: TouchField? = null,
         realSeconds: Float = Float.NaN,
@@ -173,14 +171,19 @@ class WallpaperRenderer {
             canvas.drawRect(0f, 0f, 1000f, h, paint)
         }
         paint.alpha = 255
-        drawWatermark(canvas, h, bottomInsetPixels.coerceAtLeast(0) * 1000f / width, night)
         canvas.restoreToCount(saved)
     }
 
     /** A quiet base gradient so the ground is never a flat fill. */
     private fun ground(canvas: Canvas, f: Frame) {
         val lift = if (f.night) mix(f.c0, f.c1, 0.07f) else mix(f.c0, Color.WHITE, 0.5f)
-        paint.shader = LinearGradient(0f, 0f, 1000f, f.h, intArrayOf(f.c0, lift, f.c0), null, Shader.TileMode.CLAMP)
+        if (groundShader == null || groundColor != f.c0 || groundLift != lift || groundHeight != f.h) {
+            groundColor = f.c0
+            groundLift = lift
+            groundHeight = f.h
+            groundShader = LinearGradient(0f, 0f, 1000f, f.h, intArrayOf(f.c0, lift, f.c0), null, Shader.TileMode.CLAMP)
+        }
+        paint.shader = groundShader
         canvas.drawRect(0f, 0f, 1000f, f.h, paint)
         paint.shader = null
     }
@@ -297,21 +300,6 @@ class WallpaperRenderer {
         paint.shader = null
     }
 
-    private fun drawWatermark(canvas: Canvas, h: Float, bottomInset: Float, night: Boolean) {
-        watermarkPaint.textSize = 22f
-        if (night) {
-            watermarkPaint.color = 0xD9FFFFFF.toInt()
-            watermarkPaint.setShadowLayer(4f, 0f, 1f, 0xB3000000.toInt())
-        } else {
-            watermarkPaint.color = 0xCC1B1E26.toInt()
-            watermarkPaint.setShadowLayer(4f, 0f, 1f, 0x99FFFFFF.toInt())
-        }
-        // Sit below launcher docks, while respecting gesture/three-button navigation.
-        val inset = max(66f, bottomInset + 24f).coerceAtMost(h * 0.3f)
-        canvas.drawText("made by sush.dev", 500f, h - inset, watermarkPaint)
-        watermarkPaint.clearShadowLayer()
-    }
-
     fun release() {
         importedBitmap?.recycle()
         importedBitmap = null
@@ -328,6 +316,7 @@ class WallpaperRenderer {
         veilTop = null
         veilBottom = null
         veilKey = 0
+        groundShader = null
         lastReal = Float.NaN
     }
 

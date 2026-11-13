@@ -208,7 +208,7 @@ private fun Controls(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Frame rate", style = MaterialTheme.typography.titleMedium)
                 Segmented(listOf(15, 30, 60).map { Triple(it, "$it fps", null) }, settings.fps, { onChange(settings.copy(fps = it)) }, enabled = !settings.reducedMotion)
-                Text("30 fps balances smoothness and battery. Touches follow the same battery limits.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("30 fps balances smoothness and battery. The lock screen uses up to 15 fps. Animation pauses when hidden or the screen is off, and touches follow the same battery limits.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
@@ -222,8 +222,7 @@ private fun Controls(
             Glyph(R.drawable.ic_export, null, Modifier.size(20.dp))
             Text("Save a still image", modifier = Modifier.padding(start = 10.dp))
         }
-        Text("made by sush.dev", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.align(Alignment.CenterHorizontally))
+        AppAttribution(Modifier.align(Alignment.CenterHorizontally))
         Spacer(Modifier.height(4.dp))
     }
 }

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Phosphor</string>
-    <string name="wallpaper_description">Living light for your home screen. Orbits, auroras, ASCII, glass and textures that glow at night and print in ink by day. made by sush.dev</string>
+    <string name="wallpaper_description">Living light for your home screen. Orbits, auroras, ASCII, glass and textures that glow at night and print in ink by day.</string>
+    <string name="creator_credit">made by sush.dev</string>
+    <string name="creator_url" translatable="false">https://sush.dev?utm_source=phosphor</string>
+    <string name="app_version">v%1$s (%2$d)</string>
     <string name="wallpaper_author">sush.dev</string>
 </resources>
