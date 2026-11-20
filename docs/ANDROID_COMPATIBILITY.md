@@ -24,7 +24,7 @@ Editing saves a draft independently of the active wallpaper. Opening and dismiss
 - When the display becomes non-interactive, the engine stops scheduling frames. A system-requested surface redraw can still show a dimmed stationary scene. Always-on-display behavior depends on the device.
 - Launcher parallax uses Android page offsets. Ambient drift also works on single-page home screens. Optional tilt parallax uses a non-waking accelerometer while the wallpaper or editor preview is visible and animating. It pauses during power saving. Devices without the sensor retain ambient and page motion.
 - A visible lock-screen wallpaper settles into a dimmer, closer composition on wake and reveals its normal appearance on unlock. Android controls when the surface is visible during these transitions.
-- Each picker/home-screen engine owns its renderer and resources. Rendering does not require network access, a foreground service, or media/storage permissions.
+- Each picker/home-screen engine owns its renderer. Echo trace’s optional music response uses the Android output-mix visualizer and requires audio permission. Availability depends on the device, player, and audio route. The ambient artwork works with audio permission denied.
 
 ## Device validation checklist
 

@@ -4,6 +4,10 @@
 
 This file preserves results reported for earlier commits and branches. Counts, warnings, APK sizes, and screenshots describe those builds, not necessarily the current checkout. Re-run the [standard checks](TESTING.md#standard-checks) to validate a new change; do not infer physical-device coverage from JVM tests or earlier emulator checks.
 
+## Echo trace playback visualization
+
+On 2026-11-20, an Android 16 emulator showed the audio permission prompt when **React to music** was enabled in the editor. The preview reported waiting during silence and following playback when a separate Android player played a PCM file. With Echo trace applied to the home screen, a 130 Hz tone raised the left side of the waterfall and a 3.2 kHz tone raised the right side. AudioFlinger showed one output-mix visualizer while the wallpaper was visible and zero after Android Settings covered it. Physical phones and Bluetooth routes still need verification.
+
 ## Launcher and tilt parallax
 
 On 2026-11-20, the rendered-frame tests verified that launcher swipes and optional tilt change all 15 presets, and that Still mode holds each one steady. A landscape test checked all four edges of an imported portrait photo with drift, page offset, and tilt combined.

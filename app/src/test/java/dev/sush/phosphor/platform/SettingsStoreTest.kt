@@ -2,6 +2,8 @@ package dev.sush.phosphor.platform
 
 import android.content.Context
 import android.os.Looper
+import dev.sush.phosphor.model.WallpaperCatalog
+import dev.sush.phosphor.model.ScenePalette
 import dev.sush.phosphor.model.WallpaperSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -45,7 +47,7 @@ class SettingsStoreTest {
         val draft = WallpaperSettings(
             presetId = "image-custom", speed = 0.2f, intensity = 0.4f, parallax = false,
             fps = 24, darken = 0.25f, imagePath = "/private/photo.png", imageFocusX = 0.15f, imageFocusY = 0.72f, reducedMotion = true,
-            wakeReveal = false, lowBatteryMode = false, unlockAnimation = false, tiltParallax = true,
+            wakeReveal = false, lowBatteryMode = false, unlockAnimation = false, tiltParallax = true, composition = 0.81f, palette = ScenePalette.LAGOON,
         )
         store.savePreview(draft)
         store.commitPreview()
@@ -97,6 +99,68 @@ class SettingsStoreTest {
         val independent = WallpaperSettings(wakeReveal = false, unlockAnimation = true)
         store.save(independent)
         assertEquals(independent, SettingsStore(context).load())
+    }
+
+    @Test
+    fun applyingFromPickerAtAnUnseenBoundaryKeepsTheChosenDraftUntilTheNextChange() {
+        val library = SavedLooks(context.getSharedPreferences("phosphor_ui", Context.MODE_PRIVATE))
+        val scheduled = SavedLook("glass", "Prism", WallpaperSettings(presetId = "glass-spectrum"))
+        library.save(scheduled, store.load())
+        store.saveRotation(LookRotation(RotationMode.DAILY, listOf(scheduled.id)))
+        val manual = WallpaperSettings(presetId = "ascii-echo", palette = ScenePalette.EMBER)
+        store.savePreview(manual)
+        store.commitPreview()
+        val recreated = SettingsStore(context)
+        val current = recreated.currentSlot()!!
+        recreated.applySlot(current)
+        assertEquals(manual, recreated.load())
+        recreated.applySlot(current.copy(startsAt = current.endsAt))
+        assertEquals(scheduled.settings, recreated.load())
+        assertEquals(manual, recreated.loadPreview())
+    }
+
+    @Test
+    fun musicResponseIsOptInAndOnlyFollowsAnEchoTraceLook() {
+        val echo = WallpaperCatalog.find("ascii-echo")
+        val settings = WallpaperSettings(presetId = echo.id, musicReactive = true)
+        assertEquals(false, SettingsStore.decode(org.json.JSONObject("""{"presetId":"ascii-echo"}""")).musicReactive)
+        store.savePreview(settings)
+        store.commitPreview()
+        assertEquals(settings, SettingsStore(context).load())
+        assertEquals(settings, settings.forPreset(echo, null))
+        val other = settings.forPreset(WallpaperCatalog.find("ascii-signal"), null)
+        assertEquals(false, other.musicReactive)
+        val normal = WallpaperPowerProfile(30, 1f, false)
+        assertEquals(true, settings.allowsMusic(normal))
+        assertEquals(false, other.copy(musicReactive = true).allowsMusic(normal))
+        assertEquals(false, settings.copy(reducedMotion = true).allowsMusic(normal))
+        assertEquals(false, settings.copy(speed = 0f).allowsMusic(normal))
+        assertEquals(false, settings.allowsMusic(normal.copy(energySaving = true)))
+    }
+
+    @Test
+    fun malformedRotationAndUnknownPalettesRecoverSafely() {
+        assertEquals(LookRotation(), LookRotation.decode("broken"))
+        assertEquals(LookRotation(), LookRotation.decode("""{"mode":"DAY_EVENING","ids":["a","b"],"day":90,"evening":80}"""))
+        val settings = SettingsStore.decode(org.json.JSONObject("""{"palette":"retired","composition":100}"""))
+        assertEquals(ScenePalette.ORIGINAL, settings.palette)
+        assertEquals(1f, settings.composition)
+    }
+
+    @Test
+    fun rotationUpdatesTheActiveLookOncePerSlotAndPreservesDraftAndManualApplies() {
+        val look = SavedLook("a", "Smoke", WallpaperSettings(presetId = "texture-satin", composition = 0.8f))
+        val slot = RotationSlot(look, 100L, 200L)
+        val draft = WallpaperSettings(presetId = "ascii-echo")
+        store.savePreview(draft)
+        store.applySlot(slot)
+        assertEquals(look.settings, store.load())
+        assertEquals(draft, store.loadPreview())
+        store.commitPreview()
+        SettingsStore(context).applySlot(slot)
+        assertEquals(draft, store.load())
+        store.applySlot(slot.copy(startsAt = 200L, endsAt = 300L))
+        assertEquals(look.settings, store.load())
     }
 
     @Test

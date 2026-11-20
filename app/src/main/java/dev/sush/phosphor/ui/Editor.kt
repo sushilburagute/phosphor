@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.sush.phosphor.R
+import dev.sush.phosphor.model.ScenePalette
 import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
@@ -186,7 +187,7 @@ private fun Controls(
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(preset.description, style = MaterialTheme.typography.bodyLarge)
             FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Swatches(preset.colors, 18.dp)
+                Swatches(settings.palette.colors ?: preset.colors, 18.dp)
                 TextButton(onClick = onPaletteHelp) { Text("Match your phone’s colors") }
             }
         }
@@ -196,10 +197,17 @@ private fun Controls(
         }
 
         Section("Wallpaper appearance", R.drawable.ic_moon) {
+            SliderRow(preset.controlLabel, settings.composition) { onChange(settings.copy(composition = it)) }
+            if (preset.kind != WallpaperKind.IMAGE) {
+                Text("Color palette", style = MaterialTheme.typography.titleMedium)
+                Segmented(ScenePalette.entries.map { Triple(it, it.label, null) }, settings.palette,
+                    { onChange(settings.copy(palette = it)) })
+            }
             SliderRow("Calm the artwork", settings.darken, "Darkens the wallpaper so icons and widgets stand out.") { onChange(settings.copy(darken = it)) }
         }
 
         Section("Motion", R.drawable.ic_motion) {
+            if (preset.id == "ascii-echo") MusicResponseControl(settings.musicReactive) { onChange(settings.copy(musicReactive = it)) }
             SliderRow("Speed", settings.speed, enabled = !settings.reducedMotion) { onChange(settings.copy(speed = it)) }
             SliderRow("Intensity", settings.intensity, "How far the artwork moves and how much detail it shows.") { onChange(settings.copy(intensity = it)) }
             ToggleRow("Home-screen parallax", "Nearby layers drift farther and ease into place as you swipe between pages.", settings.parallax, { onChange(settings.copy(parallax = it)) }, !settings.reducedMotion)

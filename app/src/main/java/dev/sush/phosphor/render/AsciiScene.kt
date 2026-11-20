@@ -43,7 +43,7 @@ internal class AsciiScene(private val k: RenderKit) {
         val nx = -dy
         val ny = dx
         val ax = 500f + f.shiftX(0.6f)
-        val ay = h * 0.5f + f.shiftY(0.6f)
+        val ay = h * (0.5f - f.composition * 0.32f) + f.shiftY(0.6f)
 
         // Body glow and motion-blur streaks, drawn in the beam's own frame (x along, y across).
         val saved = canvas.save()

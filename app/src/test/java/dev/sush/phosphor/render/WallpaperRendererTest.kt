@@ -119,6 +119,46 @@ class WallpaperRendererTest {
     }
 
     @Test
+    fun echoMusicChangesTheTraceOnlyWhenEnabledAndMoving() {
+        val spectrum = EchoSpectrum()
+        val fft = ByteArray(1024).apply { this[8] = 100 }
+        repeat(19) { spectrum.accept(fft, 48000000, it * 50L) }
+        val echo = WallpaperCatalog.find("ascii-echo")
+        fun draw(settings: WallpaperSettings, input: EchoSpectrum?) = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888).also {
+            val renderer = WallpaperRenderer()
+            renderer.musicSpectrum = input
+            try { renderer.draw(Canvas(it), WIDTH, HEIGHT, 12f, echo, settings) } finally { renderer.release() }
+        }
+        val enabled = WallpaperSettings(presetId = echo.id, musicReactive = true)
+        for (settings in listOf(enabled, enabled.copy(musicReactive = false), enabled.copy(reducedMotion = true), enabled.copy(speed = 0f))) {
+            val ambient = draw(settings, null)
+            val withInput = draw(settings, spectrum)
+            try {
+                if (settings == enabled) assertTrue(changedFraction(ambient, withInput) > 0.02f)
+                else assertTrue(ambient.sameAs(withInput))
+            } finally {
+                ambient.recycle()
+                withInput.recycle()
+            }
+        }
+    }
+
+    @Test
+    fun eachProceduralSceneHasAVisibleCompositionControlEvenWhenStill() {
+        for (preset in WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE }) {
+            val settings = WallpaperSettings(presetId = preset.id, reducedMotion = true)
+            val low = render(preset, settings.copy(composition = 0f))
+            val high = render(preset, settings.copy(composition = 1f))
+            try {
+                assertTrue("${preset.id} composition has no visible effect", changedFraction(low, high) > 0.01f)
+            } finally {
+                low.recycle()
+                high.recycle()
+            }
+        }
+    }
+
+    @Test
     fun everyFamilyChangesWhenAnimationTimeAdvances() {
         for (preset in WallpaperCatalog.presets) {
             val first = render(preset, time = 0f)
@@ -130,8 +170,9 @@ class WallpaperRendererTest {
     }
 
     @Test
-    fun auroraAndGradientVariantsHaveDifferentCompositionsEvenWithMatchingColors() {
-        for ((firstId, secondId) in listOf("aurora-veil" to "aurora-solstice", "gradient-daybreak" to "gradient-tide")) {
+    fun variantsHaveDifferentCompositionsEvenWithMatchingColors() {
+        for ((firstId, secondId) in listOf("aurora-veil" to "aurora-solstice", "gradient-daybreak" to "gradient-tide",
+                "ascii-signal" to "ascii-echo", "glass-prism" to "glass-spectrum", "texture-basalt" to "texture-satin")) {
             val firstPreset = WallpaperCatalog.find(firstId)
             val secondPreset = WallpaperCatalog.find(secondId).copy(colors = firstPreset.colors)
             val first = render(firstPreset)

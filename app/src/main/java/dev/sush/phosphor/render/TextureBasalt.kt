@@ -56,7 +56,7 @@ internal class TextureBasalt(private val k: RenderKit) {
             contours()
         }
         // A low sun sweeps across the strata.
-        val az = 0.72f + sin(f.t * 0.16f) * (0.48f + f.amount * 0.64f)
+        val az = 0.72f + f.composition * 5f + sin(f.t * 0.16f) * (0.48f + f.amount * 0.64f)
         val el = 0.38f
         val lx = cos(az) * cos(el); val ly = sin(az) * cos(el); val lz = sin(el)
         shade(f, lx, ly, lz, reveal)

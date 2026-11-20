@@ -24,7 +24,7 @@ internal class OrbitRingfall(private val orbit: OrbitKit) {
         val cx = 72f + sin(f.t * 0.17f) * 38f * f.amount + f.shiftX(0.7f)
         val cy = h * 0.554f + f.shiftY(0.6f)
         val radius = 526f
-        val tilt = 31f + sin(f.t * 0.22f) * 7f * f.amount + f.shiftX(1f) * 0.08f
+        val tilt = 31f + 50f * f.composition + sin(f.t * 0.22f) * 7f * f.amount + f.shiftX(1f) * 0.08f
         val flat = 0.78f + cos(f.t * 0.25f) * 0.09f * f.amount + f.shiftY(1f) * 0.0015f
         orbit.trails(canvas, f, cx - 46f, cy - 28f, flat, tilt, 1500, 53, 0.65f, 1470f)
 

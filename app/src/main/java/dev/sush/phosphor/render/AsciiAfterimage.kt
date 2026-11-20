@@ -44,6 +44,9 @@ internal class AsciiAfterimage(private val k: RenderKit, private val glyphs: Asc
         val p = glyphs.paint
         k.blend(p, if (f.night) RenderKit.Mode.ADD else RenderKit.Mode.INK)
 
+        val music = f.music
+        val blend = music?.blend ?: 0f
+        val maxPeak = minOf(h * 0.25f, 420f)
         for (line in 0..LINES) {
             val m = line + phase
             val age = m / LINES
@@ -57,12 +60,14 @@ internal class AsciiAfterimage(private val k: RenderKit, private val glyphs: Asc
             if (bright < 0.02f) continue
             val depth = 1.12f - age * 0.65f
             val shift = f.shiftX(depth)
-            preparePulses(tau)
+            if (blend < 1f) preparePulses(tau)
             for (col in 0 until COLS) {
                 val x = (col - 3 + 0.5f) * CELL_W
                 xs[col] = x + shift
                 val wave = sin(x * 0.009f + tau * 0.42f) * (17f + 18f * f.amount)
-                ys[col] = base + wave - amplitude(x, id, f) * (1f - age * 0.46f)
+                val peak = (music?.level(line, x / 1000f) ?: 0f) * maxPeak
+                val height = if (blend == 1f) peak else peak * blend + amplitude(x, id, f) * (1f - blend)
+                ys[col] = base + wave * (1f - blend) - height * (1f + f.composition) * (1f - age * 0.46f)
             }
             for (col in 0 until COLS) {
                 val y = ys[col]

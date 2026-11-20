@@ -1,11 +1,11 @@
-package dev.sush.phosphor.ui
+package dev.sush.phosphor.platform
 
 import android.content.SharedPreferences
+import dev.sush.phosphor.model.ScenePalette
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
-import dev.sush.phosphor.platform.SettingsStore
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -18,6 +18,9 @@ internal fun WallpaperSettings.forPreset(preset: WallpaperPreset, importedPath: 
     return copy(
         presetId = preset.id,
         imagePath = path,
+        musicReactive = musicReactive && presetId == preset.id && preset.id == "ascii-echo",
+        composition = if (presetId == preset.id) composition else 0.5f,
+        palette = if (presetId == preset.id) palette else ScenePalette.ORIGINAL,
         imageFocusX = if (path != null && path == imagePath) imageFocusX else 0.5f,
         imageFocusY = if (path != null && path == imagePath) imageFocusY else 0.5f,
     )

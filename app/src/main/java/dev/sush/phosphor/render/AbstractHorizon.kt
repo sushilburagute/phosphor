@@ -79,7 +79,7 @@ internal class AbstractHorizon(private val k: RenderKit) {
         val reveal = smooth(f.reveal)
         eyeX = 617f + sin(f.t * 0.21f) * 33f * f.amount
         eyeY = h * 0.666f
-        tilt = -0.065f + sin(f.t * 0.19f) * 0.05f * f.amount
+        tilt = -0.065f + f.composition * 0.50f + sin(f.t * 0.19f) * 0.05f * f.amount
         // Deep-space light: cold behind the funnel wall, a faint warm breath above the limb.
         val mode = k.modeFor(f)
         k.glow(canvas, k.glowA, 170f + f.shiftX(0.2f), h * 0.41f, 580f, h * 0.32f, if (night) 24 else 30, mode)

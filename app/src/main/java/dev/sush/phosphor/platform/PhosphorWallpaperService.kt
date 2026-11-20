@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -63,6 +64,7 @@ class PhosphorWallpaperService : WallpaperService() {
         private var lastFrame = 0L
         private var revealStart = -1L
         private val pageMotion = WallpaperPageMotion()
+        private val music = EchoMusicInput()
         private val tilt = WallpaperTilt(this@PhosphorWallpaperService)
         private var drawnTiltX = 0f
         private var drawnTiltY = 0f
@@ -72,6 +74,11 @@ class PhosphorWallpaperService : WallpaperService() {
         private var cachedColors: WallpaperColors? = null
         private val frames = WallpaperFrameScheduler { drawFrame() }
         private val colorUpdate = Runnable { if (!destroyed) notifyColorsChanged() }
+        private val libraryPrefs = getSharedPreferences("phosphor_ui", Context.MODE_PRIVATE)
+        private val rotate = Runnable { refreshRotation() }
+        private val rotationListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "rotation" || key == "saved_looks") refreshRotation()
+        }
         private val settingsListener: () -> Unit = { refreshSettings() }
         private val animationObserver = object : ContentObserver(handler) {
             override fun onChange(selfChange: Boolean) { restartFrames() }
@@ -94,6 +101,10 @@ class PhosphorWallpaperService : WallpaperService() {
                     Intent.ACTION_SCREEN_ON -> { screenInteractive = true; pendingWake = true; userPresent = false }
                     Intent.ACTION_USER_PRESENT -> userPresent = true
                 }
+                when (intent?.action) {
+                    Intent.ACTION_SCREEN_ON, Intent.ACTION_SCREEN_OFF, Intent.ACTION_TIME_CHANGED,
+                    Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_DATE_CHANGED -> refreshRotation()
+                }
                 restartFrames()
             }
         }
@@ -104,10 +115,17 @@ class PhosphorWallpaperService : WallpaperService() {
             setOffsetNotificationsEnabled(true)
             settings = currentSettings()
             store.addListener(settingsListener, preview = isPreview)
+            if (!isPreview) {
+                store.observeRotation(rotationListener)
+                libraryPrefs.registerOnSharedPreferenceChangeListener(rotationListener)
+            }
             val filter = IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED).apply {
                 addAction(Intent.ACTION_SCREEN_ON)
                 addAction(Intent.ACTION_SCREEN_OFF)
                 addAction(Intent.ACTION_USER_PRESENT)
+                addAction(Intent.ACTION_TIME_CHANGED)
+                addAction(Intent.ACTION_TIMEZONE_CHANGED)
+                addAction(Intent.ACTION_DATE_CHANGED)
                 addAction(Intent.ACTION_BATTERY_CHANGED)
             }
             val sticky = if (Build.VERSION.SDK_INT >= 33) {
@@ -127,6 +145,14 @@ class PhosphorWallpaperService : WallpaperService() {
 
         private fun currentSettings(): WallpaperSettings = if (isPreview) store.loadPreview() else store.load()
 
+        private fun refreshRotation() {
+            handler.removeCallbacks(rotate)
+            if (isPreview || destroyed || !visible || !surfaceReady || !screenInteractive) return
+            val slot = store.currentSlot() ?: return
+            store.applySlot(slot)
+            handler.postDelayed(rotate, (slot.endsAt - System.currentTimeMillis()).coerceAtLeast(1L))
+        }
+
         private fun invalidateColors() {
             cachedColors = null
             handler.removeCallbacks(colorUpdate)
@@ -139,7 +165,8 @@ class PhosphorWallpaperService : WallpaperService() {
             if (settings == next) return
             val paletteChanged = settings.presetId != next.presetId || settings.imagePath != next.imagePath ||
                 settings.imageFocusX != next.imageFocusX || settings.imageFocusY != next.imageFocusY ||
-                settings.darken != next.darken || settings.intensity != next.intensity
+                settings.darken != next.darken || settings.intensity != next.intensity ||
+                settings.composition != next.composition || settings.palette != next.palette
             if (settings.presetId != next.presetId || settings.imagePath != next.imagePath) resetQuality()
             settings = next
             if (paletteChanged) invalidateColors()
@@ -149,6 +176,7 @@ class PhosphorWallpaperService : WallpaperService() {
         override fun onVisibilityChanged(visible: Boolean) {
             this.visible = visible
             if (visible) refreshDeviceState()
+            refreshRotation()
             restartFrames()
         }
 
@@ -156,6 +184,7 @@ class PhosphorWallpaperService : WallpaperService() {
             super.onSurfaceCreated(holder)
             resetQuality()
             surfaceReady = true
+            refreshRotation()
             restartFrames()
         }
 
@@ -175,6 +204,9 @@ class PhosphorWallpaperService : WallpaperService() {
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
             surfaceReady = false
+            music.stop()
+            renderer.musicSpectrum = null
+            handler.removeCallbacks(rotate)
             tilt.stop()
             frames.stop()
             lastFrame = 0L
@@ -227,6 +259,7 @@ class PhosphorWallpaperService : WallpaperService() {
                 darken = if (ambient) maxOf(settings.darken, 0.65f) else settings.darken,
             )
             if (profile.energySaving || !settings.wakeReveal || !motionEnabled()) revealStart = -1L
+            music.update(this@PhosphorWallpaperService, visible && surfaceReady && !destroyed && motionEnabled() && settings.allowsMusic(profile))
             if (visible && surfaceReady && !destroyed && motionEnabled() && settings.allowsTilt(profile)) {
                 @Suppress("DEPRECATION")
                 val display = when {
@@ -295,6 +328,7 @@ class PhosphorWallpaperService : WallpaperService() {
                 if (!surfaceHolder.surface.isValid) return
                 canvas = lock()
                 if (canvas != null) {
+                    renderer.musicSpectrum = music.current(now)
                     renderer.draw(
                         canvas, width, height, phase,
                         preset, frameSettings,
@@ -385,11 +419,14 @@ class PhosphorWallpaperService : WallpaperService() {
 
         override fun onDestroy() {
             destroyed = true
+            music.stop()
             tilt.stop()
             visible = false
             frames.stop()
             handler.removeCallbacksAndMessages(null)
             store.removeListener(settingsListener)
+            store.stopObservingRotation(rotationListener)
+            libraryPrefs.unregisterOnSharedPreferenceChangeListener(rotationListener)
             if (receiverRegistered) unregisterReceiver(receiver)
             if (animationObserverRegistered) contentResolver.unregisterContentObserver(animationObserver)
             renderer.release()

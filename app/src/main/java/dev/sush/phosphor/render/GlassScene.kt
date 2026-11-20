@@ -183,7 +183,7 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
         var x = -72f + glassShift
         var index = 0
         while (x < 1014f) {
-            val width = 22f + 20f * (1f - (x / 1000f).coerceIn(0f, 1f))
+            val width = (22f + 20f * (1f - (x / 1000f).coerceIn(0f, 1f))) * (1f + f.composition)
             val cx = x + width / 2f
             // Each flute sweeps a slightly different slice of the lamp as it passes behind the pane.
             val sweep = sin(t * 0.66f + index * 0.43f) * a

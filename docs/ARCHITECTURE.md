@@ -36,7 +36,7 @@ The normal apply flow is:
 4. On API 36, the engine's `onApplyWallpaper` commits the draft. The app also commits a successful direct picker result; a picker without a reliable result leaves a manual confirmation path.
 5. A settings listener reloads the appropriate snapshot and refreshes rendering/colors. Canceling without confirmation leaves active settings intact.
 
-`SettingsStore` encodes and decodes settings, including bounded image focus coordinates. Active and draft settings with a retired preset ID render Long exposure with the existing tuning. `ui/SavedLooks.kt` uses the same codec for named snapshots and migrates legacy favorite IDs on first load. Saved looks retain their original preset IDs, and the gallery skips looks whose artwork is unavailable. Saved looks, app theme, dynamic color, and the latest import live in `phosphor_ui`.
+`SettingsStore` encodes and decodes settings, including bounded image focus coordinates. Active and draft settings with a retired preset ID render Long exposure with the existing tuning. `platform/SavedLooks.kt` uses the same codec for named snapshots and migrates legacy favorite IDs on first load. Saved looks retain their original preset IDs, and the gallery skips looks whose artwork is unavailable. Saved looks, app theme, dynamic color, and the latest import live in `phosphor_ui`. `LookRotation` resolves saved look IDs into local calendar intervals. A visible, interactive live engine schedules a callback for the next boundary and writes the selected snapshot and interval stamp together. Preview engines only read the draft.
 
 ## Shared rendering and ownership
 
@@ -65,4 +65,4 @@ The service caches `WallpaperColors` from a representative render. Changes to ar
 
 Imports are sampled to bound image dimensions, corrected for EXIF orientation, and copied as PNGs into private `files/wallpapers/`. Cleanup retains paths referenced by the current import, applied wallpaper, draft, or any saved look. Exports go to the destination selected through the document picker.
 
-The [manifest](../app/src/main/AndroidManifest.xml) declares live wallpaper support and the service's `BIND_WALLPAPER` protection, with no network or broad media permission. Backup is disabled. The bundled font has its own [license](../app/src/main/assets/licenses/bricolage-grotesque-OFL.txt); reference images are not app resources.
+The [manifest](../app/src/main/AndroidManifest.xml) declares live wallpaper support and the service's `BIND_WALLPAPER` protection, with no network or broad media permission. Echo trace uses `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS` for its optional output-mix visualizer. Visible editor and wallpaper surfaces share one effect, retain only a short history of frequency levels, and release the effect when the last eligible surface stops. Backup is disabled. The bundled font has its own [license](../app/src/main/assets/licenses/bricolage-grotesque-OFL.txt); reference images are not app resources.

@@ -237,7 +237,7 @@ internal class AuroraScene(private val k: RenderKit) {
             val u = i / (count - 1f)
             val phase = fraction(i * 43 + 3) * 6.28f
             val opening = sin(f.t * 0.25f + phase) * 5f * f.amount
-            val angle = -51f + u * 103f + opening
+            val angle = (-51f + u * 103f) * (1f + 0.9f * f.composition) + opening
             val length = h * (0.18f + fraction(i * 31 + 7) * 0.33f +
                 cos(f.t * 0.41f + phase) * 0.035f * f.amount) * reveal
             val saved = canvas.save()
@@ -288,7 +288,7 @@ internal class AuroraScene(private val k: RenderKit) {
 
         for (j in 0 until n) {
             val s = j / (n - 1f) * 1.3f - 0.15f
-            val u = s * 2f * PI.toFloat() * c.folds
+            val u = s * 2f * PI.toFloat() * c.folds / (1f + f.composition * 0.85f)
             // The ribbon loops in depth as it travels: X across, "near" toward the viewer. Where
             // its sideways slope reverses, the curtain folds back over itself and rays pile up.
             // The fold amplitude itself swells and relaxes, so curls wind up and unfurl.

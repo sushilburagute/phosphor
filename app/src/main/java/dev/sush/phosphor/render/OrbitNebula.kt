@@ -22,7 +22,7 @@ internal class OrbitNebula(private val orbit: OrbitKit) {
         val energy = f.amount
         val centerX = 500f + f.shiftX(0.9f) + sin(t * 0.078f) * 33f * energy
         val centerY = f.h * 0.516f + f.shiftY(0.9f) + sin(t * 0.092f + 0.2f) * 26f * energy
-        val halfHeight = minOf(f.h * 0.38f, 815f)
+        val halfHeight = minOf(f.h * 0.38f, 815f) * (1f + f.composition * 0.75f)
         val light = smooth(f.reveal) * (0.72f + 0.28f * energy)
 
         orbit.stars(canvas, f, 230, 0f, f.h, 0.15f)

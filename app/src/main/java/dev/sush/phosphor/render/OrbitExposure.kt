@@ -29,7 +29,7 @@ internal class OrbitExposure(private val orbit: OrbitKit, private val cacheBands
     fun draw(canvas: Canvas, f: Frame) {
         val h = f.h
         // Sits in the gap between typical icon rows, so no label row crosses the bright line.
-        val horizon = h * 0.55f
+        val horizon = h * (0.55f - 0.30f * f.composition)
         val reveal = smooth(f.reveal)
         orbit.stars(canvas, f, 150, 0f, horizon, 0.25f)
 

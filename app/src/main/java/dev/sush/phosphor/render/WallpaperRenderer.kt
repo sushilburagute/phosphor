@@ -60,6 +60,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
 
     /** Tests measure small bitmaps at full on-device density; 0 means derive from width. */
     internal var forcedDetail = 0f
+    internal var musicSpectrum: EchoSpectrum? = null
 
     fun draw(
         canvas: Canvas,
@@ -81,6 +82,8 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         val still = settings.reducedMotion
         val f = frame
         f.h = h
+        f.music = if (preset.id == "ascii-echo" && settings.musicReactive && !still && settings.speed > 0f) musicSpectrum else null
+        f.composition = if (settings.composition.isFinite()) settings.composition.coerceIn(0f, 1f) - 0.5f else 0f
         f.amount = finiteUnit(settings.intensity)
         f.t = if (still) 0f else timeSeconds.takeIf { it.isFinite() }?.times(finiteUnit(settings.speed) * 1.35f) ?: 0f
         f.reveal = if (still || !settings.wakeReveal) 1f else finiteUnit(reveal)
@@ -103,7 +106,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
             f.offsetX = 0f
             f.offsetY = 0f
         }
-        val palette = preset.colors
+        val palette = settings.palette.colors ?: preset.colors
         f.c0 = palette.getOrElse(0) { Color.BLACK }
         f.c1 = palette.getOrElse(1) { 0xFF92D9CE.toInt() }
         f.c2 = palette.getOrElse(2) { 0xFFC2A2E2.toInt() }
@@ -126,11 +129,11 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         when (preset.kind) {
             WallpaperKind.ORBIT -> orbit.draw(canvas, f, preset.id)
             WallpaperKind.AURORA -> aurora.draw(canvas, f, preset.id == "aurora-solstice")
-            WallpaperKind.ASCII -> ascii.draw(canvas, f, terminal = false)
+            WallpaperKind.ASCII -> ascii.draw(canvas, f, terminal = preset.id == "ascii-echo")
             WallpaperKind.GRADIENT -> gradient.draw(canvas, f, preset.id == "gradient-tide")
-            WallpaperKind.GLASS -> glass.draw(canvas, f, lenses = false)
+            WallpaperKind.GLASS -> if (preset.id == "glass-spectrum") drawSpectrum(canvas, f, kit) else glass.draw(canvas, f, lenses = false)
             WallpaperKind.ABSTRACT -> abstract.draw(canvas, f, preset.id == "abstract-orbit")
-            WallpaperKind.TEXTURE -> texture.draw(canvas, f, basalt = true)
+            WallpaperKind.TEXTURE -> texture.draw(canvas, f, basalt = preset.id != "texture-satin")
             WallpaperKind.IMAGE -> drawImage(canvas, f, settings)
         }
         canvas.restoreToCount(artworkSave)
@@ -214,7 +217,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         canvas.drawBitmap(bitmap, null, rect, paint)
         // Independent foreground motes create depth without pretending a flat image
         // has been segmented into separate objects.
-        motes(canvas, f, 36)
+        motes(canvas, f, (36f + 72f * f.composition).toInt())
     }
 
     /** Center the subject while reserving enough photo on both sides for the full camera path. */
@@ -287,6 +290,8 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
     }
 
     fun release() {
+        musicSpectrum = null
+        frame.music = null
         importedBitmap?.recycle()
         importedBitmap = null
         importedPath = null

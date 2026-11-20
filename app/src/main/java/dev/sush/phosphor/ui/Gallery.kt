@@ -36,6 +36,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.sush.phosphor.R
+import dev.sush.phosphor.platform.SavedLook
+import dev.sush.phosphor.platform.forPreset
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
@@ -91,6 +93,7 @@ internal fun Gallery(
     onFavorite: (GalleryWallpaper) -> Unit,
     onImport: () -> Unit,
     onExplore: () -> Unit,
+    onRotation: () -> Unit,
 ) {
     val fontScale = LocalDensity.current.fontScale
     val kinds = WallpaperKind.entries.filter { kind -> wallpapers.any { it.preset.kind == kind } }
@@ -107,7 +110,9 @@ internal fun Gallery(
                 )
             },
             actions = {
-                if (!saved) {
+                if (saved) {
+                    TextButton(onClick = onRotation) { Text("Rotation") }
+                } else {
                     if (fontScale > 1.5f) {
                         IconButton(onClick = onImport) { Glyph(R.drawable.ic_import, "Import photo") }
                     } else {

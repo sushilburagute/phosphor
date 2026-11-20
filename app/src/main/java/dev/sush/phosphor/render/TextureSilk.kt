@@ -52,7 +52,7 @@ internal class TextureSilk(private val k: RenderKit, private val halftone: Halft
                 val x = -145f + u * 1290f + f.shiftX(depth)
                 val arch = sin(u * 4.5f + band * 1.29f) * 0.105f +
                     sin(u * 3.8f - phase) * 0.052f * f.amount
-                val crest = y + h * ((u - 0.5f) * tilt + arch) + f.shiftY(depth)
+                val crest = y + h * ((u - 0.5f) * tilt + arch * (1f + f.composition)) + f.shiftY(depth)
                 val fold = 0.5f + 0.5f * sin(u * 5.3f - phase * 0.60f + band * 0.85f)
                 edge[i * 2] = x
                 edge[i * 2 + 1] = crest

@@ -28,6 +28,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
+import dev.sush.phosphor.platform.EchoMusicInput
+import dev.sush.phosphor.platform.allowsMusic
 import dev.sush.phosphor.platform.WallpaperBatteryState
 import dev.sush.phosphor.platform.WallpaperPowerPolicy
 import dev.sush.phosphor.platform.WallpaperTilt
@@ -75,6 +77,7 @@ internal open class PreviewView(context: Context) : View(context) {
     private var lastFrame = 0L
     private var battery = WallpaperBatteryState()
     private var profile = resolvePowerProfile()
+    private val music = EchoMusicInput()
     private val tilt = WallpaperTilt(context)
     private var drawnTiltX = 0f
     private var drawnTiltY = 0f
@@ -153,6 +156,7 @@ internal open class PreviewView(context: Context) : View(context) {
         }
         val reveal = if (revealStart < 0 || !animate || profile.energySaving) 1f else
             ((now - revealStart) / 1500f).coerceIn(0f, 1f).also { if (it >= 1f) revealStart = -1L }
+        renderer.musicSpectrum = music.current(now)
         renderer.draw(
             canvas, width, height, if (playing) elapsed else 12f, art,
             if (reduced) stillSettings else if (playing) playingSettings else settings,
@@ -166,7 +170,9 @@ internal open class PreviewView(context: Context) : View(context) {
 
     private fun wakeFrame() {
         profile = resolvePowerProfile()
-        if (playing && canRender() && screenInteractive && ValueAnimator.areAnimatorsEnabled() && settings.allowsTilt(profile)) {
+        val motion = playing && canRender() && screenInteractive && ValueAnimator.areAnimatorsEnabled()
+        music.update(context, motion && settings.allowsMusic(profile))
+        if (motion && settings.allowsTilt(profile)) {
             tilt.start(display)
         } else {
             tilt.stop()
@@ -231,6 +237,7 @@ internal open class PreviewView(context: Context) : View(context) {
     }
 
     fun dispose() {
+        music.stop()
         tilt.stop()
         playing = false
         frames.stop()
@@ -240,6 +247,7 @@ internal open class PreviewView(context: Context) : View(context) {
     }
 
     override fun onDetachedFromWindow() {
+        music.stop()
         tilt.stop()
         if (observing) {
             context.unregisterReceiver(batteryReceiver)

@@ -48,7 +48,7 @@ internal class OrbitThreshold(private val orbit: OrbitKit) {
             val q = (ring + travel) / rings
             val size = q.pow(1.25f)
             val rx = 150f + size * 1330f
-            val ry = h * (0.025f + size * 0.44f)
+            val ry = h * (0.025f + size * (0.44f + f.composition * 0.45f))
             val cy = horizon + h * (0.03f + q * 0.09f) + f.shiftY(0.3f + q)
             val center = cx + f.shiftX(0.3f + q * 1.2f)
             val dots = (32 + rx * f.detail * 0.38f).toInt()

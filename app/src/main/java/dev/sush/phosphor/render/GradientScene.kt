@@ -44,7 +44,7 @@ internal class GradientScene(private val k: RenderKit) : GradientField.Source {
         if (silk) {
             fibres.draw(canvas, f, k, field, ANGLE)
         } else {
-            val pitch = 11f / f.detail.coerceAtLeast(0.35f)
+            val pitch = (11f + 9f * f.composition) / f.detail.coerceAtLeast(0.35f)
             val gap = if (f.night) mix(f.c0, Color.BLACK, 0.35f) else mix(f.c0, Color.WHITE, 0.55f)
             screen.draw(canvas, f, field, gap, if (f.night) 0.82f else 0.62f, pitch, 45f, lines = false)
         }
@@ -137,7 +137,7 @@ internal class GradientScene(private val k: RenderKit) : GradientField.Source {
         val crest = 0.5f + 0.5f * sin(c * 4.4f + 0.55f + 0.4f * sin(t * 0.13f))
         val c2 = crest * crest; val c4 = c2 * c2
         val sheen = c4 * c4 * (0.55f + 0.45f * fine)
-        val edge = 0.814f + 0.014f * sin(along * 3.3f + t * 0.15f) + 0.017f * sin(f.t * 0.42f) * f.amount
+        val edge = 0.814f - f.composition * 0.22f + 0.014f * sin(along * 3.3f + t * 0.15f) + 0.017f * sin(f.t * 0.42f) * f.amount
         val dv = (v - edge) / (if (v < edge) 0.041f else 0.05f)
         val pool = exp(-dv * dv) * (0.7f + 0.3f * sin(screenX * 0.0023f - t * 0.09f + 1f))
         if (f.night) {

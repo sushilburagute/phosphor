@@ -26,7 +26,7 @@ internal class OrbitFirstLight(private val orbit: OrbitKit) {
         val limb = f.h * 0.532f
         val earthX = 770f + f.shiftX(0.45f)
         val earthY = limb + radius + f.shiftY(0.55f)
-        val angle = -94.8f + 3.8f * sin(f.t * 0.092f - 0.38f) * f.amount
+        val angle = -94.8f + 29f * f.composition + 3.8f * sin(f.t * 0.092f - 0.38f) * f.amount
         val radians = angle * (Math.PI.toFloat() / 180f)
         val sunX = earthX + (radius + 5f) * cos(radians)
         val sunY = earthY + (radius + 5f) * sin(radians)

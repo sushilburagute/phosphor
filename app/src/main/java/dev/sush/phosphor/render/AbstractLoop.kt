@@ -105,7 +105,7 @@ internal class AbstractLoop(private val k: RenderKit) {
             val ct = cos(tau); val st = sin(tau)
             val wx = nx * ct + bx * st; val wy = ny * ct + by * st; val wz = nz * ct + bz * st
             val sx = bx * ct - nx * st; val sy = by * ct - ny * st; val sz = bz * ct - nz * st
-            var half = 128f + 52f * sin(u * 3f + 1f + t * 0.11f)
+            var half = (128f + 52f * sin(u * 3f + 1f + t * 0.11f)) * (1f + f.composition)
 
             // Ring center in view space, for depth sorting.
             rotX(px, py, pz, cyw, syw, cp, sp, cr, sr)

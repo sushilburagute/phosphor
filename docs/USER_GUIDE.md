@@ -15,15 +15,29 @@ Some system pickers do not report whether you applied the wallpaper. If you chos
 
 The heart beside a wallpaper's title saves a look immediately. In the editor, **Save look** lets you name a version with its dimming, motion, and photo framing settings. Open a look from **Saved** to adjust it, update it, or save another variation. Saved and Explore remember their own collection filters.
 
+## Rotate saved looks
+
+Save at least two looks, then open **Saved → Rotation**. Choose **Daily** to cycle through selected looks in the numbered order at local midnight. Deselect and reselect a look to move it to the end. Choose **Day and evening** to assign a look and local start time to each period. Tap **Save**, and set Phosphor as your live wallpaper if needed.
+
+Rotation switches while the wallpaper is visible. If the screen is off or another app covers it, the scheduled look appears when you return. Editing a draft leaves the schedule alone. Manually applying a look keeps it until the next scheduled change. Removing a selected look skips it, and turning rotation off keeps the current wallpaper.
+
 ## Appearance
 
 | Control | Effect |
 | --- | --- |
+| Scene control | Changes the composition, such as ring angle in Ringfall, curtain width in Northern veil, or rib spacing in Fluted glass. For photos, Floating lights adjusts the number of motes. |
+| Color palette | Use the original procedural colors or choose Lagoon or Ember. Save a look to keep its palette and composition together. |
 | Calm the artwork | Darkens the wallpaper so icons and widgets stand out. |
 
 Built-in wallpapers use dark palettes in the gallery, editor, and Android wallpaper picker.
 
 **Settings → App appearance** controls the app's System/Light/Dark theme separately. **Use your phone's colors** applies Material You colors to the app on Android 12+; it does not recolor the wallpaper. Phosphor's own app palette is the default.
+
+## Echo trace and music
+
+Open **Explore → ASCII → Echo trace**, turn on **Motion → React to music**, and allow Android’s microphone permission. Play music on the device. Bass peaks rise on the left, treble peaks rise on the right, and older peaks trail up the screen. **Trace height** adjusts their size. Tap **Set live wallpaper** to use it on your phone, or **Save look** to keep the setting for rotation.
+
+Phosphor reads frequency levels from Android’s playback visualizer. The levels stay briefly in memory. The preview shows when it receives a signal. During silence or on an unsupported output, Echo trace returns to its ambient animation. Capture pauses when hidden, in Still mode, at zero speed, and while saving battery. Gallery tiles and PNG exports use the ambient artwork.
 
 ## Motion and battery
 

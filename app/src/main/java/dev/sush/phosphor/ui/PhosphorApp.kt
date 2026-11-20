@@ -61,6 +61,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.sush.phosphor.R
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
+import dev.sush.phosphor.platform.SavedLook
+import dev.sush.phosphor.platform.SavedLooks
+import dev.sush.phosphor.platform.forPreset
 import dev.sush.phosphor.platform.SettingsStore
 import dev.sush.phosphor.platform.WallpaperActions
 import dev.sush.phosphor.ui.theme.Motion
@@ -103,6 +106,7 @@ fun PhosphorApp() {
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     val editorId = selectedId?.takeIf { id -> WallpaperCatalog.presets.any { it.id == id } }
     var editedLookId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showRotation by rememberSaveable { mutableStateOf(false) }
     var savingLook by rememberSaveable { mutableStateOf(false) }
     var lookName by rememberSaveable { mutableStateOf("") }
     var removeId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -291,6 +295,7 @@ fun PhosphorApp() {
                                                 liveSettings = active.takeIf { live },
                                                 onCategory = { if (saved) savedCategory = it else exploreCategory = it }, onSelect = ::edit, onFavorite = ::favorite,
                                                 onImport = { importLauncher.launch(arrayOf("image/*")) },
+                                                onRotation = { showRotation = true },
                                                 onExplore = { page = Page.Explore; exploreCategory = "All" },
                                             )
                                         }
@@ -302,6 +307,17 @@ fun PhosphorApp() {
                 }
             }
         }
+        if (showRotation) RotationDialog(
+            initial = remember { store.rotation() },
+            looks = looks.filter { look -> WallpaperCatalog.presets.any { it.id == look.settings.presetId } },
+            live = live,
+            onDismiss = { showRotation = false },
+            onSave = {
+                store.saveRotation(it)
+                showRotation = false
+                message("Rotation settings saved")
+            },
+        )
         if (savingLook) {
             fun finishSave(id: String?) {
                 editedLookId = saveLook(id, lookName, draft)

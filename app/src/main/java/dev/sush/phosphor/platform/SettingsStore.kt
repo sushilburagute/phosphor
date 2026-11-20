@@ -2,18 +2,64 @@ package dev.sush.phosphor.platform
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
+import dev.sush.phosphor.model.ScenePalette
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
 import org.json.JSONObject
+import java.time.ZonedDateTime
 
 /** Drafts are deliberately separate from the wallpaper currently on the user's home screen. */
 class SettingsStore(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences("phosphor", Context.MODE_PRIVATE)
+    private val savedLooks = SavedLooks(context.applicationContext.getSharedPreferences("phosphor_ui", Context.MODE_PRIVATE))
     private val listeners = mutableMapOf<() -> Unit, SharedPreferences.OnSharedPreferenceChangeListener>()
 
     fun load(): WallpaperSettings = read("active")
 
-    fun save(settings: WallpaperSettings) = write("active", settings)
+    fun save(settings: WallpaperSettings) {
+        // Mark the current slot as seen even when the picker covers the live engine at a boundary.
+        val slot = currentSlot()
+        preferences.edit {
+            if (slot != null) putString("rotationSlot", slot.stamp)
+            putString("active", encode(settings).toString())
+        }
+    }
+
+    internal fun rotation() = LookRotation.decode(preferences.getString("rotation", null))
+
+    internal fun saveRotation(schedule: LookRotation) {
+        if (schedule == rotation()) return
+        preferences.edit {
+            remove("rotationSlot")
+            putString("rotation", schedule.encode())
+        }
+    }
+
+    internal fun currentSlot(now: ZonedDateTime = ZonedDateTime.now()): RotationSlot? {
+        val schedule = rotation()
+        if (schedule.mode == RotationMode.OFF) return null
+        val looks = savedLooks.load(load()).filter { look ->
+            WallpaperCatalog.presets.any { it.id == look.settings.presetId }
+        }
+        return schedule.resolve(looks, now)
+    }
+
+    /** A manual apply survives until the next slot, even across engine recreation. */
+    internal fun applySlot(slot: RotationSlot) {
+        val stamp = slot.stamp
+        if (preferences.getString("rotationSlot", null) == stamp) return
+        preferences.edit {
+            putString("rotationSlot", stamp)
+            putString("active", encode(slot.look.settings).toString())
+        }
+    }
+
+    internal fun observeRotation(listener: SharedPreferences.OnSharedPreferenceChangeListener) =
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+
+    internal fun stopObservingRotation(listener: SharedPreferences.OnSharedPreferenceChangeListener) =
+        preferences.unregisterOnSharedPreferenceChangeListener(listener)
 
     fun loadPreview(): WallpaperSettings = if (preferences.contains("preview")) read("preview") else load()
 
@@ -63,6 +109,9 @@ class SettingsStore(context: Context) {
             val defaults = WallpaperSettings()
             return defaults.copy(
                 presetId = json.optString("presetId", defaults.presetId),
+                musicReactive = json.optBoolean("musicReactive", defaults.musicReactive),
+                composition = number(json, "composition", defaults.composition),
+                palette = ScenePalette.entries.firstOrNull { it.name == json.optString("palette") } ?: defaults.palette,
                 speed = number(json, "speed", defaults.speed),
                 intensity = number(json, "intensity", defaults.intensity),
                 parallax = json.optBoolean("parallax", defaults.parallax),
@@ -81,6 +130,9 @@ class SettingsStore(context: Context) {
 
         fun encode(settings: WallpaperSettings): JSONObject = JSONObject().apply {
             put("presetId", settings.presetId)
+            if (settings.musicReactive) put("musicReactive", true)
+            put("composition", bounded(settings.composition, 0.5f))
+            put("palette", settings.palette.name)
             put("speed", bounded(settings.speed, 0.5f))
             put("intensity", bounded(settings.intensity, 0.6f))
             put("parallax", settings.parallax)

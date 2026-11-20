@@ -18,6 +18,9 @@ class Frame {
     var h = 2000f
     var t = 0f
     var amount = 0.6f
+    // Signed offset from the original composition, in [-0.5, 0.5].
+    var composition = 0f
+    internal var music: EchoSpectrum? = null
     val night = true
     var reveal = 1f
     var detail = 1f
