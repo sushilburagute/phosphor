@@ -30,6 +30,8 @@ import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.platform.WallpaperBatteryState
 import dev.sush.phosphor.platform.WallpaperPowerPolicy
+import dev.sush.phosphor.platform.WallpaperTilt
+import dev.sush.phosphor.platform.allowsTilt
 import dev.sush.phosphor.render.WallpaperRenderer
 import dev.sush.phosphor.render.WallpaperFrameScheduler
 
@@ -73,9 +75,12 @@ internal open class PreviewView(context: Context) : View(context) {
     private var lastFrame = 0L
     private var battery = WallpaperBatteryState()
     private var profile = resolvePowerProfile()
+    private val tilt = WallpaperTilt(context)
+    private var drawnTiltX = 0f
+    private var drawnTiltY = 0f
     private var observing = false
     private val handler = Handler(Looper.getMainLooper())
-    private val frames = WallpaperFrameScheduler(handler, invalidateOnVsync = true) { invalidate() }
+    private val frames = WallpaperFrameScheduler { invalidate() }
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == Intent.ACTION_BATTERY_CHANGED) {
@@ -142,12 +147,17 @@ internal open class PreviewView(context: Context) : View(context) {
         val dt = if (animate && lastFrame != 0L) ((now - lastFrame).coerceIn(0L, 100L) / 1000f) else 0f
         lastFrame = if (animate) now else 0L
         if (animate && settings.speed > 0f) elapsed += dt * settings.speed * profile.motionScale
+        if (animate || !playing || settings.speed == 0f) {
+            drawnTiltX = tilt.x
+            drawnTiltY = tilt.y
+        }
         val reveal = if (revealStart < 0 || !animate || profile.energySaving) 1f else
             ((now - revealStart) / 1500f).coerceIn(0f, 1f).also { if (it >= 1f) revealStart = -1L }
         renderer.draw(
             canvas, width, height, if (playing) elapsed else 12f, art,
             if (reduced) stillSettings else if (playing) playingSettings else settings,
             reveal = reveal,
+            tiltX = drawnTiltX, tiltY = drawnTiltY,
         )
         if (animate && (settings.speed > 0f || reveal < 1f)) {
             frames.request(profile.fps)
@@ -156,6 +166,11 @@ internal open class PreviewView(context: Context) : View(context) {
 
     private fun wakeFrame() {
         profile = resolvePowerProfile()
+        if (playing && canRender() && screenInteractive && ValueAnimator.areAnimatorsEnabled() && settings.allowsTilt(profile)) {
+            tilt.start(display)
+        } else {
+            tilt.stop()
+        }
         if (profile.energySaving || !settings.wakeReveal || !screenInteractive) revealStart = -1L
         lastFrame = 0L
         frames.stop()
@@ -216,6 +231,7 @@ internal open class PreviewView(context: Context) : View(context) {
     }
 
     fun dispose() {
+        tilt.stop()
         playing = false
         frames.stop()
         updateObservers()
@@ -224,6 +240,7 @@ internal open class PreviewView(context: Context) : View(context) {
     }
 
     override fun onDetachedFromWindow() {
+        tilt.stop()
         if (observing) {
             context.unregisterReceiver(batteryReceiver)
             context.contentResolver.unregisterContentObserver(animationObserver)

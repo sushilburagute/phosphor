@@ -20,6 +20,7 @@ import android.provider.Settings
 import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.SurfaceHolder
+import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
@@ -33,7 +34,7 @@ class PhosphorWallpaperService : WallpaperService() {
     /** Each engine owns its renderer: the picker and the active wallpaper can coexist. */
     private inner class PhosphorEngine : Engine() {
         private val handler = Handler(Looper.getMainLooper())
-        private val renderer = WallpaperRenderer()
+        private val renderer = WallpaperRenderer(cacheOrbitBands = true)
         private val quality = LiveRenderQuality()
         private val store = SettingsStore(this@PhosphorWallpaperService)
         private val powerManager = getSystemService(PowerManager::class.java)
@@ -61,13 +62,15 @@ class PhosphorWallpaperService : WallpaperService() {
         private var phase = 0f
         private var lastFrame = 0L
         private var revealStart = -1L
-        private var scrollX = 0f
-        private var scrollY = 0f
+        private val pageMotion = WallpaperPageMotion()
+        private val tilt = WallpaperTilt(this@PhosphorWallpaperService)
+        private var drawnTiltX = 0f
+        private var drawnTiltY = 0f
         private var drawnScrollX = 0f
         private var drawnScrollY = 0f
         private var drawnDetail = 1f
         private var cachedColors: WallpaperColors? = null
-        private val frames = WallpaperFrameScheduler(handler) { drawFrame() }
+        private val frames = WallpaperFrameScheduler { drawFrame() }
         private val colorUpdate = Runnable { if (!destroyed) notifyColorsChanged() }
         private val settingsListener: () -> Unit = { refreshSettings() }
         private val animationObserver = object : ContentObserver(handler) {
@@ -172,6 +175,7 @@ class PhosphorWallpaperService : WallpaperService() {
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
             surfaceReady = false
+            tilt.stop()
             frames.stop()
             lastFrame = 0L
             super.onSurfaceDestroyed(holder)
@@ -184,10 +188,8 @@ class PhosphorWallpaperService : WallpaperService() {
             val nextX = pageOffset(xOffset)
             // Many launchers supply a fixed zero for an unsupported vertical axis.
             val nextY = if (yOffsetStep > 0f || yPixelOffset != 0) pageOffset(yOffset) else 0f
-            if (nextX == scrollX && nextY == scrollY) return
-            scrollX = nextX
-            scrollY = nextY
-            if (settings.parallax && motionEnabled() && profile.motionScale > 0f) requestFrame()
+            val animate = visible && surfaceReady && settings.parallax && motionEnabled() && profile.motionScale > 0f
+            if (pageMotion.moveTo(nextX, nextY, SystemClock.uptimeMillis(), animate) && animate) requestFrame()
         }
 
         private fun motionEnabled() = !frameSettings.reducedMotion && !ambient
@@ -214,6 +216,7 @@ class PhosphorWallpaperService : WallpaperService() {
         }
 
         private fun restartFrames() {
+            pageMotion.finish()
             quality.restartSampling()
             // Configuration and power broadcasts refresh these values outside the draw loop.
             profile = resolvePowerProfile()
@@ -224,6 +227,17 @@ class PhosphorWallpaperService : WallpaperService() {
                 darken = if (ambient) maxOf(settings.darken, 0.65f) else settings.darken,
             )
             if (profile.energySaving || !settings.wakeReveal || !motionEnabled()) revealStart = -1L
+            if (visible && surfaceReady && !destroyed && motionEnabled() && settings.allowsTilt(profile)) {
+                @Suppress("DEPRECATION")
+                val display = when {
+                    Build.VERSION.SDK_INT >= 30 -> displayContext?.display
+                    Build.VERSION.SDK_INT == 29 -> displayContext?.getSystemService(WindowManager::class.java)?.defaultDisplay
+                    else -> getSystemService(WindowManager::class.java).defaultDisplay
+                }
+                tilt.start(display)
+            } else {
+                tilt.stop()
+            }
             frames.stop()
             lastFrame = 0L
             requestFrame()
@@ -259,17 +273,21 @@ class PhosphorWallpaperService : WallpaperService() {
             }
             val reveal = if (motion && settings.wakeReveal) reveal(now) else 1f
             if (motion) {
-                drawnScrollX = scrollX
-                drawnScrollY = scrollY
+                pageMotion.advance(now)
+                drawnScrollX = pageMotion.x
+                drawnScrollY = pageMotion.y
+                drawnTiltX = tilt.x
+                drawnTiltY = tilt.y
             }
             val animating = motion && settings.speed > 0f
             val revealing = motion && (reveal < 1f || lockReveal.isRunning(now))
             val detail = when {
                 frameSettings.reducedMotion || settings.speed == 0f -> 1f
                 profile.motionScale == 0f -> drawnDetail
+                profile.energySaving -> minOf(quality.scale, 0.48f)
                 else -> quality.scale
             }
-            val sample = visible && animating && !force && !revealing
+            val sample = visible && animating && !force
             val start = if (sample) SystemClock.elapsedRealtimeNanos() else 0L
             var drawn = false
             var canvas: Canvas? = null
@@ -284,6 +302,7 @@ class PhosphorWallpaperService : WallpaperService() {
                         reveal = reveal,
                         unlockReveal = lockReveal.value(now),
                         detailScale = detail,
+                        tiltX = drawnTiltX, tiltY = drawnTiltY,
                     )
                     drawn = true
                 }
@@ -306,7 +325,7 @@ class PhosphorWallpaperService : WallpaperService() {
                     }
                 }
             }
-            if (visible && surfaceReady && !destroyed && (animating || revealing)) {
+            if (animating || revealing || (motion && settings.parallax && pageMotion.moving)) {
                 requestFrame()
             }
         }
@@ -366,6 +385,7 @@ class PhosphorWallpaperService : WallpaperService() {
 
         override fun onDestroy() {
             destroyed = true
+            tilt.stop()
             visible = false
             frames.stop()
             handler.removeCallbacksAndMessages(null)

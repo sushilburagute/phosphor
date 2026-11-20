@@ -92,10 +92,10 @@ py -3 -m venv .tools/store-venv
 .\.tools\store-venv\Scripts\python.exe tools/store_assets.py
 ```
 
-`.tools/` is ignored by Git. The [asset builder](../tools/store_assets.py) uses generated artwork and the bundled variable font to write:
+`.tools/` is ignored by Git. The [asset builder](../tools/store_assets.py) uses Android previews and the [Afterglow artwork master](store/source/afterglow.png) to write:
 
 - `docs/store/play-icon-512.png` — a 512 × 512 icon from the adaptive icon layers.
-- `docs/store/feature-graphic-1024x500.jpg` — a feature graphic with the Phosphor wordmark.
+- `docs/store/feature-graphic-1024x500.jpg` — the lettering-free Afterglow feature graphic.
 - `docs/store/screenshots/` — nine selected JPEGs, cropped to a maximum 2:1 long/short-side ratio.
 
 The builder does not clear stale files and can skip missing screenshot inputs. Check its output and inspect every intended asset before committing. Generated reports stay under ignored build directories; `docs/store/` contains tracked distribution assets. No `ref-img/` files are used.

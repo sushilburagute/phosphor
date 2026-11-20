@@ -15,7 +15,7 @@ Tokens live in `app/src/main/java/dev/sush/phosphor/ui/theme/PhosphorTheme.kt`; 
 | Text | Starlight `#E9ECF6` | Ink `#12141C` | Primary text |
 | Quiet text | Haze `#A5ACC6` | `#4A5068` | Secondary text |
 | Primary | Phosphor `#A9C0FF` | Ultramarine `#2742B8` | Actions, selection, icons in headings |
-| Ember | `#FF6A3A` | `#B83C24` | Active wallpaper status and the brand horizon |
+| Ember | `#FF6A3A` | `#B83C24` | Active wallpaper status and the warm end of the light trail |
 
 Selection containers (chips, navigation indicator, toggles) stay in the blue family so ember remains limited to those accents. "Use your phone's colors" swaps in Material You on Android 12+; Phosphor's palette is the default.
 
@@ -49,7 +49,7 @@ The wallpapers' ambient movement and launcher parallax are described below. The 
 
 The 24 dp vector glyphs in `res/drawable/ic_*.xml` use rounded caps and joins and take their tint from the control. Explore is an orbit around a grain of light, Auto is a disc split by its horizon, and Wake is a sun rising above a line.
 
-The launcher icon is an adaptive icon: a grain of light inside a tilted orbit over an ember horizon, on a night-sky gradient with faint long-exposure arcs. A clip path cuts a gap in the grain where the orbit's front arc passes, so the themed (monochrome) icon reads as a ringed world rather than an eye. The native splash screen uses a dedicated copy of the mark on Sky, without an icon plate. On Android 12+ the orbit settles through 12 degrees and the horizon draws in over 520 ms; earlier versions show the complete static mark. The first app frame starts a 160 ms exit fade, without waiting for the icon animation. The exit is immediate when Android animations are disabled or either the active wallpaper or editor draft uses Still mode. The system controls the launch icon animation before app preferences are available.
+The Afterglow mark is an open light trail that turns from violet through white to ember. A shorter strand follows the bend. The adaptive icon sets the trail on midnight indigo. The themed icon uses the same two outlines in the system tint. The splash shows the trail directly on Sky. On Android 12+ it turns seven degrees into place as the shorter strand appears over 520 ms. Earlier versions show the complete mark. The first app frame starts a 160 ms exit fade, without waiting for the icon animation. The exit is immediate when Android animations are disabled or either the active wallpaper or editor draft uses Still mode. The system controls the launch icon animation before app preferences are available.
 
 ## Wallpaper readability
 

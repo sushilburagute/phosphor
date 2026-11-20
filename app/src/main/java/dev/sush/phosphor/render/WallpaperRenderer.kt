@@ -32,11 +32,11 @@ import kotlin.math.sin
  * [LEGIBILITY_TOP] and [LEGIBILITY_BOTTOM] add a soft veil of
  * ground color in those zones; the renderer tests measure label contrast for every preset.
  */
-class WallpaperRenderer {
+class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
     private val kit = RenderKit()
     private val frame = Frame()
     private val halftone = Halftone()
-    private val orbit = OrbitScene(kit)
+    private val orbit = OrbitScene(kit, cacheOrbitBands)
     private val aurora = AuroraScene(kit)
     private val ascii = AsciiScene(kit)
     private val gradient = GradientScene(kit)
@@ -73,6 +73,8 @@ class WallpaperRenderer {
         reveal: Float = 1f,
         unlockReveal: Float = 1f,
         detailScale: Float = 1f,
+        tiltX: Float = 0f,
+        tiltY: Float = 0f,
     ) {
         if (width <= 0 || height <= 0) return
         val h = 1000f * height / width
@@ -90,8 +92,13 @@ class WallpaperRenderer {
         }
         // Layered camera movement also works on launchers that never report page offsets.
         if (settings.parallax && !still) {
-            f.offsetX = 0.75f * safeOffset(offsetX) + 0.25f * sin(f.t * 0.23f)
-            f.offsetY = 0.8f * safeOffset(offsetY) + 0.2f * sin(f.t * 0.17f)
+            // The shorter sweep rides on a slower drift. Keep the combined camera
+            // inside [-1, 1] even at the edge of a launcher page.
+            val tilt = if (settings.tiltParallax) 0.48f else 0f
+            f.offsetX = (0.64f * safeOffset(offsetX) + 0.28f * sin(f.t * 0.43f) + 0.08f * sin(f.t * 0.19f) +
+                tilt * safeOffset(tiltX)).coerceIn(-1f, 1f)
+            f.offsetY = (0.60f * safeOffset(offsetY) + 0.30f * sin(f.t * 0.31f) - 0.10f * sin(f.t * 0.53f) +
+                tilt * safeOffset(tiltY)).coerceIn(-1f, 1f)
         } else {
             f.offsetX = 0f
             f.offsetY = 0f
@@ -109,7 +116,8 @@ class WallpaperRenderer {
         paint.xfermode = null
         paint.alpha = 255
         paint.color = f.c0
-        canvas.drawRect(0f, 0f, 1000f, h, paint)
+        // The ground gradient already fills every pixel for opaque palettes.
+        if (Color.alpha(f.c0) < 255) canvas.drawRect(0f, 0f, 1000f, h, paint)
         ground(canvas, f)
 
         val artworkSave = canvas.save()
@@ -135,7 +143,7 @@ class WallpaperRenderer {
         paint.shader = null
         paint.color = Color.BLACK
         paint.alpha = max(finiteUnit(settings.darken) * 210f, (1f - awake) * 78f).toInt()
-        canvas.drawRect(0f, 0f, 1000f, h, paint)
+        if (paint.alpha > 0) canvas.drawRect(0f, 0f, 1000f, h, paint)
         if (f.reveal < 1f) {
             val v = 1f - RenderKit.smooth(f.reveal)
             paint.alpha = (v * v * 255f).toInt()
@@ -191,8 +199,8 @@ class WallpaperRenderer {
         val h = f.h
         // Reserve overscan in both axes, including landscape and foldables,
         // for the combined image drift and surface parallax.
-        val travelX = 32f * motion + if (settings.parallax && !settings.reducedMotion) 38f else 0f
-        val travelY = 38f * motion + if (settings.parallax && !settings.reducedMotion) 28f else 0f
+        val travelX = 32f * motion + if (settings.parallax && !settings.reducedMotion) f.travelX else 0f
+        val travelY = 38f * motion + if (settings.parallax && !settings.reducedMotion) f.travelY else 0f
         val scale = max((1000f + 2f * travelX) / bitmap.width, (h + 2f * travelY) / bitmap.height)
         val bw = bitmap.width * scale
         val bh = bitmap.height * scale

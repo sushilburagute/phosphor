@@ -1,5 +1,7 @@
 package dev.sush.phosphor.ui
 
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -36,11 +38,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -164,6 +168,10 @@ private fun Controls(
     onChange: (WallpaperSettings) -> Unit, onConfirm: () -> Unit,
     onExport: () -> Unit, onPaletteHelp: () -> Unit, modifier: Modifier,
 ) {
+    val context = LocalContext.current
+    val hasTiltSensor = remember(context) {
+        context.getSystemService(SensorManager::class.java).getDefaultSensor(Sensor.TYPE_ACCELEROMETER, false) != null
+    }
     Column(
         modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(30.dp),
@@ -194,7 +202,14 @@ private fun Controls(
         Section("Motion", R.drawable.ic_motion) {
             SliderRow("Speed", settings.speed, enabled = !settings.reducedMotion) { onChange(settings.copy(speed = it)) }
             SliderRow("Intensity", settings.intensity, "How far the artwork moves and how much detail it shows.") { onChange(settings.copy(intensity = it)) }
-            ToggleRow("Home-screen parallax", "Layers shift at different speeds as your launcher moves between pages.", settings.parallax, { onChange(settings.copy(parallax = it)) }, !settings.reducedMotion)
+            ToggleRow("Home-screen parallax", "Nearby layers drift farther and ease into place as you swipe between pages.", settings.parallax, { onChange(settings.copy(parallax = it)) }, !settings.reducedMotion)
+            ToggleRow(
+                "Tilt parallax",
+                if (hasTiltSensor) "Tilt your phone to shift the viewpoint. Pauses in battery-saving mode."
+                else "This device has no supported accelerometer.",
+                settings.tiltParallax, { onChange(settings.copy(tiltParallax = it)) },
+                hasTiltSensor && settings.parallax && !settings.reducedMotion && settings.speed > 0f,
+            )
             ToggleRow("Still mode", "Keep the artwork, stop all animation.", settings.reducedMotion, { onChange(settings.copy(reducedMotion = it)) })
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Frame rate", style = MaterialTheme.typography.titleMedium)

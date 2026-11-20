@@ -2,7 +2,9 @@ package dev.sush.phosphor.render
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Rect
+import androidx.core.graphics.createBitmap
 import dev.sush.phosphor.render.RenderKit.Companion.alpha
 import dev.sush.phosphor.render.RenderKit.Companion.fraction
 import dev.sush.phosphor.render.RenderKit.Companion.mix
@@ -10,13 +12,14 @@ import dev.sush.phosphor.render.RenderKit.Companion.smooth
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
+import kotlin.math.ceil
 import kotlin.math.hypot
 import kotlin.math.pow
 import kotlin.math.sin
 
-internal class OrbitScene(k: RenderKit) {
-    private val kit = OrbitKit(k)
-    private val exposure = OrbitExposure(kit)
+internal class OrbitScene(k: RenderKit, cacheBands: Boolean) {
+    private val kit = OrbitKit(k, cacheBands)
+    private val exposure = OrbitExposure(kit, cacheBands)
     private val threshold = OrbitThreshold(kit)
     private val ringfall = OrbitRingfall(kit)
     private val firstLight = OrbitFirstLight(kit)
@@ -33,6 +36,7 @@ internal class OrbitScene(k: RenderKit) {
     }
 
     fun release() {
+        exposure.release()
         firstLight.release()
         nebula.release()
         kit.release()
@@ -40,7 +44,7 @@ internal class OrbitScene(k: RenderKit) {
 }
 
 /** Shared seeded trail geometry, clip tests and sky layers. */
-internal class OrbitKit(val k: RenderKit) {
+internal class OrbitKit(val k: RenderKit, private val cacheBands: Boolean) {
     private val trailSets = mutableMapOf<Int, TrailSet>()
     private val clip = Rect()
     private var minRadius = 0f
@@ -94,6 +98,7 @@ internal class OrbitKit(val k: RenderKit) {
         val opacity = FloatArray(count)
         val color = IntArray(count)
         val hot = BooleanArray(count)
+        var bands: List<OrbitBand>? = null
     }
 
     fun release() = trailSets.clear()
@@ -141,6 +146,20 @@ internal class OrbitKit(val k: RenderKit) {
         val saved = canvas.save()
         canvas.translate(cx, cy)
         canvas.rotate(tilt)
+        val reveal = smooth(f.reveal)
+        val data = trailsFor(f, if (cacheBands) count else (count * f.detail).toInt(), seed, reach)
+        val opacity = brightness * (0.55f + f.amount * 0.45f) * (0.25f + reveal * 0.75f)
+        if (cacheBands) {
+            val bands = data.bands ?: bakeTrails(data, reach).also { data.bands = it }
+            canvas.scale(1f, flat)
+            val paint = k.fill
+            k.additive(paint, f.night)
+            paint.alpha = (opacity * 255).toInt()
+            for (i in bands.indices) bands[i].draw(canvas, f.t, paint)
+            k.reset(paint)
+            canvas.restoreToCount(saved)
+            return
+        }
         if (!measureVisibleOrbits(canvas, flat)) {
             canvas.restoreToCount(saved)
             return
@@ -148,11 +167,8 @@ internal class OrbitKit(val k: RenderKit) {
         val p = k.stroke
         p.shader = null
         k.additive(p, f.night)
-        val reveal = smooth(f.reveal)
-        val data = trailsFor(f, count, seed, reach)
-        val opacity = brightness * (0.55f + f.amount * 0.45f) * (0.25f + reveal * 0.75f)
         val length = 0.35f + reveal * 0.65f
-        for (i in 0 until count) {
+        for (i in data.radius.indices) {
             val r = data.radius[i]
             if (r < minRadius || r > maxRadius) continue
             val headDeg = data.angle[i] + f.t * data.velocity[i]
@@ -184,6 +200,40 @@ internal class OrbitKit(val k: RenderKit) {
         }
         k.reset(p)
         canvas.restoreToCount(saved)
+    }
+
+    /** Angle runs across each texture and radius down it. A brighter tip marks the leading edge. */
+    private fun bakeTrails(data: TrailSet, reach: Float): List<OrbitBand> {
+        val width = 256
+        val bands = 16
+        val span = reach / bands
+        val stroke = Paint(Paint.ANTI_ALIAS_FLAG)
+        k.additive(stroke, data.night)
+        return List(bands) { band ->
+            val inner = 70f + band * span
+            val ink = createBitmap(width, ceil(span).toInt())
+            val canvas = Canvas(ink)
+            canvas.scale(1f, ink.height / span)
+            for (i in data.radius.indices) {
+                val y = data.radius[i] - inner
+                if (y < -data.width[i] || y > span + data.width[i]) continue
+                val head = data.angle[i] * width / 360f
+                val sweep = data.sweep[i] * width / 360f
+                for (wrap in 0..1) {
+                    val x = head + wrap * width
+                    stroke.color = data.color[i]
+                    stroke.alpha = data.opacity[i].toInt()
+                    stroke.strokeWidth = data.width[i]
+                    canvas.drawLine(x - sweep, y, x, y, stroke)
+                    if (data.hot[i]) {
+                        stroke.alpha = (data.opacity[i] * 0.8f).toInt()
+                        stroke.strokeWidth *= 1.6f
+                        canvas.drawLine(x - sweep * 0.2f, y, x, y, stroke)
+                    }
+                }
+            }
+            OrbitBand(ink, inner, inner + span, 51.57f * (260f / (inner + span * 0.5f)).pow(1.1f))
+        }
     }
 
     fun horizonLine(canvas: Canvas, f: Frame, y: Float, reveal: Float, strength: Float) {

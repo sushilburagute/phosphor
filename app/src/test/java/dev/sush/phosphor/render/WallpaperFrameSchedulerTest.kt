@@ -1,15 +1,17 @@
 package dev.sush.phosphor.render
 
-import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
+import org.robolectric.shadows.ShadowChoreographer
 import java.time.Duration
 
 @RunWith(RobolectricTestRunner::class)
@@ -18,8 +20,14 @@ import java.time.Duration
 class WallpaperFrameSchedulerTest {
     private val looper = shadowOf(Looper.getMainLooper())
     private val draws = mutableListOf<Long>()
-    private val scheduler = WallpaperFrameScheduler(Handler(Looper.getMainLooper())) {
+    private val scheduler = WallpaperFrameScheduler {
         schedulerFrame()
+    }
+
+    @Before
+    fun configureVsync() {
+        ShadowChoreographer.setPaused(true)
+        ShadowChoreographer.setFrameDelay(Duration.ofMillis(1))
     }
 
     private fun schedulerFrame() {
@@ -30,27 +38,29 @@ class WallpaperFrameSchedulerTest {
     @Test
     fun inputBurstsCoalesceWithoutBypassingTheFrameLimitOrPostponingTheFrame() {
         scheduler.request(15)
-        looper.idle()
+        looper.idleFor(Duration.ofMillis(1))
         val first = draws.single()
         repeat(200) { scheduler.request(15) }
-        looper.idleFor(Duration.ofMillis(66))
+        looper.idleFor(Duration.ofMillis(65))
         assertEquals(1, draws.size)
         scheduler.request(15)
-        looper.idleFor(Duration.ofMillis(1))
-        assertEquals(listOf(first, first + 67), draws)
+        looper.idleFor(Duration.ofMillis(3))
+        assertEquals(2, draws.size)
+        assertTrue(draws.last() - first in 66L..68L)
         looper.idleFor(Duration.ofSeconds(1))
         assertEquals(2, draws.size)
     }
 
     @Test
-    fun sixtyFpsDoesNotExceedTheRequestedRateThroughRounding() {
+    fun sixtyFpsDoesNotAccumulateMillisecondRoundingError() {
         scheduler.request(60)
-        looper.idle()
-        scheduler.request(60)
-        looper.idleFor(Duration.ofMillis(16))
-        assertEquals(1, draws.size)
         looper.idleFor(Duration.ofMillis(1))
-        assertEquals(2, draws.size)
+        repeat(1000) {
+            scheduler.request(60)
+            looper.idleFor(Duration.ofMillis(1))
+        }
+        assertEquals(61, draws.size)
+        assertTrue(draws.zipWithNext().all { (a, b) -> b - a in 16L..17L })
     }
 
     @Test
@@ -64,13 +74,13 @@ class WallpaperFrameSchedulerTest {
     @Test
     fun hidingCancelsFramesAndResumingDoesNotWaitForTheOldDeadline() {
         scheduler.request(15)
-        looper.idle()
+        looper.idleFor(Duration.ofMillis(1))
         scheduler.request(15)
         scheduler.stop()
         looper.idleFor(Duration.ofMillis(10))
         assertEquals(1, draws.size)
         scheduler.request(15)
-        looper.idle()
+        looper.idleFor(Duration.ofMillis(1))
         assertEquals(2, draws.size)
         looper.idleFor(Duration.ofSeconds(1))
         assertEquals(2, draws.size)
@@ -81,21 +91,21 @@ class WallpaperFrameSchedulerTest {
         scheduler.onFrame()
         looper.idleFor(Duration.ofMillis(90))
         scheduler.request(30)
-        looper.idle()
+        looper.idleFor(Duration.ofMillis(1))
         assertEquals(1, draws.size)
     }
 
     @Test
-    fun viewInvalidationIsReadyBeforeTheNextThirtyFpsVsync() {
-        var invalidations = 0
-        val viewFrames = WallpaperFrameScheduler(Handler(Looper.getMainLooper()), invalidateOnVsync = true) {
-            invalidations++
-        }
-        viewFrames.onFrame()
-        repeat(100) { viewFrames.request(30) }
-        looper.idleFor(Duration.ofMillis(32))
-        assertEquals(0, invalidations)
+    fun aLateFrameDoesNotTriggerCatchUpDraws() {
+        scheduler.request(30)
         looper.idleFor(Duration.ofMillis(1))
-        assertEquals(1, invalidations)
+        assertEquals(1, draws.size)
+        looper.idleFor(Duration.ofMillis(100))
+        scheduler.request(30)
+        looper.idleFor(Duration.ofMillis(1))
+        assertEquals(2, draws.size)
+        scheduler.request(30)
+        looper.idleFor(Duration.ofMillis(30))
+        assertEquals(2, draws.size)
     }
 }

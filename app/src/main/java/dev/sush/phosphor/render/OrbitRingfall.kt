@@ -24,9 +24,9 @@ internal class OrbitRingfall(private val orbit: OrbitKit) {
         val cx = 72f + sin(f.t * 0.17f) * 38f * f.amount + f.shiftX(0.7f)
         val cy = h * 0.554f + f.shiftY(0.6f)
         val radius = 526f
-        val tilt = 31f + sin(f.t * 0.22f) * 7f * f.amount
-        val flat = 0.78f + cos(f.t * 0.25f) * 0.09f * f.amount
-        orbit.trails(canvas, f, cx - 46f, cy - 28f, flat, tilt, (1500 * f.detail).toInt(), 53, 0.65f, 1470f)
+        val tilt = 31f + sin(f.t * 0.22f) * 7f * f.amount + f.shiftX(1f) * 0.08f
+        val flat = 0.78f + cos(f.t * 0.25f) * 0.09f * f.amount + f.shiftY(1f) * 0.0015f
+        orbit.trails(canvas, f, cx - 46f, cy - 28f, flat, tilt, 1500, 53, 0.65f, 1470f)
 
         // The planet itself: an occluding disc of ground with a faintly lit face.
         val p = k.fill
@@ -165,14 +165,14 @@ internal class OrbitRingfall(private val orbit: OrbitKit) {
         if (ridgeKey != h) {
             ridgeKey = h
             crest.reset()
-            crest.moveTo(-40f, h * 0.9f)
+            crest.moveTo(-90f, h * 0.9f)
             crest.cubicTo(50f, h * 0.885f, 140f, h * 0.858f, 214f, h * 0.853f)
             crest.cubicTo(262f, h * 0.85f, 300f, h * 0.858f, 360f, h * 0.874f)
             crest.cubicTo(440f, h * 0.896f, 520f, h * 0.93f, 640f, h * 0.97f)
             crest.cubicTo(700f, h * 0.99f, 760f, h * 1.0f, 800f, h * 1.02f)
             ridge.set(crest)
             ridge.lineTo(800f, h + 40f)
-            ridge.lineTo(-40f, h + 40f)
+            ridge.lineTo(-90f, h + 40f)
             ridge.close()
         }
         val saved = canvas.save()

@@ -2,7 +2,7 @@ package dev.sush.phosphor.render
 
 /**
  * Start at full density and skip the first two draws after a restart or tier change.
- * Two severe stalls, or a six-frame window repeatedly over budget, reduce density.
+ * Two severe stalls, or a six-frame window using nearly the entire budget, reduce density.
  * Recovery requires eight seconds' worth of frames using less than half their budget.
  */
 internal class LiveRenderQuality {
@@ -14,7 +14,7 @@ internal class LiveRenderQuality {
     private var rate = 0
     private var warmup = 2
     private var windowFrames = 0
-    private var lateFrames = 0
+    private var costlyFrames = 0
     private var severeStalls = 0
     private var windowNanos = 0L
     private var spareFrames = 0
@@ -55,12 +55,13 @@ internal class LiveRenderQuality {
         val elapsed = maxOf(previousDraw, if (gap > budget * 3 / 2) gap else 0L)
         windowFrames++
         windowNanos += elapsed.coerceAtMost(budget * 8)
-        if (elapsed > budget) lateFrames++
+        if (elapsed > budget * 9 / 10) costlyFrames++
         if (elapsed > budget * 3) severeStalls++
         spareFrames = if (elapsed < budget / 2 && tier > 0) spareFrames + 1 else 0
 
         when {
-            severeStalls >= 2 || (windowFrames >= 6 && lateFrames >= 2 && windowNanos > windowFrames * budget * 11 / 10) -> {
+            // Leave some room for the launcher to draw icons and handle a page swipe.
+            severeStalls >= 2 || (windowFrames >= 6 && costlyFrames >= 2 && windowNanos > windowFrames * budget * 9 / 10) -> {
                 tier = (tier + if (severeStalls >= 2) 2 else 1).coerceAtMost(SCALES.lastIndex)
                 restartSampling()
             }
@@ -74,7 +75,7 @@ internal class LiveRenderQuality {
 
     private fun clearWindow() {
         windowFrames = 0
-        lateFrames = 0
+        costlyFrames = 0
         severeStalls = 0
         windowNanos = 0L
     }

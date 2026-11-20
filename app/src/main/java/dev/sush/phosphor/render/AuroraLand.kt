@@ -200,13 +200,13 @@ internal class AuroraLand(private val k: RenderKit) {
             val sy = f.shiftY(depth * 0.6f)
             val path = k.path
             path.reset()
-            path.moveTo(-40f, h + 40f)
-            var x = -40f
-            while (x <= 1044f) {
+            path.moveTo(-88f, h + 40f)
+            var x = -88f
+            while (x <= 1092f) {
                 path.lineTo(x + sx, ridgeY(x, layer, f) + sy)
                 x += 6f
             }
-            path.lineTo(1044f, h + 40f)
+            path.lineTo(1092f, h + 40f)
             path.close()
             p.shader = ridgeShaders[layer]
             if (!f.night) k.blend(p, RenderKit.Mode.INK)
@@ -220,10 +220,10 @@ internal class AuroraLand(private val k: RenderKit) {
 
     private fun crest(canvas: Canvas, f: Frame, path: android.graphics.Path, sx: Float, sy: Float) {
         path.reset()
-        var x = -40f
-        while (x <= 1044f) {
+        var x = -88f
+        while (x <= 1092f) {
             val y = ridgeY(x, 0, f) + sy
-            if (x == -40f) path.moveTo(x + sx, y) else path.lineTo(x + sx, y)
+            if (x == -88f) path.moveTo(x + sx, y) else path.lineTo(x + sx, y)
             x += 6f
         }
         val s = k.stroke
@@ -241,7 +241,7 @@ internal class AuroraLand(private val k: RenderKit) {
         path.reset()
         val n = (90 * (0.5f + 0.5f * f.detail)).toInt()
         for (i in 0 until n) {
-            val x = fraction(i * 29 + 5) * 1040f - 20f
+            val x = fraction(i * 29 + 5) * 1176f - 88f
             val ground = ridgeY(x, 2, f) + sy + 4f
             val tall = 7f + 22f * fraction(i * 31 + 9).let { it * it }
             val w = tall * 0.22f
@@ -347,13 +347,13 @@ internal class AuroraLand(private val k: RenderKit) {
         val top = h * 0.75f + f.shiftY(1.15f)
         val path = k.path
         path.reset()
-        path.moveTo(-40f, h + 40f)
-        var x = -40f
-        while (x <= 1044f) {
+        path.moveTo(-88f, h + 40f)
+        var x = -88f
+        while (x <= 1092f) {
             path.lineTo(x + f.shiftX(1.15f), top + 14f * sin(x * 0.004f + 0.8f) + 6f * sin(x * 0.013f))
             x += 12f
         }
-        path.lineTo(1044f, h + 40f)
+        path.lineTo(1092f, h + 40f)
         path.close()
         val p = k.fill
         p.shader = groundShader

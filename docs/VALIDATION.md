@@ -4,6 +4,64 @@
 
 This file preserves results reported for earlier commits and branches. Counts, warnings, APK sizes, and screenshots describe those builds, not necessarily the current checkout. Re-run the [standard checks](TESTING.md#standard-checks) to validate a new change; do not infer physical-device coverage from JVM tests or earlier emulator checks.
 
+## Launcher and tilt parallax
+
+On 2026-11-20, the rendered-frame tests verified that launcher swipes and optional tilt change all 15 presets, and that Still mode holds each one steady. A landscape test checked all four edges of an imported portrait photo with drift, page offset, and tilt combined.
+
+With Ringfall applied on an Android 16 emulator, SurfaceFlinger measured 30.4 fps during five simulated tilts and launcher swipes at the default 30 fps setting. Android registered the accelerometer at 15 Hz, released it when Settings covered the wallpaper, and registered it again on returning home. At 20% simulated unplugged battery, the sensor stopped and the wallpaper averaged 14.8 fps over eight seconds. At 5%, SurfaceFlinger recorded no new wallpaper frames over eight seconds.
+
+Debug and release builds passed. The unit test run passed 84 tests and skipped four opt-in previews. Debug lint reported 55 warnings and zero errors. Physical-device tilt response and battery drain remain unmeasured.
+
+## Catalog frame timing and Ringfall
+
+On 2026-11-20, checked all 14 alternatives to Long exposure with Phosphor applied to the home screen. The baseline included the Long exposure and frame scheduling fixes on top of `2931fbf`. Both debug builds used the same API 36 Pixel Launcher emulator at 1080 × 2400 with host NVIDIA RTX 4060 Laptop graphics. A temporary test receiver switched the applied engine through its normal settings listener. The custom photo case used a local JPEG.
+
+Each catalog sample used the default 30 fps setting, eight seconds of warm-up and eight seconds of SurfaceFlinger wallpaper-layer statistics. Ringfall was the sustained outlier at 10.3 fps. The other 13 alternatives averaged 30.3–30.4 fps, with 95th-percentile presentation intervals in the 36–50 ms histogram buckets.
+
+| Preset | Before (fps) | After (fps) | Before p95 (ms) | After p95 (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| Threshold | 30.4 | 30.3 | 36 | 38 |
+| Ringfall | 10.3 | 30.3 | 150 | 38 |
+| First light | 30.3 | 30.3 | 36 | 38 |
+| Veil nebula | 30.4 | 30.4 | 36 | 36 |
+| Northern veil | 30.3 | 30.3 | 50 | 50 |
+| Solstice | 30.3 | 30.2 | 38 | 38 |
+| Signal bloom | 30.3 | 30.4 | 50 | 36 |
+| Daybreak | 30.3 | 30.5 | 50 | 38 |
+| Low tide | 30.4 | 30.4 | 48 | 36 |
+| Fluted glass | 30.4 | 30.4 | 36 | 36 |
+| Event horizon | 30.4 | 30.2 | 48 | 48 |
+| Chromatic loop | 30.3 | 30.3 | 50 | 50 |
+| Basalt | 30.4 | 30.3 | 36 | 50 |
+| Your own frame (photo) | 30.4 | 30.4 | 38 | 38 |
+
+For the Ringfall comparison below, both builds had 30 seconds of warm-up, 20 seconds on a stationary home screen, then ten horizontal launcher swipes. CPU time comes from the wallpaper process's user and system ticks summed across its threads during the stationary capture.
+
+| Ringfall measure | Before | After |
+| --- | ---: | ---: |
+| Stationary wallpaper frame rate | 14.2 fps | 30.3 fps |
+| Stationary 95th-percentile frame interval | 90 ms | 50 ms |
+| Wallpaper frame rate during swipes | 11.7 fps | 30.3 fps |
+| 95th-percentile frame interval during swipes | 106 ms | 54 ms |
+| App CPU time in 20 seconds | 33.87 s | 5.91 s |
+
+With the updated Ringfall engine and a simulated unplugged battery at 20%, the wallpaper layer averaged 14.8 fps. A separate 10-second sample at 5% recorded no wallpaper frames. Physical-device energy use remains unmeasured.
+
+The final debug APK was reinstalled without the test receiver and the applied Ringfall service resumed at 30.3 fps. The standard Gradle checks passed 78 tests with four opt-in previews skipped. Debug lint reported 55 warnings and zero errors. The debug and unsigned release APKs both built successfully.
+
+## Applied live wallpaper frame timing and battery behavior
+
+On 2026-11-20, compared debug builds of `2931fbf` and the revised renderer on the same API 36 Pixel Launcher emulator at 1080 × 2400 with host NVIDIA RTX 4060 Laptop graphics. Long exposure was applied to the home screen with its default 30 fps setting. Each capture used a stationary launcher, a 30-second warm-up and 20 seconds of SurfaceFlinger wallpaper-layer time statistics.
+
+| Wallpaper layer | Before | After |
+| --- | ---: | ---: |
+| Average presented frames per second | 8.86 | 29.99 |
+| 95th-percentile presentation interval, histogram bucket | 200 ms | 66 ms |
+
+With the revised build, simulated unplugged operation at 20% battery averaged 14.48 fps. Separate 10-second captures recorded no wallpaper frames at 5% battery, behind Android Settings, or with the screen off. Motion resumed on returning to the home screen at normal power. These captures measure frame submissions. Physical-device battery drain and thermal behavior remain unmeasured.
+
+On Windows with JDK 21.0.9 and Gradle 8.13, the standard unit test, lint, debug APK and unsigned release APK tasks passed. The suite passed 78 tests and skipped four opt-in preview tests. Debug lint reported 55 warnings and zero errors.
+
 ## Main integration verification
 
 On 2026-11-20, the passive-motion and editor changes were integrated with the wallpaper renderers from `main` at `2d4299d`. With `PHOSPHOR_PREVIEWS=1`, all 79 tests passed, including the native Skia checks for label contrast, launcher offsets, still mode and recovery from minimum live detail across all 15 procedural presets. Debug and unsigned release APKs built successfully. Android lint reported zero errors and 50 warnings.

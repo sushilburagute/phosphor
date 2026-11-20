@@ -73,6 +73,7 @@ internal class GradientScreen {
         val shader = if (lines) lineShader else dotShader
         matrix.setScale(pitch / TILE, pitch / TILE)
         matrix.postRotate(angle)
+        matrix.postTranslate(f.shiftX(0.35f), f.shiftY(0.35f))
         shader?.setLocalMatrix(matrix)
         screen.shader = shader
         val saved = canvas.saveLayer(0f, 0f, 1000f, f.h, layer)

@@ -45,7 +45,7 @@ class SettingsStoreTest {
         val draft = WallpaperSettings(
             presetId = "image-custom", speed = 0.2f, intensity = 0.4f, parallax = false,
             fps = 24, darken = 0.25f, imagePath = "/private/photo.png", imageFocusX = 0.15f, imageFocusY = 0.72f, reducedMotion = true,
-            wakeReveal = false, lowBatteryMode = false, unlockAnimation = false,
+            wakeReveal = false, lowBatteryMode = false, unlockAnimation = false, tiltParallax = true,
         )
         store.savePreview(draft)
         store.commitPreview()
@@ -67,6 +67,7 @@ class SettingsStoreTest {
         assertEquals(0.5f, settings.imageFocusY)
         assertEquals(true, settings.lowBatteryMode)
         assertEquals(true, settings.unlockAnimation)
+        assertEquals(false, settings.tiltParallax)
     }
 
     @Test

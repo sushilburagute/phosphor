@@ -24,6 +24,14 @@ class LiveRenderQualityTest {
     }
 
     @Test
+    fun sustainedNearSaturationLeavesHeadroomForTheLauncher() {
+        repeat(12) { frame(budget * 3 / 4) }
+        assertEquals(1f, quality.scale)
+        repeat(12) { frame(budget * 19 / 20) }
+        assertTrue(quality.scale < 1f)
+    }
+
+    @Test
     fun sustainedMissesReduceDensityAndRecoveryNeedsSustainedHeadroom() {
         repeat(8) { frame(budget * 2) }
         val lower = quality.scale

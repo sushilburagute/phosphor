@@ -27,8 +27,11 @@ class Frame {
     var c1 = Color.WHITE
     var c2 = Color.GRAY
 
-    fun shiftX(depth: Float) = offsetX * 38f * depth * (0.4f + amount * 0.6f)
-    fun shiftY(depth: Float) = offsetY * 28f * depth * (0.4f + amount * 0.6f)
+    // Maximum camera travel at unit depth, also used to reserve the photo crop.
+    val travelX get() = 16f + 48f * amount
+    val travelY get() = 12f + 32f * amount
+    fun shiftX(depth: Float) = offsetX * travelX * depth
+    fun shiftY(depth: Float) = offsetY * travelY * depth
 }
 
 /** Shared paints, cached palette shaders and pure helpers. One kit per renderer. */

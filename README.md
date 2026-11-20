@@ -2,7 +2,7 @@
 
 Living color for Android. An offline, open-source live wallpaper app [made by sush.dev](https://sush.dev?utm_source=phosphor).
 
-![Phosphor: blue and ember orbital light trails above a dark horizon](docs/store/feature-graphic-1024x500.jpg)
+![Phosphor Afterglow mark: a violet light trail doubles back in ember orange against midnight blue](docs/store/feature-graphic-1024x500.jpg)
 
 Phosphor draws its wallpapers on your phone: long-exposure orbits, aurora curtains, beams of characters, gradients, glass, filaments, and etched textures. Each procedural wallpaper uses a dark palette.
 
@@ -10,7 +10,7 @@ Phosphor draws its wallpapers on your phone: long-exposure orbits, aurora curtai
 
 - Choose from **14 procedural presets across seven collections**, or frame an imported photo and give it gentle drift and floating light.
 - Tune speed, intensity, frame rate, and how far the artwork fades into its background. Check the result in a live preview with an optional home-screen overlay.
-- Watch the scenes move on their own. Enable parallax to shift foreground and background layers as you scroll between home screens on supported launchers.
+- Watch the scenes drift on their own. Foreground layers travel farther as you swipe between home screens. Enable Tilt parallax under Motion to move the viewpoint by tilting your phone, even on a single home screen.
 - Use wake reveals, lock and unlock animation, or still mode.
 - Save favorites, keep tuned looks with their settings and photo framing, and export a **1080 × 2400 PNG** in the selected treatment.
 - Keep rendering bounded: animation stops while hidden or screen-off, the visible lock screen is capped at 15 fps, and battery policies reduce motion at low charge.

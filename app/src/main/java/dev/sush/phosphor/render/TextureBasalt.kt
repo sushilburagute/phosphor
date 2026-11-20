@@ -45,7 +45,7 @@ internal class TextureBasalt(private val k: RenderKit) {
         val reveal = smooth(f.reveal)
         val cols = (24 + 52 * f.detail).toInt()
         val rows = (cols * h / 1000f).toInt()
-        val rebuilt = grid.ensure(cols, rows, 1000f, h, 30f)
+        val rebuilt = grid.ensure(cols, rows, 1000f, h, 40f)
         val key = (cols.toLong() shl 20) + h.toLong()
         if (rebuilt || key != baseKey) {
             baseKey = key

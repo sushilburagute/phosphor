@@ -2,14 +2,19 @@ package dev.sush.phosphor.render
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import androidx.core.graphics.createBitmap
 import dev.sush.phosphor.render.RenderKit.Companion.fraction
 import dev.sush.phosphor.render.RenderKit.Companion.mix
 import dev.sush.phosphor.render.RenderKit.Companion.smooth
 import kotlin.math.abs
 import kotlin.math.sin
 
-internal class OrbitExposure(private val orbit: OrbitKit) {
+internal class OrbitExposure(private val orbit: OrbitKit, private val cacheBands: Boolean) {
     private val k = orbit.k
+    private var bands: List<OrbitBand> = emptyList()
+    private var coolColor = 0
+    private var warmColor = 0
 
     private data class Ring(
         val radius: Float,
@@ -34,8 +39,8 @@ internal class OrbitExposure(private val orbit: OrbitKit) {
         val drift = sin(f.t * 0.15f) * f.amount
         val cx = 878f + drift * 40f + f.shiftX(0.72f)
         val cy = horizon - minOf(h * 0.14f, 262f) + drift * 22f + f.shiftY(0.5f)
-        val tilt = 18f + drift * 5f
-        val flat = 0.33f + drift * 0.041f
+        val tilt = 18f + drift * 5f + f.shiftX(1f) * 0.065f
+        val flat = 0.33f + drift * 0.041f + f.shiftY(1f) * 0.0014f
         k.glow(canvas, k.glowA, 631f, cy, 575f, h * 0.29f, (38 * reveal).toInt(), RenderKit.Mode.SCREEN)
 
         var saved = canvas.save()
@@ -62,6 +67,12 @@ internal class OrbitExposure(private val orbit: OrbitKit) {
         val saved = canvas.save()
         canvas.translate(cx, cy)
         canvas.rotate(tilt)
+        if (cacheBands) {
+            canvas.scale(1f, flat)
+            drawBands(canvas, f, brightness, reveal)
+            canvas.restoreToCount(saved)
+            return
+        }
         val stroke = k.stroke
         k.blend(stroke, RenderKit.Mode.SCREEN)
         val count = (92 + (tracks.size - 92) * f.detail).toInt().coerceAtMost(tracks.size)
@@ -90,6 +101,59 @@ internal class OrbitExposure(private val orbit: OrbitKit) {
         canvas.restoreToCount(saved)
     }
 
+    // Bake the ink in polar coordinates. Each narrow strip wraps around a circular mesh and
+    // rotates at its own orbital speed. The reflection reuses the very same textures.
+    private fun drawBands(canvas: Canvas, f: Frame, brightness: Float, reveal: Float) {
+        if (bands.isEmpty() || coolColor != f.c1 || warmColor != f.c2) {
+            coolColor = f.c1
+            warmColor = f.c2
+            bands = (tracks.indices step TRACKS_PER_BAND).map { first -> createBand(first, f) }
+        }
+        val light = brightness * (0.63f + f.amount * 0.37f) * (0.12f + reveal * 0.88f)
+        val paint = k.fill
+        k.blend(paint, RenderKit.Mode.SCREEN)
+        for (index in bands.indices) {
+            val band = bands[index]
+            paint.alpha = (255 * light * (0.72f + sin(f.t * 0.36f + index) * 0.28f * f.amount)).toInt()
+            band.draw(canvas, f.t, paint)
+        }
+        k.reset(paint)
+    }
+
+    private fun createBand(first: Int, f: Frame): OrbitBand {
+        val end = minOf(first + TRACKS_PER_BAND, tracks.size)
+        val spacing = tracks[1].radius - tracks[0].radius
+        val inner = tracks[first].radius - spacing * 0.5f
+        val outer = tracks[end - 1].radius + spacing * 0.5f
+        val ink = createBitmap(ANGLE_TEXELS, (end - first) * 3)
+        val canvas = Canvas(ink)
+        val stroke = Paint(Paint.ANTI_ALIAS_FLAG)
+        val ice = mix(f.c1, Color.WHITE, 0.71f)
+        for (i in first until end) {
+            val ring = tracks[i]
+            val y = (i - first + 0.5f) * 3
+            stroke.color = mix(mix(f.c1, ice, ring.frost), f.c2, ring.heat)
+            // Compression of the orbital plane brings neighboring fine strokes together.
+            stroke.strokeWidth = ring.width * 3f
+            val start = ring.phase * ANGLE_TEXELS / 360f
+            val sweep = ring.sweep * ANGLE_TEXELS / 360f
+            for (wrap in 0..1) {
+                val x = start - wrap * ANGLE_TEXELS
+                stroke.alpha = ring.opacity.toInt()
+                canvas.drawLine(x, y, x + sweep, y, stroke)
+                if (ring.heat + ring.frost > 0.62f) {
+                    stroke.alpha = (ring.opacity * 0.46f).toInt()
+                    canvas.drawLine(x + sweep * 0.72f, y, x + sweep, y, stroke)
+                }
+            }
+        }
+        return OrbitBand(ink, inner, outer, 4.1f + 2100f / ((inner + outer) * 0.5f))
+    }
+
+    fun release() {
+        bands = emptyList()
+    }
+
     /** Distant edge-on trails shimmer in the narrow gap on either side of the horizon. */
     private fun strata(canvas: Canvas, f: Frame, horizon: Float, reveal: Float) {
         val p = k.stroke
@@ -109,6 +173,8 @@ internal class OrbitExposure(private val orbit: OrbitKit) {
     }
 
     private companion object {
+        const val TRACKS_PER_BAND = 40
+        const val ANGLE_TEXELS = 192
         val tracks = Array(620) { index ->
             val distance = index.toFloat() / 619
             val seed = index * 31 + 157

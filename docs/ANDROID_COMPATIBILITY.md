@@ -22,7 +22,7 @@ Editing saves a draft independently of the active wallpaper. Opening and dismiss
 - System Battery Saver caps animation at 15 frames per second and reduces motion. Automatic low battery mode does the same at 20% or below while unplugged, and holds a still frame at 5% or below. The automatic behavior can be disabled per wallpaper; system Battery Saver is always honored.
 - Still mode and Android's disabled-animation preference hold the artwork stationary, including its parallax layers and unlock effects.
 - When the display becomes non-interactive, the engine stops scheduling frames. A system-requested surface redraw can still show a dimmed stationary scene. Always-on-display behavior depends on the device.
-- Launcher parallax uses the page offsets Android supplies. Ambient depth also works on single-page home screens. Neither uses motion sensors.
+- Launcher parallax uses Android page offsets. Ambient drift also works on single-page home screens. Optional tilt parallax uses a non-waking accelerometer while the wallpaper or editor preview is visible and animating. It pauses during power saving. Devices without the sensor retain ambient and page motion.
 - A visible lock-screen wallpaper settles into a dimmer, closer composition on wake and reveals its normal appearance on unlock. Android controls when the surface is visible during these transitions.
 - Each picker/home-screen engine owns its renderer and resources. Rendering does not require network access, a foreground service, or media/storage permissions.
 

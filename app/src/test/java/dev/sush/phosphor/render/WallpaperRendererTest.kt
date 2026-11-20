@@ -155,9 +155,9 @@ class WallpaperRendererTest {
     @Test
     fun reducedMotionFreezesTimeAndParallaxForEveryFamily() {
         for (preset in WallpaperCatalog.presets) {
-            val settings = WallpaperSettings(presetId = preset.id, reducedMotion = true)
-            val first = render(preset, settings, 0f, -1f, -1f)
-            val later = render(preset, settings, 91f, 1f, 1f)
+            val settings = WallpaperSettings(presetId = preset.id, reducedMotion = true, tiltParallax = true)
+            val first = render(preset, settings, 0f, -1f, -1f, tiltX = -1f)
+            val later = render(preset, settings, 91f, 1f, 1f, tiltX = 1f)
             assertTrue("${preset.id} moves with reduced motion", first.sameAs(later))
             first.recycle()
             later.recycle()
@@ -187,8 +187,8 @@ class WallpaperRendererTest {
                 renderer.draw(
                     Canvas(bitmap), bitmap.width, bitmap.height, 15f,
                     WallpaperCatalog.find("image-custom"),
-                    WallpaperSettings(imagePath = imageFile.absolutePath, intensity = 1f, imageFocusX = 0f, imageFocusY = 1f),
-                    offsetX = 1f, offsetY = -1f,
+                    WallpaperSettings(imagePath = imageFile.absolutePath, intensity = 1f, imageFocusX = 0f, imageFocusY = 1f, tiltParallax = true),
+                    offsetX = 1f, offsetY = -1f, tiltX = 1f, tiltY = -1f,
                 )
                 // A tall image must still cover all four corners of a wide surface.
                 for ((x, y) in listOf(0 to 0, 359 to 0, 0 to 149, 359 to 149)) {
@@ -321,6 +321,22 @@ class WallpaperRendererTest {
     }
 
     @Test
+    fun tiltMovesEveryPresetOnASinglePageWhenEnabled() {
+        for (preset in WallpaperCatalog.presets) {
+            val normal = WallpaperSettings(presetId = preset.id)
+            val neutral = render(preset, normal)
+            val off = render(preset, normal, tiltX = 1f)
+            val tilted = render(preset, normal.copy(tiltParallax = true), tiltX = 1f)
+            try {
+                assertTrue(preset.id, neutral.sameAs(off))
+                assertTrue(preset.id, changedFraction(neutral, tilted) > 0.01f)
+            } finally {
+                listOf(neutral, off, tilted).forEach { it.recycle() }
+            }
+        }
+    }
+
+    @Test
     fun reducedMotionSuppressesLockReveal() {
         val preset = WallpaperCatalog.find("aurora-veil")
         val settings = WallpaperSettings(reducedMotion = true)
@@ -372,6 +388,29 @@ class WallpaperRendererTest {
         listOf(awake, wakeDisabled, unlockDisabled, waking, locked).forEach { it.recycle() }
     }
 
+    @Test
+    fun cachedOrbitalBandsMoveAndRebuildAfterRelease() {
+        val renderer = WallpaperRenderer(cacheOrbitBands = true)
+        val settings = WallpaperSettings(parallax = false)
+        val first = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+        val next = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+        try {
+            for (id in listOf("orbit-exposure", "orbit-ringfall")) {
+                val preset = WallpaperCatalog.find(id)
+                renderer.draw(Canvas(first), WIDTH, HEIGHT, 0f, preset, settings)
+                renderer.draw(Canvas(next), WIDTH, HEIGHT, 12f, preset, settings)
+                assertTrue("$id did not move", changedFraction(first, next) > 0.1f)
+                renderer.release()
+                renderer.draw(Canvas(next), WIDTH, HEIGHT, 0f, preset, settings)
+                assertTrue("$id changed after rebuilding its cache", first.sameAs(next))
+            }
+        } finally {
+            renderer.release()
+            first.recycle()
+            next.recycle()
+        }
+    }
+
     private fun render(
         preset: WallpaperPreset,
         settings: WallpaperSettings = WallpaperSettings(presetId = preset.id),
@@ -379,11 +418,12 @@ class WallpaperRendererTest {
         offsetX: Float = 0f,
         offsetY: Float = 0f,
         reveal: Float = 1f,
+        tiltX: Float = 0f,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val renderer = WallpaperRenderer()
         try {
-            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY, unlockReveal = reveal)
+            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY, unlockReveal = reveal, tiltX = tiltX)
         } finally {
             renderer.release()
         }

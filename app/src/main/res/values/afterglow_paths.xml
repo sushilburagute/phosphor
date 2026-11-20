@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared outlines keep the tinted and full-color marks aligned under launcher masks. -->
+    <string name="afterglow_sweep" translatable="false">M73,30 C66,39 49,44 42,54 C33,66 50,67 79,55 C65,67 43,77 32,69 C22,61 30,49 43,43 C53,38 65,36 73,30 Z</string>
+    <string name="afterglow_echo" translatable="false">M37,73 C46,75 60,70 73,64 C62,72 47,78 37,73 Z</string>
+</resources>

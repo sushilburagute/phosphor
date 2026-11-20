@@ -26,6 +26,7 @@ data class WallpaperSettings(
     val unlockAnimation: Boolean = true,
     val imageFocusX: Float = 0.5f,
     val imageFocusY: Float = 0.5f,
+    val tiltParallax: Boolean = false,
 )
 
 /** Stable IDs are persisted by the app and used by the live wallpaper service. */

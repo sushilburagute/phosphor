@@ -31,7 +31,8 @@ Built-in wallpapers use dark palettes in the gallery, editor, and Android wallpa
 | --- | --- |
 | Speed | Sets ambient animation speed. Zero holds the scene at its current phase. |
 | Intensity | Changes movement range and artwork detail. |
-| Home-screen parallax | Gives layers depth as the camera drifts and as a supported launcher scrolls between pages. |
+| Home-screen parallax | Nearby layers travel farther than distant scenery as the camera drifts. On supported launchers they ease into place after a page swipe. Increase Intensity for a wider sweep. |
+| Tilt parallax | Enable this under Motion to move the viewpoint by tilting your phone from its resting angle. Requires an accelerometer, Home-screen parallax, and Speed above zero. Pauses in battery-saving mode. |
 | Still mode | Holds the artwork and its parallax layers still. |
 | Frame rate | Selects 15, 30, or 60 fps, subject to power and visibility limits. |
 | Light up on wake | Gradually reveals the artwork on screen-on. The replay button previews the wake effect. |

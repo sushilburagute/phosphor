@@ -57,7 +57,7 @@ class SplashScreenTest {
                 if (Color.alpha(bitmap.getPixel(x, y)) > 0) {
                     painted++
                     // Android masks the outer third of splash artwork. Keep the whole mark
-                    // inside that safe circle, including the horizon and rounded strokes.
+                    // inside that safe circle, including the tips of both light trails.
                     assertTrue((x - 216) * (x - 216) + (y - 216) * (y - 216) < 144 * 144)
                 }
             }

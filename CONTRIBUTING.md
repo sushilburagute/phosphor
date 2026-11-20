@@ -40,7 +40,7 @@ Release builds are unsigned unless you supply [release signing](docs/RELEASING.m
 4. Pass `WallpaperRendererTest.launcherLabelsStayReadableInBothMoods`. Keep bright features away from icon rows and preserve the clock/dock veils. See the [readability rules](docs/DESIGN_SYSTEM.md#wallpaper-readability).
 5. Inspect both treatments, portrait and landscape, multiple animation times, still mode, calm/dimming, and launcher offsets. Generate full-resolution previews before updating [store assets](docs/TESTING.md#build-store-assets).
 
-UI changes follow the [design system](docs/DESIGN_SYSTEM.md): use theme tokens and `ic_*` vector glyphs, follow its ember color rules for the live marker, brand horizon, and saved heart, and check large text and wide windows.
+UI changes follow the [design system](docs/DESIGN_SYSTEM.md): use theme tokens and `ic_*` vector glyphs, follow its ember color rules for the live marker, brand light trail, and saved heart, and check large text and wide windows.
 
 Platform changes follow the [device checklist](docs/ANDROID_COMPATIBILITY.md#device-validation-checklist). State which Android and One UI versions were actually tested. Use public APIs and describe device restrictions.
 

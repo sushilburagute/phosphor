@@ -1,36 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
-    android:drawable="@drawable/ic_splash_mark">
-    <target android:name="orbit">
+    android:drawable="@drawable/ic_launcher_foreground">
+    <target android:name="trail">
         <aapt:attr name="android:animation">
             <objectAnimator
                 android:propertyName="rotation"
-                android:valueFrom="-32"
-                android:valueTo="-20"
-                android:valueType="floatType"
+                android:valueFrom="7" android:valueTo="0" android:valueType="floatType"
                 android:duration="520"
                 android:interpolator="@android:interpolator/fast_out_slow_in" />
         </aapt:attr>
     </target>
-    <target android:name="horizon">
+    <target android:name="echo">
         <aapt:attr name="android:animation">
             <objectAnimator
-                android:propertyName="trimPathEnd"
-                android:valueFrom="0.2"
-                android:valueTo="1"
-                android:valueType="floatType"
-                android:duration="520"
-                android:interpolator="@android:interpolator/fast_out_slow_in" />
-        </aapt:attr>
-    </target>
-    <target android:name="horizon_core">
-        <aapt:attr name="android:animation">
-            <objectAnimator
-                android:propertyName="trimPathEnd"
-                android:valueFrom="0.2"
-                android:valueTo="1"
-                android:valueType="floatType"
+                android:propertyName="fillAlpha"
+                android:valueFrom="0" android:valueTo="1" android:valueType="floatType"
                 android:duration="520"
                 android:interpolator="@android:interpolator/fast_out_slow_in" />
         </aapt:attr>

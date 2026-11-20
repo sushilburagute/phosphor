@@ -66,6 +66,7 @@ class SettingsStore(context: Context) {
                 speed = number(json, "speed", defaults.speed),
                 intensity = number(json, "intensity", defaults.intensity),
                 parallax = json.optBoolean("parallax", defaults.parallax),
+                tiltParallax = json.optBoolean("tiltParallax", defaults.tiltParallax),
                 fps = json.optInt("fps", defaults.fps).coerceIn(15, 60),
                 darken = number(json, "darken", defaults.darken),
                 imagePath = json.optString("imagePath").takeIf { it.isNotBlank() && it != "null" },
@@ -83,6 +84,7 @@ class SettingsStore(context: Context) {
             put("speed", bounded(settings.speed, 0.5f))
             put("intensity", bounded(settings.intensity, 0.6f))
             put("parallax", settings.parallax)
+            put("tiltParallax", settings.tiltParallax)
             put("fps", settings.fps.coerceIn(15, 60))
             put("darken", bounded(settings.darken, 0f))
             put("imagePath", settings.imagePath ?: JSONObject.NULL)
