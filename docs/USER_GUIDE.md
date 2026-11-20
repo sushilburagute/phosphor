@@ -4,7 +4,7 @@
 
 ## Apply a wallpaper
 
-1. Open **Explore**, choose a day or night preview, and select a wallpaper.
+1. Open **Explore** and tap a wallpaper. Use the collection chips to narrow the grid.
 2. Watch the live preview as you adjust the controls. On a phone, use **Expand preview** for a larger view. The home-screen preview button overlays sample icons and labels.
 3. Choose the appearance and motion settings you want, then tap **Set live wallpaper**.
 4. Finish in Android's wallpaper picker and select one of the destinations your phone offers.
@@ -13,18 +13,15 @@ Editing changes a draft. The active wallpaper keeps its existing settings until 
 
 Some system pickers do not report whether you applied the wallpaper. If you chose Phosphor and the app asks, tap **Save wallpaper settings** to commit the draft. If you canceled the picker, leave that confirmation alone. Home and lock screens share one applied Phosphor configuration; separate designs are not implemented.
 
-The heart on a gallery tile saves a look immediately. In the editor, **Save look** lets you name a version with its appearance, motion, and photo framing. Open a look from **Saved** to adjust it, update it, or save another variation. Saved and Explore remember their own collection filters.
+The heart beside a wallpaper's title saves a look immediately. In the editor, **Save look** lets you name a version with its dimming, motion, and photo framing settings. Open a look from **Saved** to adjust it, update it, or save another variation. Saved and Explore remember their own collection filters.
 
 ## Appearance
 
 | Control | Effect |
 | --- | --- |
-| Auto | Resolves day/night from the phone's system dark theme. |
-| Day | Uses the preset's ink-on-paper treatment. |
-| Night | Uses its emitted-light treatment on a dark ground. |
-| Calm the artwork | Fades toward the background: paler by day, darker at night, making icons easier to read. |
+| Calm the artwork | Darkens the wallpaper so icons and widgets stand out. |
 
-The gallery treatment carries into the editor so the artwork opens as you saw it. The appearance control selects the treatment Android will apply. If those differ, **Use Night** or **Use Day** by the apply button adopts the previewed treatment. **Preview applied appearance** shows the current setting.
+Built-in wallpapers use dark palettes in the gallery, editor, and Android wallpaper picker.
 
 **Settings → App appearance** controls the app's System/Light/Dark theme separately. **Use your phone's colors** applies Material You colors to the app on Android 12+; it does not recolor the wallpaper. Phosphor's own app palette is the default.
 
@@ -47,7 +44,7 @@ These are rendering policies; a battery-life percentage has not been measured. S
 
 ## Import your own image
 
-Use the import action in the gallery and select a JPEG, PNG, or WebP image through Android's document picker. Phosphor stores a bounded, orientation-corrected PNG copy in private app storage, so later losing access to the original document does not break the import.
+Tap **Import photo** in Explore and select a JPEG, PNG, or WebP image through Android's document picker. Phosphor stores a bounded, orientation-corrected PNG copy in private app storage, so later losing access to the original document does not break the import.
 
 In **Photo framing**, move the target on the full photo to your subject, or use the horizontal and vertical focus sliders. The live preview shows the crop with room around its edges for drift. The wallpaper layers floating light over the photo. Save a look to keep this image and framing when you import another photo.
 
@@ -55,9 +52,7 @@ Imports stay on the device and are not included in cloud backup. Clearing app st
 
 ## Export a still
 
-In the editor, choose the desired treatment and tap **Save a still image**. Select a destination in Android's document picker. Phosphor writes a watermark-free **1080 × 2400 PNG** using the shared renderer at a fixed animation time. It is a rendered still, rather than a capture of the exact current live frame.
-
-Export uses the treatment shown in the editor, including its gallery preview choice, and uses your selected photo framing.
+In the editor, tap **Save a still image** and select a destination in Android's document picker. Phosphor writes a watermark-free **1080 × 2400 PNG** at a fixed animation time using your current settings and photo framing.
 
 ## Phone colors and common limitations
 

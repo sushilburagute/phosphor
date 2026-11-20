@@ -22,8 +22,7 @@ import kotlin.math.sqrt
  * Filaments sit at three focus depths: crisp ones on the focal plane, wide soft ones behind
  * and in front, so parallax separates each set of filaments.
  *
- * The eye and the brightest coils sit in the gap between the second and third icon rows;
- * the limb sits between the last icon row and the dock.
+ * The eye and its flattened coils sit low in the frame, above the brighter planetary limb.
  */
 internal class AbstractHorizon(private val k: RenderKit) {
     // Groups: 0 crisp (focal plane), 1 soft and far, 2 very soft and near, 3 copper accents.
@@ -64,10 +63,10 @@ internal class AbstractHorizon(private val k: RenderKit) {
             // Larger orbits fall from higher up and further left: the funnel's outer wall.
             // Every filament enters the disc through the same narrow throat left of the eye,
             // then settles on its own ring: small and bright, or wide and faint.
-            r0[i] = 330f + fraction(s + 2) * 70f
-            rIn[i] = 48f + u.pow(1.3f) * 470f + if (g == 1 && fraction(s + 7) < 0.3f) 300f else 0f
-            lift[i] = 0.3f + fraction(s + 3) * 0.26f
-            spread[i] = -160f + fraction(s + 4) * 560f
+            r0[i] = 375f + fraction(s + 2) * 125f
+            rIn[i] = 41f + u.pow(1.2f) * 600f + if (g == 1 && fraction(s + 7) < 0.3f) 280f else 0f
+            lift[i] = 0.39f + fraction(s + 3) * 0.25f
+            spread[i] = -50f + fraction(s + 4) * 520f
             turns[i] = 1.2f + fraction(s + 5) * 0.9f
             phase[i] = (fraction(s + 6) - 0.5f) * 0.3f
             i++
@@ -78,13 +77,13 @@ internal class AbstractHorizon(private val k: RenderKit) {
         val h = f.h
         val night = f.night
         val reveal = smooth(f.reveal)
-        eyeX = 575f + sin(f.t * 0.21f) * 33f * f.amount
-        eyeY = h * 0.553f
-        tilt = -0.12f + sin(f.t * 0.19f) * 0.07f * f.amount
+        eyeX = 617f + sin(f.t * 0.21f) * 33f * f.amount
+        eyeY = h * 0.666f
+        tilt = -0.065f + sin(f.t * 0.19f) * 0.05f * f.amount
         // Deep-space light: cold behind the funnel wall, a faint warm breath above the limb.
         val mode = k.modeFor(f)
-        k.glow(canvas, k.glowA, 240f + f.shiftX(0.2f), h * 0.3f, 620f, h * 0.36f, if (night) 34 else 40, mode)
-        k.glow(canvas, k.glowA, eyeX, eyeY, 520f, 150f, if (night) 30 else 26, mode)
+        k.glow(canvas, k.glowA, 170f + f.shiftX(0.2f), h * 0.41f, 580f, h * 0.32f, if (night) 24 else 30, mode)
+        k.glow(canvas, k.glowA, eyeX, eyeY, 695f, 116f, if (night) 53 else 33, mode)
         k.glow(canvas, k.glowB, 820f, h * 0.83f, 600f, 150f, if (night) 22 else 30, mode)
 
         starfield(canvas, f, reveal)
@@ -419,7 +418,7 @@ internal class AbstractHorizon(private val k: RenderKit) {
         const val SEG = 57
         const val RANGES = 3
         const val PER_RANGE = 19
-        const val SQUASH = 0.2f
+        const val SQUASH = 0.162f
         const val MOTES = 900
         const val STARS = 170
         const val LANE_DOTS = 1400

@@ -50,7 +50,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.sush.phosphor.R
-import dev.sush.phosphor.model.Appearance
 import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
@@ -61,12 +60,9 @@ fun Editor(
     preset: WallpaperPreset,
     settings: WallpaperSettings,
     uncertainApply: Boolean,
-    night: Boolean,
-    appliedNight: Boolean,
     title: String,
     onBack: () -> Unit,
     onSaveLook: () -> Unit,
-    onUseAppliedAppearance: () -> Unit,
     onChange: (WallpaperSettings) -> Unit,
     onApply: () -> Unit,
     onConfirm: () -> Unit,
@@ -94,12 +90,12 @@ fun Editor(
                 else -> minOf(260.dp, maxHeight * if (LocalDensity.current.fontScale > 1.4f) 0.26f else 0.36f)
             }
             val stage: @Composable (Modifier) -> Unit = { modifier ->
-                Stage(preset, settings, night, homeScreen, replay, plateHeight, modifier,
+                Stage(preset, settings, homeScreen, replay, plateHeight, modifier,
                     onHomeScreen = { homeScreen = it }, onReplay = { replay++ },
                     expanded = expanded, onExpand = if (wide) null else ({ expanded = !expanded }))
             }
             val controls: @Composable (Modifier) -> Unit = { modifier ->
-                Controls(preset, settings, night, appliedNight, uncertainApply, onChange, onUseAppliedAppearance,
+                Controls(preset, settings, uncertainApply, onChange,
                     onConfirm, onExport, onPaletteHelp, modifier)
             }
             if (wide) {
@@ -116,14 +112,6 @@ fun Editor(
         }
         Surface(tonalElevation = 2.dp, shadowElevation = 6.dp) {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
-                if (night != appliedNight) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (night) "Night preview · Applies Day" else "Day preview · Applies Night",
-                        style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                    TextButton(onClick = {
-                        onUseAppliedAppearance()
-                        onChange(settings.copy(appearance = if (night) Appearance.NIGHT else Appearance.DAY))
-                    }) { Text(if (night) "Use Night" else "Use Day") }
-                }
                 Button(
                     onClick = onApply, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                     shape = MaterialTheme.shapes.large,
@@ -139,7 +127,7 @@ fun Editor(
 /** The preview stays visible while the settings below it scroll. */
 @Composable
 private fun Stage(
-    preset: WallpaperPreset, settings: WallpaperSettings, night: Boolean, homeScreen: Boolean, replay: Int,
+    preset: WallpaperPreset, settings: WallpaperSettings, homeScreen: Boolean, replay: Int,
     plateHeight: Dp, modifier: Modifier, onHomeScreen: (Boolean) -> Unit, onReplay: () -> Unit,
     expanded: Boolean, onExpand: (() -> Unit)?,
 ) {
@@ -151,9 +139,9 @@ private fun Stage(
                     if (onExpand == null) Modifier else Modifier.clickable(role = Role.Button, onClickLabel = sizeAction, onClick = onExpand)
                 ),
         ) {
-            WallpaperPreview(preset, settings, Modifier.fillMaxSize(), animate = true, night = night, replayReveal = replay)
+            WallpaperPreview(preset, settings, Modifier.fillMaxSize(), animate = true, replayReveal = replay)
             androidx.compose.animation.AnimatedVisibility(visible = homeScreen, enter = fadeIn(tween(if (settings.reducedMotion) 0 else Motion.CALM)), exit = fadeOut(tween(if (settings.reducedMotion) 0 else Motion.QUICK))) {
-                HomeScreenOverlay(night)
+                HomeScreenOverlay()
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
@@ -172,8 +160,8 @@ private fun Stage(
 
 @Composable
 private fun Controls(
-    preset: WallpaperPreset, settings: WallpaperSettings, night: Boolean, appliedNight: Boolean, uncertainApply: Boolean,
-    onChange: (WallpaperSettings) -> Unit, onUseAppliedAppearance: () -> Unit, onConfirm: () -> Unit,
+    preset: WallpaperPreset, settings: WallpaperSettings, uncertainApply: Boolean,
+    onChange: (WallpaperSettings) -> Unit, onConfirm: () -> Unit,
     onExport: () -> Unit, onPaletteHelp: () -> Unit, modifier: Modifier,
 ) {
     Column(
@@ -191,7 +179,6 @@ private fun Controls(
             Text(preset.description, style = MaterialTheme.typography.bodyLarge)
             FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Swatches(preset.colors, 18.dp)
-                Swatches(preset.dayColors, 18.dp)
                 TextButton(onClick = onPaletteHelp) { Text("Match your phone’s colors") }
             }
         }
@@ -200,29 +187,8 @@ private fun Controls(
             PhotoFraming(settings, onChange)
         }
 
-        Section("Wallpaper appearance", if (night) R.drawable.ic_moon else R.drawable.ic_sun) {
-            Segmented(
-                listOf(
-                    Triple(Appearance.AUTO, "Auto", R.drawable.ic_auto),
-                    Triple(Appearance.DAY, "Day", R.drawable.ic_sun),
-                    Triple(Appearance.NIGHT, "Night", R.drawable.ic_moon),
-                ),
-                settings.appearance, { onUseAppliedAppearance(); onChange(settings.copy(appearance = it)) },
-            )
-            Text(
-                when (settings.appearance) {
-                    Appearance.AUTO -> "Follows your phone’s dark theme. Glows at night, prints in ink by day."
-                    Appearance.DAY -> "Always use the daylight palette."
-                    Appearance.NIGHT -> "Always use the night palette."
-                },
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (night != appliedNight) {
-                TextButton(onClick = onUseAppliedAppearance) {
-                    Text(if (night) "Preview applied appearance (Day)" else "Preview applied appearance (Night)")
-                }
-            }
-            SliderRow("Calm the artwork", settings.darken, "Fades toward the background so icons and widgets stand out more.") { onChange(settings.copy(darken = it)) }
+        Section("Wallpaper appearance", R.drawable.ic_moon) {
+            SliderRow("Calm the artwork", settings.darken, "Darkens the wallpaper so icons and widgets stand out.") { onChange(settings.copy(darken = it)) }
         }
 
         Section("Motion", R.drawable.ic_motion) {

@@ -58,8 +58,8 @@ internal class AbstractLoop(private val k: RenderKit) {
         val reveal = smooth(f.reveal)
 
         val mode = k.modeFor(f)
-        k.glow(canvas, k.glowA, 300f + f.shiftX(0.3f), h * 0.42f, 620f, h * 0.3f, if (night) 30 else 34, mode)
-        k.glow(canvas, k.glowB, 720f + f.shiftX(0.3f), h * 0.66f, 560f, h * 0.26f, if (night) 26 else 30, mode)
+        k.glow(canvas, k.glowA, 255f + f.shiftX(0.3f), h * 0.46f, 720f, h * 0.33f, if (night) 70 else 45, mode)
+        k.glow(canvas, k.glowB, 770f + f.shiftX(0.3f), h * 0.67f, 690f, h * 0.27f, if (night) 49 else 40, mode)
         streak(canvas, f, reveal)
         dust(canvas, f, reveal, false)
         build(f, reveal)
@@ -72,12 +72,12 @@ internal class AbstractLoop(private val k: RenderKit) {
     private fun build(f: Frame, reveal: Float) {
         val h = f.h
         val t = f.t
-        val cx = 500f + f.shiftX(0.8f)
-        val cy = h * 0.55f + f.shiftY(0.8f)
+        val cx = 474f + f.shiftX(0.8f)
+        val cy = h * 0.54f + f.shiftY(0.8f)
         // Orientation: a slow yaw sway plus the oscillating pitch.
         val yaw = 0.68f + sin(t * 0.19f) * 0.32f * f.amount
         val pitch = -0.5f + sin(t * 0.13f) * 0.13f * f.amount
-        val roll = -0.36f + sin(t * 0.053f) * 0.05f * f.amount
+        val roll = -0.57f + sin(t * 0.053f) * 0.07f * f.amount
         val cyw = cos(yaw); val syw = sin(yaw)
         val cp = cos(pitch); val sp = sin(pitch)
         val cr = cos(roll); val sr = sin(roll)
@@ -105,7 +105,7 @@ internal class AbstractLoop(private val k: RenderKit) {
             val ct = cos(tau); val st = sin(tau)
             val wx = nx * ct + bx * st; val wy = ny * ct + by * st; val wz = nz * ct + bz * st
             val sx = bx * ct - nx * st; val sy = by * ct - ny * st; val sz = bz * ct - nz * st
-            var half = 104f + 40f * sin(u * 3f + 1f + t * 0.11f)
+            var half = 128f + 52f * sin(u * 3f + 1f + t * 0.11f)
 
             // Ring center in view space, for depth sorting.
             rotX(px, py, pz, cyw, syw, cp, sp, cr, sr)
@@ -125,7 +125,7 @@ internal class AbstractLoop(private val k: RenderKit) {
                 val vx = rotX(ox, oy, oz, cyw, syw, cp, sp, cr, sr)
                 val vy = rotY
                 val vz = rotZ
-                val s = FOCAL / (vz + DIST)
+                val s = FOCAL * 1.22f / (vz + DIST)
                 val sxp = cx + vx * s
                 val syp = cy + vy * s
                 val at = i * ROWS + v
@@ -280,8 +280,8 @@ internal class AbstractLoop(private val k: RenderKit) {
         canvas.save()
         canvas.translate(520f + drift + f.shiftX(0.25f), f.h * 0.55f + f.shiftY(0.25f))
         canvas.rotate(-38f)
-        k.glow(canvas, k.glowA, -60f, -40f, 1100f, 120f, ((if (f.night) 40 else 34) * reveal).toInt(), mode)
-        k.glow(canvas, k.glowB, 40f, 30f, 900f, 42f, ((if (f.night) 52 else 46) * reveal).toInt(), mode)
+        k.glow(canvas, k.glowA, -60f, -40f, 1100f, 198f, ((if (f.night) 58 else 39) * reveal).toInt(), mode)
+        k.glow(canvas, k.glowB, 40f, 30f, 905f, 93f, ((if (f.night) 52 else 46) * reveal).toInt(), mode)
         k.glow(canvas, k.glowWhite, 120f, 34f, 600f, 7f, ((if (f.night) 30 else 0) * reveal).toInt(), mode)
         canvas.restore()
     }

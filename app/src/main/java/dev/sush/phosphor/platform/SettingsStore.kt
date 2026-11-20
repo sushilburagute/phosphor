@@ -2,7 +2,7 @@ package dev.sush.phosphor.platform
 
 import android.content.Context
 import android.content.SharedPreferences
-import dev.sush.phosphor.model.Appearance
+import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
 import org.json.JSONObject
 
@@ -45,7 +45,10 @@ class SettingsStore(context: Context) {
     private fun read(key: String): WallpaperSettings {
         val raw = preferences.getString(key, null) ?: return WallpaperSettings()
         return try {
-            decode(JSONObject(raw))
+            val settings = decode(JSONObject(raw))
+            // Retired presets fall back for the live wallpaper and draft. Saved looks keep
+            // their original IDs so they cannot be shown as a different wallpaper.
+            settings.copy(presetId = WallpaperCatalog.find(settings.presetId).id)
         } catch (_: org.json.JSONException) {
             WallpaperSettings()
         }
@@ -69,7 +72,6 @@ class SettingsStore(context: Context) {
                 imageFocusX = number(json, "imageFocusX", defaults.imageFocusX),
                 imageFocusY = number(json, "imageFocusY", defaults.imageFocusY),
                 reducedMotion = json.optBoolean("reducedMotion", defaults.reducedMotion),
-                appearance = Appearance.entries.firstOrNull { it.name == json.optString("appearance") } ?: defaults.appearance,
                 wakeReveal = json.optBoolean("wakeReveal", json.optBoolean("unlockAnimation", defaults.wakeReveal)),
                 lowBatteryMode = json.optBoolean("lowBatteryMode", defaults.lowBatteryMode),
                 unlockAnimation = json.optBoolean("unlockAnimation", json.optBoolean("wakeReveal", defaults.unlockAnimation)),
@@ -87,7 +89,6 @@ class SettingsStore(context: Context) {
             put("imageFocusX", bounded(settings.imageFocusX, 0.5f))
             put("imageFocusY", bounded(settings.imageFocusY, 0.5f))
             put("reducedMotion", settings.reducedMotion)
-            put("appearance", settings.appearance.name)
             put("wakeReveal", settings.wakeReveal)
             put("lowBatteryMode", settings.lowBatteryMode)
             put("unlockAnimation", settings.unlockAnimation)

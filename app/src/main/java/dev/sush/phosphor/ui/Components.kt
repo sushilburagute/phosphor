@@ -2,7 +2,6 @@ package dev.sush.phosphor.ui
 
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -50,54 +48,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.sush.phosphor.R
 import dev.sush.phosphor.ui.theme.Motion
-import dev.sush.phosphor.ui.theme.Palette
 import dev.sush.phosphor.ui.theme.PhosphorType
 
 @Composable
 fun Glyph(@DrawableRes id: Int, description: String?, modifier: Modifier = Modifier, tint: Color = androidx.compose.material3.LocalContentColor.current) {
     Icon(painterResource(id), contentDescription = description, modifier = modifier.size(22.dp), tint = tint)
-}
-
-/**
- * The app's one bold control: switch every wallpaper between its night (light) and day (ink)
- * treatment. A sun and a moon sit either side of a horizon; the lit side fills.
- */
-@Composable
-fun MoodSwitch(night: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    val knob by animateDpAsState(if (night) 52.dp else 4.dp, tween(Motion.MOOD, easing = Motion.Shift), label = "mood")
-    Box(
-        modifier
-            .size(width = 104.dp, height = 52.dp)
-            .clip(CircleShape)
-            .background(scheme.surfaceContainerHigh)
-            .border(1.dp, scheme.outlineVariant, CircleShape)
-            .selectableGroup(),
-    ) {
-        Box(
-            Modifier.offset { androidx.compose.ui.unit.IntOffset(knob.roundToPx(), 4.dp.roundToPx()) }.size(48.dp, 44.dp).clip(CircleShape)
-                .background(if (night) Palette.Sky else Palette.Paper)
-                .border(1.dp, if (night) Palette.SkyLine else Palette.PaperLine, CircleShape),
-        )
-        // The horizon: a short ember line under whichever side is lit.
-        Box(
-            Modifier.offset { androidx.compose.ui.unit.IntOffset((knob + 14.dp).roundToPx(), 37.dp.roundToPx()) }.size(20.dp, 2.dp).clip(CircleShape).background(Palette.Ember),
-        )
-        Row(Modifier.fillMaxSize()) {
-            MoodHalf(R.drawable.ic_sun, "Day: ink on paper", !night, if (!night) Palette.Ink else scheme.onSurfaceVariant) { onChange(false) }
-            MoodHalf(R.drawable.ic_moon, "Night: emitted light", night, if (night) Palette.Starlight else scheme.onSurfaceVariant) { onChange(true) }
-        }
-    }
-}
-
-@Composable
-private fun androidx.compose.foundation.layout.RowScope.MoodHalf(@DrawableRes icon: Int, label: String, selected: Boolean, tint: Color, onClick: () -> Unit) {
-    Box(
-        Modifier.weight(1f).fillMaxHeight()
-            .selectable(selected, onClick = onClick, role = Role.RadioButton)
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) { Glyph(icon, null, tint = animateColorAsState(tint, tween(Motion.MOOD), label = "tint").value) }
 }
 
 /** A labelled group of related settings, separated by space rather than boxes. */
@@ -178,9 +133,9 @@ fun <T> Segmented(options: List<Triple<T, String, Int?>>, selected: T, onSelect:
  * label color the launcher will choose for this treatment. It shows readability honestly.
  */
 @Composable
-fun HomeScreenOverlay(night: Boolean, modifier: Modifier = Modifier) {
-    val ink = if (night) Color.White else Color(0xFF1B1B1F)
-    val tile = if (night) Color(0x33FFFFFF) else Color(0x2E1B1B1F)
+fun HomeScreenOverlay(modifier: Modifier = Modifier) {
+    val ink = Color.White
+    val tile = Color(0x33FFFFFF)
     val names = listOf("Camera", "Maps", "Notes", "Music", "Photos", "Mail", "Clock", "Files", "Weather", "Calendar", "News", "Fitness")
     BoxWithConstraints(modifier.fillMaxSize()) {
         // Scale with the plate so the proportions match a 360dp-wide phone.
@@ -212,7 +167,7 @@ fun HomeScreenOverlay(night: Boolean, modifier: Modifier = Modifier) {
     }
 }
 
-/** Palette dots; the ground swatch is outlined so pale grounds stay visible on paper. */
+/** Outline palette swatches so the ground stays visible on dark surfaces. */
 @Composable
 fun Swatches(colors: List<Int>, size: Dp = 16.dp) {
     Row(horizontalArrangement = Arrangement.spacedBy((-4).dp)) {

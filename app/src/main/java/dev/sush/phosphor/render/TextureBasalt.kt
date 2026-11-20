@@ -55,9 +55,9 @@ internal class TextureBasalt(private val k: RenderKit) {
             normals()
             contours()
         }
-        // A low sun circling slowly.
-        val az = 0.6f + f.t * 0.12f
-        val el = 0.62f
+        // A low sun sweeps across the strata.
+        val az = 0.72f + sin(f.t * 0.16f) * (0.48f + f.amount * 0.64f)
+        val el = 0.38f
         val lx = cos(az) * cos(el); val ly = sin(az) * cos(el); val lz = sin(el)
         shade(f, lx, ly, lz, reveal)
         val p = k.fill
@@ -67,6 +67,12 @@ internal class TextureBasalt(private val k: RenderKit) {
         val saved = canvas.save()
         canvas.translate(f.shiftX(0.58f), f.shiftY(0.58f))
         grid.draw(canvas, p)
+        val light = canvas.save()
+        canvas.translate(520f + 115f * sin(az), h * 0.58f)
+        canvas.rotate(-33f)
+        k.glow(canvas, k.glowA, 0f, -60f, 1050f, h * 0.19f, ((if (f.night) 61 else 41) * reveal).toInt(), k.modeFor(f))
+        k.glow(canvas, k.glowB, 120f, 85f, 890f, h * 0.075f, ((if (f.night) 33 else 26) * reveal).toInt(), k.modeFor(f))
+        canvas.restoreToCount(light)
         etch(canvas, f, lx, ly, reveal)
         canvas.restoreToCount(saved)
         glints(canvas, f, az, reveal)
@@ -78,19 +84,18 @@ internal class TextureBasalt(private val k: RenderKit) {
     private fun terrain(x: Float, y: Float): Float {
         val wx = x + 80f * noise((x * 0.7f - y * 0.7f) / 380f + 3.1f, (x * 0.7f + y * 0.7f) / 380f, 11)
         val wy = y + 80f * noise((x * 0.9f + y * 0.4f) / 380f, (y * 0.9f - x * 0.4f) / 380f + 7.7f, 23)
-        // Broad swells, then ridged octaves: sharp crests like cooled lava flows.
-        var sum = noise((wx * 0.8f + wy * 0.6f) / 700f, (wy * 0.8f - wx * 0.6f) / 700f, 7) * 0.9f
-        var amp = 0.75f
-        var freq = 1f / 340f
+        // Stretched octaves follow the grain of the cooled lava.
+        val along = wx * 0.84f - wy * 0.54f
+        val across = wx * 0.54f + wy * 0.84f
+        var sum = noise(along / 820f, across / 400f, 7) * 0.72f
+        var amp = 0.54f
+        var freq = 1f / 265f
         for (o in 0 until 3) {
-            // Each octave on its own rotated lattice, so no grid direction shows through.
-            val c = cos(0.5f + o * 1.13f); val sn = sin(0.5f + o * 1.13f)
-            val n = 1f - abs(noise((wx * c - wy * sn) * freq, (wx * sn + wy * c) * freq, 101 + o * 37))
+            val n = 1f - abs(noise((along * 0.34f + across * o * 0.07f) * freq, across * freq, 101 + o * 37))
             sum += (n * n - 0.45f) * amp
             amp *= 0.5f; freq *= 2.07f
         }
-        // A gentle ridge running diagonally gives the map a structure.
-        sum += 0.3f * sin((x * 0.6f + y * 0.8f) * 0.0026f)
+        sum += 0.33f * sin(across * 0.009f + sin(along * 0.0034f) * 0.75f)
         return sum * 0.9f
     }
 
@@ -196,7 +201,7 @@ internal class TextureBasalt(private val k: RenderKit) {
             val lit = pass == 1
             if (lit) {
                 if (night) k.luminous(s, true) else k.normal(s)
-                s.color = if (night) f.c2 else Color.WHITE
+                s.color = if (night) mix(f.c1, f.c2, 0.35f) else Color.WHITE
             } else {
                 if (night) k.normal(s) else k.blend(s, RenderKit.Mode.INK)
                 s.color = if (night) Color.BLACK else f.c2

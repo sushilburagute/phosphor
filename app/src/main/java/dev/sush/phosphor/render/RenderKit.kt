@@ -18,7 +18,7 @@ class Frame {
     var h = 2000f
     var t = 0f
     var amount = 0.6f
-    var night = true
+    val night = true
     var reveal = 1f
     var detail = 1f
     var offsetX = 0f

@@ -29,7 +29,7 @@ class ScreenshotTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test @Config(sdk = [35], qualifiers = "w400dp-h800dp-notnight-xhdpi")
-    fun day() = capture("day")
+    fun lightTheme() = capture("light")
 
     @Test @Config(sdk = [35], qualifiers = "w400dp-h800dp-night-xhdpi")
     fun night() = capture("night")

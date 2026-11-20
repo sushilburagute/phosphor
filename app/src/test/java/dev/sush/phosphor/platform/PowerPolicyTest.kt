@@ -1,6 +1,5 @@
 package dev.sush.phosphor.platform
 
-import dev.sush.phosphor.model.Appearance
 import dev.sush.phosphor.model.WallpaperSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -38,13 +37,5 @@ class PowerPolicyTest {
     @Test
     fun stillModeIsAlwaysStill() {
         assertTrue(PowerPolicy.budget(settings.copy(reducedMotion = true), PowerState()).still)
-    }
-
-    @Test
-    fun appearanceResolvesAgainstTheSystem() {
-        assertTrue(Appearance.AUTO.isNight(systemNight = true))
-        assertFalse(Appearance.AUTO.isNight(systemNight = false))
-        assertTrue(Appearance.NIGHT.isNight(systemNight = false))
-        assertFalse(Appearance.DAY.isNight(systemNight = true))
     }
 }

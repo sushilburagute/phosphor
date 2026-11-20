@@ -2,9 +2,6 @@ package dev.sush.phosphor.ui
 
 import android.content.Context
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -13,7 +10,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import dev.sush.phosphor.model.Appearance
 import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.platform.SettingsStore
 import org.junit.Assert.assertEquals
@@ -30,31 +26,28 @@ import org.robolectric.annotation.GraphicsMode
 class EditorJourneyTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
-    private fun open(title: String) = compose.onNode(SemanticsMatcher("opens $title") {
-        it.config.getOrNull(SemanticsActions.OnClick)?.label == "Open $title"
-    }).performClick()
+    private fun open(title: String) = compose.onNode(hasText(title) and hasClickAction()).performClick()
 
     @Test
-    fun galleryMoodStaysPreviewOnlyAndSavedLooksRestoreTheAppliedSettings() {
+    fun galleryFiltersAndSavesWithoutOpeningTheEditorAndSavedLooksRestoreTuning() {
         val store = SettingsStore(compose.activity)
         store.save(WallpaperSettings(reducedMotion = true, speed = 0.31f))
         val prefs = compose.activity.getSharedPreferences("phosphor_ui", Context.MODE_PRIVATE)
         val tuned = store.load().copy(speed = 0.18f, intensity = 0.42f)
         SavedLooks(prefs).save(SavedLook("quiet", "Quiet orbits", tuned), store.load())
         compose.setContent { PhosphorApp() }
-        compose.onNodeWithContentDescription("Night: emitted light").performClick()
-        compose.mainClock.advanceTimeBy(800)
+        compose.onNodeWithText("Import photo").assertIsDisplayed()
         open("Long exposure")
         compose.mainClock.advanceTimeBy(800)
-        compose.onNodeWithText("Night preview · Applies Day").assertIsDisplayed()
         compose.onNodeWithText("Speed").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Expand preview").assertIsDisplayed()
-        assertEquals(Appearance.AUTO, store.loadPreview().appearance)
-        compose.onNodeWithText("Use Night").performClick()
-        assertEquals(Appearance.NIGHT, store.loadPreview().appearance)
+        compose.onNodeWithText("Use Day").assertDoesNotExist()
+        assertEquals(store.load(), store.loadPreview())
         compose.onNodeWithContentDescription("Back to wallpapers").performClick()
         compose.onNode(hasText("ASCII") and hasClickAction()).performClick()
+        compose.onNodeWithText("Long exposure").assertDoesNotExist()
         compose.onNodeWithContentDescription("Save Signal bloom").performClick()
+        compose.onNodeWithText("Import photo").assertIsDisplayed()
         compose.onNodeWithText("Saved").performClick()
         open("Quiet orbits")
         assertEquals(tuned, store.loadPreview())

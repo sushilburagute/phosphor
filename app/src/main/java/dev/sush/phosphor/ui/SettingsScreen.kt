@@ -46,12 +46,11 @@ fun SettingsScreen(theme: String, dynamic: Boolean, onTheme: (String) -> Unit, o
                 else "Available on Android 12 and later.",
                 dynamic, onDynamic, Build.VERSION.SDK_INT >= 31,
             )
-            Text("This changes the app only. Each wallpaper has its own day and night setting.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         HorizontalDivider()
         Section("Your phone", R.drawable.ic_palette) {
             Text(
-                "Phosphor uses Android’s live wallpaper and color APIs. It tells your launcher whether the artwork is light or dark so labels stay readable. Your phone decides home-screen, lock-screen and palette options.",
+                "Phosphor shares wallpaper colors with Android and asks your launcher to use light labels. Your phone decides home-screen, lock-screen and palette options.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedButton(onClick = onPaletteHelp) { Text("Pixel and Samsung color guide") }

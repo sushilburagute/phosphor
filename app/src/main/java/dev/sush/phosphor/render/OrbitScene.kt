@@ -19,16 +19,24 @@ internal class OrbitScene(k: RenderKit) {
     private val exposure = OrbitExposure(kit)
     private val threshold = OrbitThreshold(kit)
     private val ringfall = OrbitRingfall(kit)
+    private val firstLight = OrbitFirstLight(kit)
+    private val nebula = OrbitNebula(kit)
 
     fun draw(canvas: Canvas, f: Frame, variant: String) {
         when (variant) {
             "orbit-threshold" -> threshold.draw(canvas, f)
             "orbit-ringfall" -> ringfall.draw(canvas, f)
+            "orbit-first-light" -> firstLight.draw(canvas, f)
+            "orbit-nebula" -> nebula.draw(canvas, f)
             else -> exposure.draw(canvas, f)
         }
     }
 
-    fun release() = kit.release()
+    fun release() {
+        firstLight.release()
+        nebula.release()
+        kit.release()
+    }
 }
 
 /** Shared seeded trail geometry, clip tests and sky layers. */
@@ -95,27 +103,27 @@ internal class OrbitKit(val k: RenderKit) {
         if (cached != null && cached.count == count && cached.night == f.night &&
             cached.c0 == f.c0 && cached.c1 == f.c1 && cached.c2 == f.c2) return cached
         val data = TrailSet(count, f.night, f.c0, f.c1, f.c2)
-        val hotLow = 0.30f + fraction(seed * 7) * 0.05f
-        val hotHigh = 0.56f + fraction(seed * 11) * 0.04f
+        val hotLow = 0.23f + fraction(seed * 7) * 0.06f
+        val hotHigh = 0.52f + fraction(seed * 11) * 0.06f
         for (i in 0 until count) {
             val s = i * 977 + seed * 131
             val u = fraction(s + 1).pow(1.25f)
             val r = 70f + u * reach
-            val hot = u in hotLow..hotLow + 0.03f || u in hotHigh..hotHigh + 0.02f || fraction(s + 5) < 0.03f
+            val hot = abs(u - hotLow) < 0.016f || abs(u - hotHigh) < 0.008f
             val nearCore = (1f - u).pow(2.6f)
+            val blueBand = (1f - abs(u - hotLow - 0.066f) / 0.077f).coerceAtLeast(0f)
             data.radius[i] = r
             data.angle[i] = fraction(s + 2) * 360f
             data.velocity[i] = 51.57f * (260f / r).pow(1.1f) * (0.8f + fraction(s + 3) * 0.4f)
-            data.sweep[i] = 30f + fraction(s + 4).pow(0.7f) * 150f
-            data.width[i] = (if (hot) 1.9f else 0.8f) + fraction(s + 9).pow(2f) * 2.2f + nearCore * 1.4f
-            data.opacity[i] = (if (f.night) 26f else 46f) + nearCore * 105f +
-                (if (hot) 110f else 0f) + fraction(s + 8) * 55f
+            data.sweep[i] = 42f + fraction(s + 4).pow(0.7f) * 168f
+            data.width[i] = 0.65f + fraction(s + 9).pow(2f) * 1.6f + nearCore * 0.95f + if (hot) 1.2f else 0f
+            data.opacity[i] = (if (f.night) 13f else 27f) + nearCore * 83f + blueBand * 96f +
+                (if (hot) 147f else 0f) + fraction(s + 8) * 42f
             data.hot[i] = hot
             data.color[i] = when {
                 hot -> if (f.night) mix(f.c2, Color.WHITE, fraction(s + 10) * 0.3f) else f.c2
-                u < 0.1f -> if (f.night) mix(f.c1, Color.WHITE, 0.5f - u * 3f) else f.c1
-                fraction(s + 6) < 0.16f -> mix(f.c1, f.c2, 0.4f)
-                else -> mix(f.c1, if (f.night) Color.WHITE else f.c0, fraction(s + 7) * 0.35f)
+                f.night -> mix(f.c1, Color.WHITE, 0.53f * blueBand + fraction(s + 7) * 0.2f)
+                else -> mix(f.c1, f.c0, fraction(s + 7) * 0.35f)
             }
         }
         trailSets[seed] = data

@@ -37,7 +37,7 @@ import dev.sush.phosphor.render.WallpaperFrameScheduler
 @Composable
 fun WallpaperPreview(
     preset: WallpaperPreset, settings: WallpaperSettings, modifier: Modifier = Modifier,
-    animate: Boolean = false, night: Boolean = true, replayReveal: Int = 0,
+    animate: Boolean = false, replayReveal: Int = 0,
 ) {
     val owner = LocalLifecycleOwner.current
     var resumed by remember(owner) { mutableStateOf(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
@@ -49,7 +49,7 @@ fun WallpaperPreview(
     AndroidView(
         factory = { PreviewView(it) },
         modifier = modifier,
-        update = { it.update(preset, settings, animate && resumed, night, replayReveal, cacheStill = !animate) },
+        update = { it.update(preset, settings, animate && resumed, replayReveal, cacheStill = !animate) },
         onRelease = { it.dispose() },
     )
 }
@@ -68,7 +68,6 @@ internal open class PreviewView(context: Context) : View(context) {
     private var stillFrame: Bitmap? = null
     private var stillFrameReduced = false
     private var elapsed = 0f
-    private var night = true
     private var revealToken = 0
     private var revealStart = -1L
     private var lastFrame = 0L
@@ -96,10 +95,9 @@ internal open class PreviewView(context: Context) : View(context) {
 
     init { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
 
-    fun update(preset: WallpaperPreset, settings: WallpaperSettings, playing: Boolean, night: Boolean = true, reveal: Int = 0, cacheStill: Boolean = false) {
-        val changed = this.preset != preset || this.settings != settings || this.playing != playing || this.night != night || this.cacheStill != cacheStill
+    fun update(preset: WallpaperPreset, settings: WallpaperSettings, playing: Boolean, reveal: Int = 0, cacheStill: Boolean = false) {
+        val changed = this.preset != preset || this.settings != settings || this.playing != playing || this.cacheStill != cacheStill
         if (this.preset != preset) elapsed = 0f
-        this.night = night
         if (reveal != revealToken) {
             revealToken = reveal
             if (playing && settings.wakeReveal && !settings.reducedMotion && ValueAnimator.areAnimatorsEnabled()) {
@@ -131,7 +129,7 @@ internal open class PreviewView(context: Context) : View(context) {
             // Gallery frames are reused as bitmaps instead of replaying complex GPU paths.
             // Android may retain old bitmaps in recorded display lists, so do not recycle them.
             val cached = stillFrame?.takeIf { stillFrameReduced == reduced } ?: Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
-                renderer.draw(Canvas(it), width, height, 12f, art, if (reduced) stillSettings else settings, night = night)
+                renderer.draw(Canvas(it), width, height, 12f, art, if (reduced) stillSettings else settings)
                 stillFrame = it
                 stillFrameReduced = reduced
                 renderer.release()
@@ -149,7 +147,7 @@ internal open class PreviewView(context: Context) : View(context) {
         renderer.draw(
             canvas, width, height, if (playing) elapsed else 12f, art,
             if (reduced) stillSettings else if (playing) playingSettings else settings,
-            night = night, reveal = reveal,
+            reveal = reveal,
         )
         if (animate && (settings.speed > 0f || reveal < 1f)) {
             frames.request(profile.fps)

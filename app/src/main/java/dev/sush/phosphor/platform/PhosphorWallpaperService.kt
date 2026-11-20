@@ -8,7 +8,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.res.Configuration
 import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -29,18 +28,7 @@ import dev.sush.phosphor.render.WallpaperFrameScheduler
 import dev.sush.phosphor.render.WallpaperRenderer
 
 class PhosphorWallpaperService : WallpaperService() {
-    private val engines = mutableSetOf<PhosphorEngine>()
-
-    override fun onCreateEngine(): Engine = PhosphorEngine().also { engines += it }
-
-    /** Light/dark mode changes arrive at the service; each engine re-resolves its treatment. */
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        engines.toList().forEach { it.onSystemThemeChanged() }
-    }
-
-    private fun systemNight(): Boolean =
-        (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    override fun onCreateEngine(): Engine = PhosphorEngine()
 
     /** Each engine owns its renderer: the picker and the active wallpaper can coexist. */
     private inner class PhosphorEngine : Engine() {
@@ -53,7 +41,6 @@ class PhosphorWallpaperService : WallpaperService() {
         private val lockReveal = WallpaperReveal()
         private var settings = WallpaperSettings()
         private var battery = WallpaperBatteryState()
-        private var night = true
         private var surfaceReady = false
         private var visible = false
         private var destroyed = false
@@ -113,7 +100,6 @@ class PhosphorWallpaperService : WallpaperService() {
             setTouchEventsEnabled(false)
             setOffsetNotificationsEnabled(true)
             settings = currentSettings()
-            night = settings.appearance.isNight(systemNight())
             store.addListener(settingsListener, preview = isPreview)
             val filter = IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED).apply {
                 addAction(Intent.ACTION_SCREEN_ON)
@@ -138,14 +124,6 @@ class PhosphorWallpaperService : WallpaperService() {
 
         private fun currentSettings(): WallpaperSettings = if (isPreview) store.loadPreview() else store.load()
 
-        fun onSystemThemeChanged() {
-            val next = settings.appearance.isNight(systemNight())
-            if (next == night) return
-            night = next
-            invalidateColors()
-            restartFrames()
-        }
-
         private fun invalidateColors() {
             cachedColors = null
             handler.removeCallbacks(colorUpdate)
@@ -158,10 +136,9 @@ class PhosphorWallpaperService : WallpaperService() {
             if (settings == next) return
             val paletteChanged = settings.presetId != next.presetId || settings.imagePath != next.imagePath ||
                 settings.imageFocusX != next.imageFocusX || settings.imageFocusY != next.imageFocusY ||
-                settings.darken != next.darken || settings.intensity != next.intensity || settings.appearance != next.appearance
+                settings.darken != next.darken || settings.intensity != next.intensity
             if (settings.presetId != next.presetId || settings.imagePath != next.imagePath) resetQuality()
             settings = next
-            night = settings.appearance.isNight(systemNight())
             if (paletteChanged) invalidateColors()
             restartFrames()
         }
@@ -304,7 +281,6 @@ class PhosphorWallpaperService : WallpaperService() {
                         canvas, width, height, phase,
                         preset, frameSettings,
                         drawnScrollX, drawnScrollY,
-                        night = night,
                         reveal = reveal,
                         unlockReveal = lockReveal.value(now),
                         detailScale = detail,
@@ -356,7 +332,7 @@ class PhosphorWallpaperService : WallpaperService() {
             return try {
                 paletteRenderer.draw(
                     Canvas(bitmap), bitmap.width, bitmap.height, 0f,
-                    WallpaperCatalog.find(settings.presetId), settings.copy(reducedMotion = true), night = night,
+                    WallpaperCatalog.find(settings.presetId), settings.copy(reducedMotion = true),
                 )
                 val measured = WallpaperColors.fromBitmap(bitmap)
                 withHints(measured).also { cachedColors = it }
@@ -366,21 +342,19 @@ class PhosphorWallpaperService : WallpaperService() {
             }
         }
 
-        /**
-         * State the treatment explicitly: night art asks launchers for light labels and a dark
-         * theme; day art asks for dark labels. Measured colors stay as the palette seed.
-         */
+        /** Ask for light labels and a dark theme while keeping the measured palette. */
         private fun withHints(measured: WallpaperColors): WallpaperColors {
-            // Before API 31 the hinted constructor is not public; fromBitmap already infers hints
-            // from the light or dark frame, which this renderer guarantees.
+            // Before API 31 the hinted constructor is private, so rely on bitmap analysis.
             if (Build.VERSION.SDK_INT < 31) return measured
             return hinted(measured)
         }
 
         @RequiresApi(31)
         private fun hinted(measured: WallpaperColors): WallpaperColors {
-            val hints = if (night) WallpaperColors.HINT_SUPPORTS_DARK_THEME else WallpaperColors.HINT_SUPPORTS_DARK_TEXT
-            return WallpaperColors(measured.primaryColor, measured.secondaryColor, measured.tertiaryColor, hints)
+            return WallpaperColors(
+                measured.primaryColor, measured.secondaryColor, measured.tertiaryColor,
+                WallpaperColors.HINT_SUPPORTS_DARK_THEME,
+            )
         }
 
         @RequiresApi(36)
@@ -394,7 +368,6 @@ class PhosphorWallpaperService : WallpaperService() {
             destroyed = true
             visible = false
             frames.stop()
-            engines -= this
             handler.removeCallbacksAndMessages(null)
             store.removeListener(settingsListener)
             if (receiverRegistered) unregisterReceiver(receiver)

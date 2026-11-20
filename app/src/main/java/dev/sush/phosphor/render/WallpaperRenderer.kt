@@ -28,8 +28,8 @@ import kotlin.math.sin
  * Call [release] when that surface is destroyed. Offsets are -1..1.
  * Artwork is drawn in a 1000-unit-wide space so it is independent of screen density.
  *
- * Readability is part of the composition. Night artwork stays dark behind the clock and dock;
- * day artwork stays pale there. [LEGIBILITY_TOP] and [LEGIBILITY_BOTTOM] add a soft veil of
+ * Readability is part of the composition. Artwork stays dark behind the clock and dock.
+ * [LEGIBILITY_TOP] and [LEGIBILITY_BOTTOM] add a soft veil of
  * ground color in those zones; the renderer tests measure label contrast for every preset.
  */
 class WallpaperRenderer {
@@ -70,7 +70,6 @@ class WallpaperRenderer {
         settings: WallpaperSettings,
         offsetX: Float = 0f,
         offsetY: Float = 0f,
-        night: Boolean = true,
         reveal: Float = 1f,
         unlockReveal: Float = 1f,
         detailScale: Float = 1f,
@@ -82,7 +81,6 @@ class WallpaperRenderer {
         f.h = h
         f.amount = finiteUnit(settings.intensity)
         f.t = if (still) 0f else timeSeconds.takeIf { it.isFinite() }?.times(finiteUnit(settings.speed) * 1.35f) ?: 0f
-        f.night = night
         f.reveal = if (still || !settings.wakeReveal) 1f else finiteUnit(reveal)
         val awake = if (still || !settings.unlockAnimation) 1f else finiteUnit(unlockReveal)
         // Size determines the default density. Only a live engine adapts it under load.
@@ -98,8 +96,8 @@ class WallpaperRenderer {
             f.offsetX = 0f
             f.offsetY = 0f
         }
-        val palette = preset.palette(night)
-        f.c0 = palette.getOrElse(0) { if (night) Color.BLACK else Color.WHITE }
+        val palette = preset.colors
+        f.c0 = palette.getOrElse(0) { Color.BLACK }
         f.c1 = palette.getOrElse(1) { 0xFF92D9CE.toInt() }
         f.c2 = palette.getOrElse(2) { 0xFFC2A2E2.toInt() }
         kit.prepare(f)
@@ -120,26 +118,25 @@ class WallpaperRenderer {
         when (preset.kind) {
             WallpaperKind.ORBIT -> orbit.draw(canvas, f, preset.id)
             WallpaperKind.AURORA -> aurora.draw(canvas, f, preset.id == "aurora-solstice")
-            WallpaperKind.ASCII -> ascii.draw(canvas, f, preset.id == "ascii-terminal")
+            WallpaperKind.ASCII -> ascii.draw(canvas, f, terminal = false)
             WallpaperKind.GRADIENT -> gradient.draw(canvas, f, preset.id == "gradient-tide")
-            WallpaperKind.GLASS -> glass.draw(canvas, f, preset.id == "glass-orbit")
+            WallpaperKind.GLASS -> glass.draw(canvas, f, lenses = false)
             WallpaperKind.ABSTRACT -> abstract.draw(canvas, f, preset.id == "abstract-orbit")
-            WallpaperKind.TEXTURE -> texture.draw(canvas, f, preset.id == "texture-basalt")
+            WallpaperKind.TEXTURE -> texture.draw(canvas, f, basalt = true)
             WallpaperKind.IMAGE -> drawImage(canvas, f, settings)
         }
         canvas.restoreToCount(artworkSave)
 
         veil(canvas, f, preset.kind == WallpaperKind.IMAGE)
         if (preset.kind != WallpaperKind.IMAGE) {
-            drawNoise(canvas, h, if (night) 15 else 22, preset.kind == WallpaperKind.TEXTURE)
+            drawNoise(canvas, h, 15, preset.kind == WallpaperKind.TEXTURE)
         }
-        // "Calm" fades toward the ground: darker at night, paler by day. Labels only gain contrast.
+        // "Calm" darkens the artwork to give launcher labels more contrast.
         paint.shader = null
-        paint.color = if (night) Color.BLACK else f.c0
-        paint.alpha = max(finiteUnit(settings.darken) * if (night) 210f else 190f, (1f - awake) * 78f).toInt()
+        paint.color = Color.BLACK
+        paint.alpha = max(finiteUnit(settings.darken) * 210f, (1f - awake) * 78f).toInt()
         canvas.drawRect(0f, 0f, 1000f, h, paint)
         if (f.reveal < 1f) {
-            paint.color = if (night) Color.BLACK else f.c0
             val v = 1f - RenderKit.smooth(f.reveal)
             paint.alpha = (v * v * 255f).toInt()
             canvas.drawRect(0f, 0f, 1000f, h, paint)
@@ -150,7 +147,7 @@ class WallpaperRenderer {
 
     /** A quiet base gradient so the ground is never a flat fill. */
     private fun ground(canvas: Canvas, f: Frame) {
-        val lift = if (f.night) mix(f.c0, f.c1, 0.07f) else mix(f.c0, Color.WHITE, 0.5f)
+        val lift = mix(f.c0, f.c1, 0.07f)
         if (groundShader == null || groundColor != f.c0 || groundLift != lift || groundHeight != f.h) {
             groundColor = f.c0
             groundLift = lift
@@ -168,7 +165,7 @@ class WallpaperRenderer {
         val key = (f.c0.toLong() shl 8) + (f.h.toLong() shl 2) + if (image) 1 else 0
         if (key != veilKey || veilTop == null) {
             veilKey = key
-            val base = if (f.night) mix(f.c0, Color.BLACK, 0.4f) else f.c0
+            val base = mix(f.c0, Color.BLACK, 0.4f)
             veilTop = LinearGradient(0f, 0f, 0f, f.h * 0.33f,
                 intArrayOf(alpha(base, (LEGIBILITY_TOP * 255 * strength).toInt()), alpha(base, (LEGIBILITY_TOP * 140 * strength).toInt()), alpha(base, 0)),
                 floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)

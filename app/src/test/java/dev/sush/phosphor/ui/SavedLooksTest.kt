@@ -1,7 +1,6 @@
 package dev.sush.phosphor.ui
 
 import android.content.Context
-import dev.sush.phosphor.model.Appearance
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
 import org.junit.Assert.assertEquals
@@ -35,13 +34,13 @@ class SavedLooksTest {
     }
 
     @Test
-    fun multipleNamedPhotosRetainTheirOwnCropAndAppearanceAcrossReload() {
+    fun multipleNamedPhotosRetainTheirOwnCropAndTuningAcrossReload() {
         val photo = WallpaperSettings(presetId = "image-custom", imagePath = "/private/first.png",
-            imageFocusX = 0.2f, imageFocusY = 0.8f, appearance = Appearance.DAY)
+            imageFocusX = 0.2f, imageFocusY = 0.8f)
         val looks = listOf(
             SavedLook("a", "Left bank", photo),
             SavedLook("b", "Right bank", photo.copy(imageFocusX = 0.9f, speed = 0.1f)),
-            SavedLook("c", "Dusk", photo.copy(imagePath = "/private/second.png", appearance = Appearance.NIGHT)),
+            SavedLook("c", "Dusk", photo.copy(imagePath = "/private/second.png", darken = 0.4f)),
         )
         preferences.edit().clear().commit()
         looks.reversed().forEach { SavedLooks(preferences).save(it, WallpaperSettings()) }
@@ -59,9 +58,23 @@ class SavedLooksTest {
     fun exploreStartsWithThreeDifferentCollectionsAndKeepsTheRestOfTheCatalog() {
         val items = galleryWallpapers(false, emptyList(), WallpaperSettings(), "latest-image")
         val ids = items.map { it.preset.id }
-        assertEquals(listOf("orbit-exposure", "ascii-signal", "glass-orbit"), ids.take(3))
+        assertEquals(listOf("orbit-exposure", "ascii-signal", "glass-prism"), ids.take(3))
         assertEquals(WallpaperCatalog.presets.size, ids.size)
         assertEquals(WallpaperCatalog.presets.map { it.id }.toSet(), ids.toSet())
+    }
+
+    @Test
+    fun savedLooksWithRetiredArtworkAreHiddenWithoutRelabelingTheirSettings() {
+        preferences.edit().clear().commit()
+        val library = SavedLooks(preferences)
+        val active = WallpaperSettings()
+        val retired = SavedLook("retired", "Quiet glass", active.copy(presetId = "glass-orbit"))
+        val current = SavedLook("current", "Quiet orbits", active.copy(speed = 0.2f))
+        library.save(retired, active)
+        library.save(current, active)
+        val looks = library.load(active)
+        assertEquals(listOf(current, retired), looks)
+        assertEquals(listOf(current), galleryWallpapers(true, looks, active, null).map { it.look })
     }
 
     @Test

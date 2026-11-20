@@ -16,8 +16,7 @@ import kotlin.math.sin
  * plot, nearer lines hiding the ones behind (hidden-line removal per column). Strokes are
  * chosen by slope ( _ / \ | ), so the plot reads as ASCII art.
  *
- * Night is green phosphor with scanlines; day is the same plot from a dot-matrix printer on
- * green-bar continuous paper.
+ * Night is rose phosphor with scanlines. Day is the same plot on continuous printer paper.
  */
 internal class AsciiAfterimage(private val k: RenderKit, private val glyphs: AsciiGlyphs) {
     private val horizon = FloatArray(COLS)
@@ -26,7 +25,7 @@ internal class AsciiAfterimage(private val k: RenderKit, private val glyphs: Asc
     private val scan = FloatArray(2800)
     private val centers = FloatArray(4)
     private val heights = FloatArray(4)
-    private val widths = FloatArray(4) { i -> 34f + 30f * fraction(i * 13 + 5) }
+    private val widths = FloatArray(4) { i -> 48f + 43f * fraction(i * 13 + 5) }
 
     fun draw(canvas: Canvas, f: Frame) {
         val h = f.h
@@ -37,8 +36,8 @@ internal class AsciiAfterimage(private val k: RenderKit, private val glyphs: Asc
         val rate = 0.42f
         val phase = t * rate - floor(t * rate)
         val idBase = floor(t * rate).toInt()
-        val front = h * 0.705f + f.shiftY(0.5f)
-        val back = h * 0.29f
+        val front = h * 0.76f + f.shiftY(0.5f)
+        val back = h * 0.35f
         val spacing = (front - back) / LINES
         val sweep = (t * 260f + 590f) % 1200f - 100f
         horizon.fill(h * 2f)
@@ -62,7 +61,8 @@ internal class AsciiAfterimage(private val k: RenderKit, private val glyphs: Asc
             for (col in 0 until COLS) {
                 val x = (col - 3 + 0.5f) * CELL_W
                 xs[col] = x + shift
-                ys[col] = base - amplitude(x, id, f) * (0.35f + 0.65f * (1f - age * 0.5f))
+                val wave = sin(x * 0.009f + tau * 0.42f) * (17f + 18f * f.amount)
+                ys[col] = base + wave - amplitude(x, id, f) * (1f - age * 0.46f)
             }
             for (col in 0 until COLS) {
                 val y = ys[col]
@@ -117,13 +117,13 @@ internal class AsciiAfterimage(private val k: RenderKit, private val glyphs: Asc
     /** Pulse widths are fixed; centers and amplitudes are shared by all columns of a trace. */
     private fun preparePulses(tau: Float) {
         for (i in centers.indices) {
-            centers[i] = 500f + 210f * sin(tau * (0.21f + i * 0.07f) + i * 2.1f)
-            heights[i] = 100f + 120f * (0.5f + 0.5f * sin(tau * (0.3f + i * 0.05f) + i * 1.7f))
+            centers[i] = 140f + i * 240f + 90f * sin(tau * (0.21f + i * 0.07f) + i * 2.1f)
+            heights[i] = 78f + 124f * (0.5f + 0.5f * sin(tau * (0.3f + i * 0.05f) + i * 1.7f))
         }
     }
 
     private fun amplitude(x: Float, id: Int, f: Frame): Float {
-        val distance = (x - 500f) / 270f
+        val distance = (x - 500f) / 590f
         val env = exp(-distance * distance)
         var a = 0f
         for (i in centers.indices) {
@@ -141,13 +141,15 @@ internal class AsciiAfterimage(private val k: RenderKit, private val glyphs: Asc
         mix(f.c1, f.c2, age * 0.7f)
     }
 
-    /** Night: a dim raster of unlit glyphs and a soft phosphor glow. Day: green-bar printer paper. */
+    /** Night: a dim raster of unlit glyphs and a soft phosphor glow. Day: striped printer paper. */
     private fun background(canvas: Canvas, f: Frame, t: Float) {
         val h = f.h
         val mode = k.modeFor(f)
         if (f.night) {
-            k.glow(canvas, k.glowA, 500f, h * 0.55f, 900f, h * 0.3f, 34, mode)
-            glyphs.lattice(canvas, 0f, 0f, 1000f, h, CELL_W, CELL_H, f.shiftX(0.3f), f.shiftY(0.3f), alpha(f.c1, 18), RenderKit.Mode.ADD, k)
+            val glowY = h * 0.72f + 28f * sin(t * 0.44f) * f.amount
+            k.glow(canvas, k.glowB, 460f, h * 0.57f, 980f, h * 0.28f, 52, mode)
+            k.glow(canvas, k.glowA, 550f + f.shiftX(0.3f), glowY, 1020f, h * 0.17f, 80, mode)
+            glyphs.lattice(canvas, 0f, 0f, 1000f, h, CELL_W, CELL_H, f.shiftX(0.3f), f.shiftY(0.3f), alpha(f.c1, 12), RenderKit.Mode.ADD, k)
             // The hum bar: a soft band of brightness rolling slowly down the tube.
             val bar = ((t * 0.05f) % 1f) * h * 1.2f - h * 0.1f
             k.glow(canvas, k.glowA, 500f, bar, 1200f, 90f, 20, mode)

@@ -26,28 +26,26 @@ import kotlin.math.abs
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class WallpaperRendererTest {
     @Test
-    fun everyFamilyProducesOpaqueArtworkWithVisibleVariationInBothMoods() {
+    fun everyFamilyProducesOpaqueArtworkWithVisibleVariation() {
         val presets = WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE }
         val columns = 6
-        val sheet = Bitmap.createBitmap(columns * 2 * (WIDTH + 12) + 12, (presets.size + columns - 1) / columns * (HEIGHT + 34) + 12, Bitmap.Config.ARGB_8888)
+        val sheet = Bitmap.createBitmap(columns * (WIDTH + 12) + 12, (presets.size + columns - 1) / columns * (HEIGHT + 34) + 12, Bitmap.Config.ARGB_8888)
         sheet.eraseColor(0xFF18212C.toInt())
         val sheetCanvas = Canvas(sheet)
         val caption = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 13f }
-        for (night in listOf(true, false)) {
-            for (preset in WallpaperCatalog.presets) {
-                val bitmap = render(preset, night = night)
-                val pixels = pixels(bitmap)
-                assertTrue("${preset.id} contains transparent pixels", pixels.all { Color.alpha(it) == 255 })
-                assertTrue("${preset.id} is effectively a solid fill", pixels.toSet().size > 80)
-                val slot = presets.indexOf(preset)
-                if (slot >= 0) {
-                    val x = 12f + ((slot % columns) * 2 + if (night) 0 else 1) * (WIDTH + 12f)
-                    val y = 12f + (slot / columns) * (HEIGHT + 34f)
-                    sheetCanvas.drawBitmap(bitmap, x, y, null)
-                    if (night) sheetCanvas.drawText(preset.name, x, y + HEIGHT + 20f, caption)
-                }
-                bitmap.recycle()
+        for (preset in WallpaperCatalog.presets) {
+            val bitmap = render(preset)
+            val pixels = pixels(bitmap)
+            assertTrue("${preset.id} contains transparent pixels", pixels.all { Color.alpha(it) == 255 })
+            assertTrue("${preset.id} is effectively a solid fill", pixels.toSet().size > 80)
+            val slot = presets.indexOf(preset)
+            if (slot >= 0) {
+                val x = 12f + (slot % columns) * (WIDTH + 12f)
+                val y = 12f + (slot / columns) * (HEIGHT + 34f)
+                sheetCanvas.drawBitmap(bitmap, x, y, null)
+                sheetCanvas.drawText(preset.name, x, y + HEIGHT + 20f, caption)
             }
+            bitmap.recycle()
         }
         val report = File("build/reports/phosphor-artwork.png")
         report.parentFile?.mkdirs()
@@ -56,46 +54,43 @@ class WallpaperRendererTest {
     }
 
     /**
-     * Launcher labels are white at night and near-black by day (the wallpaper reports which).
+     * The wallpaper asks the launcher for white labels.
      * Score every label slot of a typical 4x4 grid, plus the clock and dock zones, by the share
      * of pixels where a label would meet WCAG 4.5:1. Rendered at full on-device detail.
      */
     @Test
-    fun launcherLabelsStayReadableInBothMoods() {
+    fun launcherLabelsStayReadable() {
         val failures = mutableListOf<String>()
         val report = StringBuilder()
         val w = 270
         val h = 585
         for (preset in WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE }) {
-            for (night in listOf(true, false)) {
-                for (time in listOf(0f, 12f, 31f)) {
-                    val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                    val renderer = WallpaperRenderer().apply { forcedDetail = 1f }
-                    renderer.draw(Canvas(bitmap), w, h, time, preset, WallpaperSettings(presetId = preset.id), night = night)
-                    renderer.release()
-                    val label = if (night) Color.WHITE else 0xFF1B1B1F.toInt()
-                    val mood = if (night) "night" else "day"
-                    val clock = readableShare(bitmap, label, 0.07f, 0.27f, 0f, 1f)
-                    val dock = readableShare(bitmap, label, 0.86f, 0.93f, 0f, 1f)
-                    var worst = 1f
-                    var sum = 0f
-                    for (row in 0 until 4) for (col in 0 until 4) {
-                        val y = 0.36f + row * 0.12f
-                        val x = 0.04f + col * 0.24f
-                        val share = readableShare(bitmap, label, y, y + 0.025f, x, x + 0.18f)
-                        worst = minOf(worst, share); sum += share
-                    }
-                    val mean = sum / 16f
-                    report.append("${preset.id} $mood t=$time clock=${"%.2f".format(clock)} dock=${"%.2f".format(dock)} labelsMean=${"%.2f".format(mean)} labelsWorst=${"%.2f".format(worst)}\n")
-                    val minimumSlot = when (preset.id) {
-                        "aurora-veil", "gradient-tide" -> 0.60f
-                        else -> 0.45f
-                    }
-                    if (clock < 0.9f || dock < 0.9f || mean < 0.85f || worst < minimumSlot) {
-                        failures += "${preset.id} $mood t=$time clock=$clock dock=$dock mean=$mean worst=$worst"
-                    }
-                    bitmap.recycle()
+            for (time in listOf(0f, 12f, 31f)) {
+                val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                val renderer = WallpaperRenderer().apply { forcedDetail = 1f }
+                renderer.draw(Canvas(bitmap), w, h, time, preset, WallpaperSettings(presetId = preset.id))
+                renderer.release()
+                val label = Color.WHITE
+                val clock = readableShare(bitmap, label, 0.07f, 0.27f, 0f, 1f)
+                val dock = readableShare(bitmap, label, 0.86f, 0.93f, 0f, 1f)
+                var worst = 1f
+                var sum = 0f
+                for (row in 0 until 4) for (col in 0 until 4) {
+                    val y = 0.36f + row * 0.12f
+                    val x = 0.04f + col * 0.24f
+                    val share = readableShare(bitmap, label, y, y + 0.025f, x, x + 0.18f)
+                    worst = minOf(worst, share); sum += share
                 }
+                val mean = sum / 16f
+                report.append("${preset.id} t=$time clock=${"%.2f".format(clock)} dock=${"%.2f".format(dock)} labelsMean=${"%.2f".format(mean)} labelsWorst=${"%.2f".format(worst)}\n")
+                val minimumSlot = when (preset.id) {
+                    "aurora-veil", "gradient-tide" -> 0.60f
+                    else -> 0.45f
+                }
+                if (clock < 0.9f || dock < 0.9f || mean < 0.85f || worst < minimumSlot) {
+                    failures += "${preset.id} t=$time clock=$clock dock=$dock mean=$mean worst=$worst"
+                }
+                bitmap.recycle()
             }
         }
         File("build/reports/phosphor-legibility.txt").apply { parentFile?.mkdirs() }.writeText(report.toString())
@@ -138,23 +133,21 @@ class WallpaperRendererTest {
     fun auroraAndGradientVariantsHaveDifferentCompositionsEvenWithMatchingColors() {
         for ((firstId, secondId) in listOf("aurora-veil" to "aurora-solstice", "gradient-daybreak" to "gradient-tide")) {
             val firstPreset = WallpaperCatalog.find(firstId)
-            val secondPreset = WallpaperCatalog.find(secondId).copy(colors = firstPreset.colors, dayColors = firstPreset.dayColors)
-            for (night in listOf(false, true)) {
-                val first = render(firstPreset, night = night)
-                val second = render(secondPreset, night = night)
-                try {
-                    val a = pixels(first)
-                    val b = pixels(second)
-                    // Ignore faint grain and rounding differences. Require a visible change over an area of the artwork.
-                    val different = a.indices.count { i ->
-                        maxOf(abs(Color.red(a[i]) - Color.red(b[i])), abs(Color.green(a[i]) - Color.green(b[i])),
-                            abs(Color.blue(a[i]) - Color.blue(b[i]))) >= 16
-                    }
-                    assertTrue("$firstId and $secondId share the same composition (night=$night)", different > a.size * 0.03f)
-                } finally {
-                    first.recycle()
-                    second.recycle()
+            val secondPreset = WallpaperCatalog.find(secondId).copy(colors = firstPreset.colors)
+            val first = render(firstPreset)
+            val second = render(secondPreset)
+            try {
+                val a = pixels(first)
+                val b = pixels(second)
+                // Ignore faint grain and rounding differences. Require a visible change over an area of the artwork.
+                val different = a.indices.count { i ->
+                    maxOf(abs(Color.red(a[i]) - Color.red(b[i])), abs(Color.green(a[i]) - Color.green(b[i])),
+                        abs(Color.blue(a[i]) - Color.blue(b[i]))) >= 16
                 }
+                assertTrue("$firstId and $secondId share the same composition", different > a.size * 0.03f)
+            } finally {
+                first.recycle()
+                second.recycle()
             }
         }
     }
@@ -276,14 +269,18 @@ class WallpaperRendererTest {
     fun releaseAllowsTheSameRendererToBeUsedAgain() {
         val renderer = WallpaperRenderer()
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
-        val preset = WallpaperCatalog.presets.first { it.kind == WallpaperKind.TEXTURE }
+        val canvas = Canvas(bitmap)
         try {
-            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, 12f, preset, WallpaperSettings())
-            val first = pixels(bitmap)
-            renderer.release()
-            bitmap.eraseColor(Color.TRANSPARENT)
-            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, 12f, preset, WallpaperSettings())
-            assertTrue(first.contentEquals(pixels(bitmap)))
+            for (id in listOf("texture-basalt", "orbit-first-light", "orbit-nebula")) {
+                val preset = WallpaperCatalog.find(id)
+                val settings = WallpaperSettings(presetId = id)
+                renderer.draw(canvas, WIDTH, HEIGHT, 12f, preset, settings)
+                val first = pixels(bitmap)
+                renderer.release()
+                bitmap.eraseColor(Color.TRANSPARENT)
+                renderer.draw(canvas, WIDTH, HEIGHT, 12f, preset, settings)
+                assertTrue("$id changed after release", first.contentEquals(pixels(bitmap)))
+            }
         } finally {
             renderer.release()
             bitmap.recycle()
@@ -349,32 +346,30 @@ class WallpaperRendererTest {
     }
 
     @Test
-    fun wakeAndUnlockTreatmentsCanBeDisabledIndependentlyInBothMoods() {
+    fun wakeAndUnlockTreatmentsCanBeDisabledIndependently() {
         val preset = WallpaperCatalog.find("orbit-exposure")
-        for (night in listOf(true, false)) {
-            fun frame(settings: WallpaperSettings, wake: Float = 1f, unlock: Float = 1f): Bitmap {
-                val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
-                val renderer = WallpaperRenderer()
-                try {
-                    renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, 12f, preset, settings,
-                        night = night, reveal = wake, unlockReveal = unlock)
-                } finally {
-                    renderer.release()
-                }
-                return bitmap
+        fun frame(settings: WallpaperSettings, wake: Float = 1f, unlock: Float = 1f): Bitmap {
+            val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+            val renderer = WallpaperRenderer()
+            try {
+                renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, 12f, preset, settings,
+                    reveal = wake, unlockReveal = unlock)
+            } finally {
+                renderer.release()
             }
-            val settings = WallpaperSettings(presetId = preset.id)
-            val awake = frame(settings)
-            val wakeDisabled = frame(settings.copy(wakeReveal = false), wake = 0f)
-            val unlockDisabled = frame(settings.copy(unlockAnimation = false), unlock = 0f)
-            val waking = frame(settings.copy(unlockAnimation = false), wake = 0.2f)
-            val locked = frame(settings.copy(wakeReveal = false), unlock = 0f)
-            assertTrue(awake.sameAs(wakeDisabled))
-            assertTrue(awake.sameAs(unlockDisabled))
-            assertFalse(awake.sameAs(waking))
-            assertFalse(awake.sameAs(locked))
-            listOf(awake, wakeDisabled, unlockDisabled, waking, locked).forEach { it.recycle() }
+            return bitmap
         }
+        val settings = WallpaperSettings(presetId = preset.id)
+        val awake = frame(settings)
+        val wakeDisabled = frame(settings.copy(wakeReveal = false), wake = 0f)
+        val unlockDisabled = frame(settings.copy(unlockAnimation = false), unlock = 0f)
+        val waking = frame(settings.copy(unlockAnimation = false), wake = 0.2f)
+        val locked = frame(settings.copy(wakeReveal = false), unlock = 0f)
+        assertTrue(awake.sameAs(wakeDisabled))
+        assertTrue(awake.sameAs(unlockDisabled))
+        assertFalse(awake.sameAs(waking))
+        assertFalse(awake.sameAs(locked))
+        listOf(awake, wakeDisabled, unlockDisabled, waking, locked).forEach { it.recycle() }
     }
 
     private fun render(
@@ -383,13 +378,12 @@ class WallpaperRendererTest {
         time: Float = 12f,
         offsetX: Float = 0f,
         offsetY: Float = 0f,
-        night: Boolean = true,
         reveal: Float = 1f,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val renderer = WallpaperRenderer()
         try {
-            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY, night = night, unlockReveal = reveal)
+            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY, unlockReveal = reveal)
         } finally {
             renderer.release()
         }

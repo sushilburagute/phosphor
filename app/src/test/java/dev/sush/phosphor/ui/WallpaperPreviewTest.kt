@@ -52,14 +52,14 @@ class WallpaperPreviewTest {
         assertNotSame(first, changed)
         assertFalse(first.isRecycled)
 
-        view.update(preset, WallpaperSettings(darken = 0.8f), false, night = false, cacheStill = true)
+        view.update(WallpaperCatalog.find("ascii-signal"), WallpaperSettings(darken = 0.8f), false, cacheStill = true)
         view.draw(canvas)
-        val day = checkNotNull(canvas.drawnBitmap)
-        assertNotSame(changed, day)
+        val differentPreset = checkNotNull(canvas.drawnBitmap)
+        assertNotSame(changed, differentPreset)
 
         view.layout(0, 0, 360, 180)
         view.draw(canvas)
-        assertNotSame(day, canvas.drawnBitmap)
+        assertNotSame(differentPreset, canvas.drawnBitmap)
         assertEquals(360, canvas.drawnBitmap!!.width)
         assertEquals(180, canvas.drawnBitmap!!.height)
     }

@@ -85,8 +85,23 @@ internal class AuroraLand(private val k: RenderKit) {
         val h = f.h
         val mode = k.modeFor(f)
         val reveal = smooth(f.reveal)
-        k.glow(canvas, k.glowB, 520f, h * 0.32f, 900f, h * 0.2f, ((if (f.night) 34 else 26) * reveal).toInt(), mode)
-        k.glow(canvas, k.glowA, 480f, h * 0.55f, 900f, h * 0.06f, ((if (f.night) 30 else 20) * reveal).toInt(), mode)
+        // A wide, angled wash gives the thin rays a softer light to emerge from.
+        val wash = canvas.save()
+        val cx = 510f + sin(f.sky * 0.33f) * 110f * f.amount + f.shiftX(0.28f)
+        val cy = h * (if (solstice) 0.52f else 0.40f) + f.shiftY(0.34f)
+        canvas.translate(cx, cy)
+        canvas.rotate((if (solstice) -31f else 25f) + sin(f.sky * 0.22f) * 5f * f.amount)
+        val washOpacity = when {
+            !f.night -> 0.66f
+            solstice -> 0.85f
+            else -> 0.61f
+        }
+        val strength = reveal * washOpacity * (0.6f + f.amount * 0.4f)
+        k.glow(canvas, k.glowB, -165f, -135f, 980f, h * 0.22f, (120 * strength).toInt(), mode)
+        k.glow(canvas, k.glowA, 130f, 12f, 1000f, h * 0.14f, (135 * strength).toInt(), mode)
+        k.glow(canvas, if (solstice) k.glowA else k.glowB, -120f, 182f, 870f, h * 0.10f,
+            (84 * strength).toInt(), mode)
+        canvas.restoreToCount(wash)
         if (solstice) {
             // Amber light spreads below the sun and behind the ridges.
             k.glow(canvas, k.glowB, sunX, h * 0.68f, 1100f, h * 0.07f, if (f.night) 170 else 110, mode)

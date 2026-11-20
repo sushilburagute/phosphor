@@ -11,7 +11,7 @@ Paths below are relative to [`app/src/main/java/dev/sush/phosphor/`](../app/src/
 | Area | Entry points and responsibility |
 | --- | --- |
 | App entry | [`MainActivity.kt`](../app/src/main/java/dev/sush/phosphor/MainActivity.kt) hosts the Compose app. |
-| Models | [`model/WallpaperModels.kt`](../app/src/main/java/dev/sush/phosphor/model/WallpaperModels.kt) defines settings, day/night appearance, scene families, and the preset catalog. |
+| Models | [`model/WallpaperModels.kt`](../app/src/main/java/dev/sush/phosphor/model/WallpaperModels.kt) defines settings, scene families, and the dark preset catalog. |
 | App flow | [`ui/PhosphorApp.kt`](../app/src/main/java/dev/sush/phosphor/ui/PhosphorApp.kt) coordinates navigation, favorites, drafts, and document/system picker results. |
 | Screens | `ui/Gallery.kt`, `ui/Editor.kt`, and `ui/SettingsScreen.kt` provide browsing, editing, and app preferences. |
 | Preview | [`ui/WallpaperPreview.kt`](../app/src/main/java/dev/sush/phosphor/ui/WallpaperPreview.kt) hosts animated Canvas previews and cached gallery stills. |
@@ -30,13 +30,13 @@ Other useful locations are [`app/src/test/`](../app/src/test) for JVM tests, [`a
 
 The normal apply flow is:
 
-1. Selecting a catalog preset creates a draft based on the active settings. Selecting a saved look restores its snapshot. Editor changes are saved under the `preview` key in the `phosphor` preferences. The gallery's day/night preview is separate from applied appearance.
+1. Selecting a catalog preset creates a draft based on the active settings. Selecting a saved look restores its snapshot. Editor changes are saved under the `preview` key in the `phosphor` preferences.
 2. The app preview and an Android engine with `isPreview == true` read the draft. Active engines read the `active` key.
 3. **Set live wallpaper** saves the draft and opens Android's direct preview, with a general live-wallpaper chooser fallback.
 4. On API 36, the engine's `onApplyWallpaper` commits the draft. The app also commits a successful direct picker result; a picker without a reliable result leaves a manual confirmation path.
 5. A settings listener reloads the appropriate snapshot and refreshes rendering/colors. Canceling without confirmation leaves active settings intact.
 
-`SettingsStore` encodes and decodes settings, including bounded image focus coordinates. `ui/SavedLooks.kt` uses the same codec for named snapshots and migrates legacy favorite IDs on first load. Saved looks, app theme, dynamic color, and the latest import live in `phosphor_ui`.
+`SettingsStore` encodes and decodes settings, including bounded image focus coordinates. Active and draft settings with a retired preset ID render Long exposure with the existing tuning. `ui/SavedLooks.kt` uses the same codec for named snapshots and migrates legacy favorite IDs on first load. Saved looks retain their original preset IDs, and the gallery skips looks whose artwork is unavailable. Saved looks, app theme, dynamic color, and the latest import live in `phosphor_ui`.
 
 ## Shared rendering and ownership
 
@@ -57,11 +57,11 @@ The editor uses an animated view. Gallery tiles cache a still bitmap, invalidati
 - `LiveRenderQuality` measures draw and post time for visible, continuously animated service frames. Repeated budget misses reduce scene density. Sustained spare capacity restores detail one step at a time. Gallery tiles, editor previews and still exports use their normal resolution-based detail.
 - Preview views cancel callbacks and unregister observers when no longer visible. Engine destruction removes listeners, observers, broadcasts, callbacks, and renderer resources.
 
-`PowerPolicy.kt` also contains the `Appearance.isNight` resolver and a separate frame-budget helper. For changes to current live/editor scheduling, start with the actual `WallpaperPowerPolicy` call sites.
+`PowerPolicy.kt` provides a separate frame-budget helper. The live service and editor preview use `WallpaperPowerPolicy`.
 
 ## Wallpaper colors and local data
 
-The service caches `WallpaperColors` from a representative render. Artwork, image, intensity, dimming, or appearance changes invalidate it; animation frames do not continually change the phone's palette. The OS and launcher choose how to consume those colors and hints. See [Android compatibility](ANDROID_COMPATIBILITY.md).
+The service caches `WallpaperColors` from a representative render. Changes to artwork, image, framing, intensity, or dimming invalidate it. The OS and launcher choose how to use those colors and hints. [Android compatibility](ANDROID_COMPATIBILITY.md)
 
 Imports are sampled to bound image dimensions, corrected for EXIF orientation, and copied as PNGs into private `files/wallpapers/`. Cleanup retains paths referenced by the current import, applied wallpaper, draft, or any saved look. Exports go to the destination selected through the document picker.
 

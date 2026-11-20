@@ -46,18 +46,17 @@ def feature_graphic():
     canvas = Image.composite(Image.new("RGB", (1024, 500), (3, 6, 15)), canvas, shade)
     d = ImageDraw.Draw(canvas)
     d.text((56, 150), "Phosphor", font=font(118, 640, 96, 82), fill=(233, 236, 246))
-    d.text((60, 290), "Living light for your home screen.", font=font(30, 420, 24, 100), fill=(165, 172, 198))
-    d.text((60, 334), "Glows at night. Prints in ink by day.", font=font(30, 420, 24, 100), fill=(165, 172, 198))
+    d.text((60, 334), "Dark wallpapers drawn on your phone.", font=font(30, 420, 24, 100), fill=(165, 172, 198))
     d.line([(62, 404), (122, 404)], fill=(255, 106, 58), width=3)
     canvas.save(os.path.join(OUT, "feature-graphic-1024x500.jpg"), quality=92)
 
 
 def screenshots():
     picks = [
-        ("orbit-exposure-night", PREVIEWS), ("orbit-exposure-day", PREVIEWS),
+        ("orbit-exposure-night", PREVIEWS), ("abstract-ribbon-night", PREVIEWS),
         ("orbit-threshold-night", PREVIEWS), ("aurora-veil-night", PREVIEWS),
-        ("glass-prism-day", PREVIEWS), ("ascii-signal-night", PREVIEWS),
-        ("gallery-night", SCREENS), ("gallery-day", SCREENS), ("editor-home-night", SCREENS),
+        ("glass-prism-night", PREVIEWS), ("ascii-signal-night", PREVIEWS),
+        ("gallery-night", SCREENS), ("gallery-light", SCREENS), ("editor-home-night", SCREENS),
     ]
     for index, (name, folder) in enumerate(picks, 1):
         path = os.path.join(folder, name + ".png")

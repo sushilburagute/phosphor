@@ -16,7 +16,7 @@ internal class OrbitThreshold(private val orbit: OrbitKit) {
 
     fun draw(canvas: Canvas, f: Frame) {
         val h = f.h
-        val horizon = h * 0.79f
+        val horizon = h * 0.815f
         val reveal = smooth(f.reveal)
         orbit.stars(canvas, f, 260, 0f, horizon - h * 0.25f, 0.2f)
 
@@ -26,15 +26,17 @@ internal class OrbitThreshold(private val orbit: OrbitKit) {
         val sky = canvas.save()
         canvas.clipRect(-50f, -50f, 1050f, horizon)
         if (f.night) {
-            k.glow(canvas, k.glowA, 500f, horizon, 820f, h * 0.26f, (95 * reveal).toInt(), RenderKit.Mode.SCREEN)
-            k.glow(canvas, k.glowWhite, 500f, horizon, 380f, h * 0.06f, (150 * reveal).toInt(), RenderKit.Mode.SCREEN)
+            k.glow(canvas, k.glowA, 500f, horizon, 960f, h * 0.17f, (133 * reveal).toInt(), RenderKit.Mode.SCREEN)
+            k.glow(canvas, k.glowA, 60f, horizon, 360f, h * 0.11f, (134 * reveal).toInt(), RenderKit.Mode.SCREEN)
+            k.glow(canvas, k.glowA, 940f, horizon, 360f, h * 0.11f, (134 * reveal).toInt(), RenderKit.Mode.SCREEN)
+            k.glow(canvas, k.glowWhite, 500f, horizon, 990f, h * 0.045f, (206 * reveal).toInt(), RenderKit.Mode.SCREEN)
         } else {
             k.glow(canvas, k.glowA, 500f, horizon, 820f, h * 0.28f, (90 * reveal).toInt(), RenderKit.Mode.INK)
         }
         canvas.restoreToCount(sky)
         if (f.night) k.glow(canvas, k.glowA, 500f, horizon, 700f, h * 0.035f, (60 * reveal).toInt(), RenderKit.Mode.SCREEN)
 
-        // Concentric arcs rise from a small opening. Bright packets travel outwards in waves.
+        // The upper halves of the rings rise out of the horizon. Light packets travel around them.
         val skyClip = canvas.save()
         canvas.clipRect(0f, 0f, 1000f, horizon)
         val rings = (36 * (0.6f + f.detail * 0.4f)).toInt()
@@ -44,15 +46,15 @@ internal class OrbitThreshold(private val orbit: OrbitKit) {
         val travel = (f.t * 0.14f) % 1f
         for (ring in 0 until rings) {
             val q = (ring + travel) / rings
-            val size = q * q
-            val rx = 66f + size * 1140f
-            val ry = h * (0.039f + size * 0.46f)
-            val cy = horizon - h * (0.11f + q * 0.12f) + f.shiftY(0.3f + q)
+            val size = q.pow(1.25f)
+            val rx = 150f + size * 1330f
+            val ry = h * (0.025f + size * 0.44f)
+            val cy = horizon + h * (0.03f + q * 0.09f) + f.shiftY(0.3f + q)
             val center = cx + f.shiftX(0.3f + q * 1.2f)
             val dots = (32 + rx * f.detail * 0.38f).toInt()
             val start = f.t * (0.08f + q * 0.08f)
             val step = 2f * PI.toFloat() / dots
-            val fade = smooth(q * 7f) * smooth((1f - q) * 6f)
+            val fade = smooth(q * 8f) * smooth((1f - q) * 8f) * (1f - q * 0.48f)
             val beacon = f.t * 0.72f - q * 6.3f
             var n = 0
             var hot = 0
@@ -73,7 +75,7 @@ internal class OrbitThreshold(private val orbit: OrbitKit) {
                     n++
                 }
             }
-            p.strokeWidth = (2.1f + q * 2.7f) * (1.5f - f.detail * 0.5f)
+            p.strokeWidth = (1.25f + q * 2.4f) * (1.5f - f.detail * 0.5f)
             p.color = f.c1
             p.alpha = ((if (f.night) 160f else 126f) * reveal * fade).toInt()
             canvas.drawPoints(points, 0, n * 2, p)
@@ -85,10 +87,10 @@ internal class OrbitThreshold(private val orbit: OrbitKit) {
         canvas.restoreToCount(skyClip)
         k.reset(p)
 
-        orbit.horizonLine(canvas, f, horizon, reveal, 0.85f)
+        orbit.horizonLine(canvas, f, horizon, reveal, 1f)
         floor(canvas, f, horizon)
         val stride = sin(f.t * 3.1f) * if (f.amount > 0f && f.t != 0f) 1f else 0f
-        k.figure(canvas, 500f + f.shiftX(1f), horizon + 1f, 28f,
+        k.figure(canvas, 500f + f.shiftX(1f), horizon + 1f, 38f,
             if (f.night) 0xFF000000.toInt() else alpha(f.c1, 240), stride)
     }
 

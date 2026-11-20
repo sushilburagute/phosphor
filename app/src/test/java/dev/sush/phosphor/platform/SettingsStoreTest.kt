@@ -29,7 +29,7 @@ class SettingsStoreTest {
     @Test
     fun canceledPreviewDoesNotChangeActiveWallpaperEvenAcrossStoreInstances() {
         val active = WallpaperSettings(presetId = "aurora-veil", intensity = 0.3f)
-        val draft = active.copy(presetId = "different-wallpaper", intensity = 0.9f, imagePath = "/private/art.jpg")
+        val draft = active.copy(presetId = "image-custom", intensity = 0.9f, imagePath = "/private/art.jpg")
         store.save(active)
         store.savePreview(draft)
 
@@ -43,9 +43,9 @@ class SettingsStoreTest {
     @Test
     fun confirmingPreviewPromotesWholeDraftAndPersistsIt() {
         val draft = WallpaperSettings(
-            presetId = "photo", speed = 0.2f, intensity = 0.4f, parallax = false,
+            presetId = "image-custom", speed = 0.2f, intensity = 0.4f, parallax = false,
             fps = 24, darken = 0.25f, imagePath = "/private/photo.png", imageFocusX = 0.15f, imageFocusY = 0.72f, reducedMotion = true,
-            appearance = dev.sush.phosphor.model.Appearance.DAY, wakeReveal = false, lowBatteryMode = false, unlockAnimation = false,
+            wakeReveal = false, lowBatteryMode = false, unlockAnimation = false,
         )
         store.savePreview(draft)
         store.commitPreview()
@@ -67,6 +67,19 @@ class SettingsStoreTest {
         assertEquals(0.5f, settings.imageFocusY)
         assertEquals(true, settings.lowBatteryMode)
         assertEquals(true, settings.unlockAnimation)
+    }
+
+    @Test
+    fun retiredPresetsUseTheDefaultArtworkAndKeepTuningOnUpgrade() {
+        val preferences = context.getSharedPreferences("phosphor", Context.MODE_PRIVATE)
+        for (retired in listOf("glass-orbit", "texture-dune", "ascii-terminal")) {
+            preferences.edit()
+                .putString("active", """{"presetId":"$retired","appearance":"DAY","speed":0.25}""")
+                .putString("preview", """{"presetId":"$retired","appearance":"AUTO","intensity":0.75}""")
+                .commit()
+            assertEquals(WallpaperSettings(speed = 0.25f), store.load())
+            assertEquals(WallpaperSettings(intensity = 0.75f), store.loadPreview())
+        }
     }
 
     @Test

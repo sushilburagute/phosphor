@@ -20,7 +20,7 @@ import java.io.FileOutputStream
  *
  * - PHOSPHOR_PREVIEW_ONLY: a preset id prefix, to render a subset.
  * - PHOSPHOR_PREVIEW_TIMES: comma-separated animation times; extra times are saved as
- *   `<id>-<mood>-t<time>.png`. The first time (default 12) is the plain `<id>-<mood>.png`.
+ *   `<id>-night-t<time>.png`. The first time (default 12) is the plain `<id>-night.png`.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -34,13 +34,10 @@ class ArtworkPreviewTest {
             .mapNotNull { it.trim().toFloatOrNull()?.takeIf(Float::isFinite) }.distinct().ifEmpty { listOf(12f) }
         val directory = File("build/reports/previews").apply { mkdirs() }
         for (preset in WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE && it.id.startsWith(only) }) {
-            for (night in listOf(true, false)) {
-                val mood = if (night) "night" else "day"
-                for ((index, time) in times.withIndex()) {
-                    val stamp = time.toString().removeSuffix(".0")
-                    save(directory, if (index == 0) "${preset.id}-$mood" else "${preset.id}-$mood-t$stamp") { canvas, renderer ->
-                        renderer.draw(canvas, W, H, time, preset, WallpaperSettings(presetId = preset.id), night = night)
-                    }
+            for ((index, time) in times.withIndex()) {
+                val stamp = time.toString().removeSuffix(".0")
+                save(directory, if (index == 0) "${preset.id}-night" else "${preset.id}-night-t$stamp") { canvas, renderer ->
+                    renderer.draw(canvas, W, H, time, preset, WallpaperSettings(presetId = preset.id))
                 }
             }
         }

@@ -29,9 +29,8 @@ import dev.sush.phosphor.R
 /**
  * Phosphor design tokens.
  *
- * Concept: night is light, day is ink. The fallback palette borrows from the artwork's two
- * treatments: deep sky with a pale phosphor blue at night; cool paper with ultramarine ink by
- * day. Ember is reserved for one meaning: "live on your phone."
+ * The app pairs deep sky with pale phosphor blue in dark mode and cool paper with ultramarine
+ * in light mode. Ember marks the wallpaper currently live on the phone.
  */
 object Palette {
     // Night
@@ -56,7 +55,7 @@ object Palette {
 
     // Shared accent: the horizon line.
     val Ember = Color(0xFFFF6A3A)
-    val EmberInk = Color(0xFFD5482A)
+    val EmberInk = Color(0xFFB83C24)
 }
 
 private val NightScheme = darkColorScheme(
@@ -189,12 +188,8 @@ data class Spacing(
 object Motion {
     /** Emphasized decelerate: things arrive quickly and settle. */
     val Arrive = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
-    /** Standard: for state changes in place. */
-    val Shift = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     const val QUICK = 160
     const val CALM = 320
-    /** The day/night crossfade is the app's one orchestrated moment. */
-    const val MOOD = 520
 }
 
 val LocalSpacing = staticCompositionLocalOf { Spacing() }

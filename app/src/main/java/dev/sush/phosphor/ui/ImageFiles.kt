@@ -66,12 +66,12 @@ internal fun deletePrivateImport(context: Context, path: String) {
     if (file.canonicalFile.parentFile == root && file.name.startsWith("import-") && file.extension == "png") file.delete()
 }
 
-/** Export a still in the same treatment (day or night) the person is looking at. */
-internal fun exportFrame(context: Context, uri: Uri, settings: WallpaperSettings, night: Boolean = true) {
+/** Export a still with the current wallpaper settings. */
+internal fun exportFrame(context: Context, uri: Uri, settings: WallpaperSettings) {
     val bitmap = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
     val renderer = WallpaperRenderer()
     try {
-        renderer.draw(Canvas(bitmap), bitmap.width, bitmap.height, 12f, WallpaperCatalog.find(settings.presetId), settings, night = night)
+        renderer.draw(Canvas(bitmap), bitmap.width, bitmap.height, 12f, WallpaperCatalog.find(settings.presetId), settings)
         context.contentResolver.openOutputStream(uri, "w")?.use { if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) throw IOException("Cannot encode frame") } ?: throw IOException("Cannot write destination")
     } finally { renderer.release(); bitmap.recycle() }
 }

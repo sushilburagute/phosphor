@@ -63,7 +63,6 @@ import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.platform.SettingsStore
 import dev.sush.phosphor.platform.WallpaperActions
-import dev.sush.phosphor.platform.isNight
 import dev.sush.phosphor.ui.theme.Motion
 import dev.sush.phosphor.ui.theme.PhosphorTheme
 import kotlinx.coroutines.Dispatchers
@@ -88,8 +87,6 @@ fun PhosphorApp() {
     var dynamic by rememberSaveable { mutableStateOf(prefs.getBoolean("dynamic", false)) }
     val systemNight = isSystemInDarkTheme()
     val dark = when (theme) { "Dark" -> true; "Light" -> false; else -> systemNight }
-    // The gallery's day/night switch starts on whatever the wallpaper would show right now.
-    var galleryMood by rememberSaveable { mutableStateOf<Boolean?>(null) }
     SideEffect {
         (context as? Activity)?.window?.let { window ->
             WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -104,14 +101,13 @@ fun PhosphorApp() {
     val library = remember { SavedLooks(prefs) }
     var looks by remember { mutableStateOf(library.load(store.load())) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    val editorId = selectedId?.takeIf { id -> WallpaperCatalog.presets.any { it.id == id } }
     var editedLookId by rememberSaveable { mutableStateOf<String?>(null) }
-    var previewNightOverride by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var savingLook by rememberSaveable { mutableStateOf(false) }
     var lookName by rememberSaveable { mutableStateOf("") }
     var removeId by rememberSaveable { mutableStateOf<String?>(null) }
     var draft by remember { mutableStateOf(store.loadPreview()) }
     var active by remember { mutableStateOf(store.load()) }
-    val galleryNight = galleryMood ?: active.appearance.isNight(systemNight)
     var live by remember { mutableStateOf(isPhosphorLive(context)) }
     var importedPath by remember { mutableStateOf(prefs.getString("image_path", null)) }
     var busy by remember { mutableStateOf(false) }
@@ -121,12 +117,11 @@ fun PhosphorApp() {
     val snackbar = remember { SnackbarHostState() }
 
     fun message(text: String) { scope.launch { snackbar.showSnackbar(text) } }
-    fun edit(entry: GalleryWallpaper, previewNight: Boolean) {
+    fun edit(entry: GalleryWallpaper) {
         draft = entry.settings
         store.savePreview(draft)
         selectedId = entry.preset.id
         editedLookId = entry.look?.id
-        previewNightOverride = previewNight
         uncertainApply = false
     }
 
@@ -182,7 +177,7 @@ fun PhosphorApp() {
                 importedPath = path
                 prefs.edit().putString("image_path", path).apply()
                 val preset = WallpaperCatalog.find("image-custom")
-                edit(GalleryWallpaper(preset, active.forPreset(preset, path), null), galleryNight)
+                edit(GalleryWallpaper(preset, active.forPreset(preset, path), null))
                 val keep = keptImages()
                 withContext(Dispatchers.IO) { cleanOldImports(context, keep) }
             } catch (_: Exception) { message("This image couldn’t be opened. Choose a JPEG, PNG or WebP file.") }
@@ -193,29 +188,28 @@ fun PhosphorApp() {
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
         if (uri != null) {
             val snapshot = draft
-            val night = previewNightOverride ?: snapshot.appearance.isNight(systemNight)
             scope.launch {
                 busy = true
                 try {
-                    withContext(Dispatchers.IO) { exportFrame(context, uri, snapshot, night) }
+                    withContext(Dispatchers.IO) { exportFrame(context, uri, snapshot) }
                     message("Still image saved")
                 } catch (_: Exception) { message("The image couldn’t be saved there. Try another folder.") }
                 finally { busy = false }
             }
         }
     }
-    BackHandler(selectedId != null) { selectedId = null; uncertainApply = false }
+    BackHandler(editorId != null) { selectedId = null; uncertainApply = false }
 
     val savedScreens = rememberSaveableStateHolder()
     val motionEnabled = !draft.reducedMotion && !active.reducedMotion
     PhosphorTheme(night = dark, dynamic = dynamic) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val rail = maxWidth >= 600.dp && maxHeight >= 480.dp && selectedId == null
+            val rail = maxWidth >= 600.dp && maxHeight >= 480.dp && editorId == null
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbar) },
                 containerColor = MaterialTheme.colorScheme.background,
                 bottomBar = {
-                    if (selectedId == null && !rail) NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+                    if (editorId == null && !rail) NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Page.entries.forEach { item ->
                             NavigationBarItem(
                                 selected = page == item, onClick = { page = item },
@@ -237,7 +231,7 @@ fun PhosphorApp() {
                     }
                     Box(Modifier.weight(1f).fillMaxSize()) {
                         AnimatedContent(
-                            targetState = selectedId ?: page.name,
+                            targetState = editorId ?: page.name,
                             transitionSpec = {
                                 val duration = if (motionEnabled) Motion.CALM else 0
                                 val quick = if (motionEnabled) Motion.QUICK else 0
@@ -256,15 +250,12 @@ fun PhosphorApp() {
                                 when {
                                     shown != null -> Editor(
                                         shown, draft, uncertainApply,
-                                        night = previewNightOverride ?: draft.appearance.isNight(systemNight),
-                                        appliedNight = draft.appearance.isNight(systemNight),
                                         title = looks.firstOrNull { it.id == editedLookId }?.name ?: shown.name,
                                         onBack = { selectedId = null; uncertainApply = false },
                                         onSaveLook = {
                                             lookName = looks.firstOrNull { it.id == editedLookId }?.name ?: shown.name
                                             savingLook = true
                                         },
-                                        onUseAppliedAppearance = { previewNightOverride = null },
                                         onChange = { draft = it; store.savePreview(it) },
                                         onApply = {
                                             store.savePreview(draft)
@@ -294,12 +285,10 @@ fun PhosphorApp() {
                                         val available = remember(saved, looks, active, importedPath) {
                                             galleryWallpapers(saved, looks, active, importedPath)
                                         }
-                                        val displayed = available.filter { category == "All" || it.preset.kind.label() == category }
                                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                                             Gallery(
-                                                saved, category, displayed, looks,
+                                                saved, category, available, looks,
                                                 liveSettings = active.takeIf { live },
-                                                night = galleryNight, onNight = { galleryMood = it },
                                                 onCategory = { if (saved) savedCategory = it else exploreCategory = it }, onSelect = ::edit, onFavorite = ::favorite,
                                                 onImport = { importLauncher.launch(arrayOf("image/*")) },
                                                 onExplore = { page = Page.Explore; exploreCategory = "All" },
@@ -370,7 +359,7 @@ fun PhosphorApp() {
             title = { Text("Match your phone’s colors") },
             text = {
                 Text(
-                    "Phosphor tells Android its colors, and whether it’s showing day or night, so your launcher can choose readable labels.\n\n" +
+                    "Phosphor shares its wallpaper colors with Android and asks your launcher to use light labels.\n\n" +
                         "On Pixel, choose colors in Wallpaper & style. On Samsung, open Wallpaper and style, then Color palette.\n\n" +
                         "Some phones ignore live wallpaper colors. If yours does, save a still image, set it as a photo wallpaper, choose its palette, then set Phosphor again.",
                 )

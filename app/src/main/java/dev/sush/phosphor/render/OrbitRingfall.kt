@@ -21,12 +21,12 @@ internal class OrbitRingfall(private val orbit: OrbitKit) {
         val h = f.h
         val reveal = smooth(f.reveal)
         orbit.stars(canvas, f, 200, 0f, h, 0.2f)
-        val cx = 420f + f.shiftX(0.7f)
-        val cy = h * 0.47f + f.shiftY(0.6f)
-        val radius = 300f
-        val tilt = -24f + sin(f.t * 0.22f) * 10f * f.amount
-        val flat = 0.63f + cos(f.t * 0.25f) * 0.13f * f.amount
-        orbit.trails(canvas, f, cx, cy, flat, tilt, (1500 * f.detail).toInt(), 53, 0.9f, 1500f)
+        val cx = 72f + sin(f.t * 0.17f) * 38f * f.amount + f.shiftX(0.7f)
+        val cy = h * 0.554f + f.shiftY(0.6f)
+        val radius = 526f
+        val tilt = 31f + sin(f.t * 0.22f) * 7f * f.amount
+        val flat = 0.78f + cos(f.t * 0.25f) * 0.09f * f.amount
+        orbit.trails(canvas, f, cx - 46f, cy - 28f, flat, tilt, (1500 * f.detail).toInt(), 53, 0.65f, 1470f)
 
         // The planet itself: an occluding disc of ground with a faintly lit face.
         val p = k.fill
@@ -39,13 +39,13 @@ internal class OrbitRingfall(private val orbit: OrbitKit) {
 
         // The burning rim: layered arcs from wide haze to a white-hot core.
         val flare = (0.5f + 0.5f * sin(f.t * 0.45f)) * f.amount * 0.5f
-        val sweep = 150f * (0.2f + reveal * 0.8f)
-        val start = -70f + (150f - sweep) / 2f
+        val sweep = 171f * (0.2f + reveal * 0.8f)
+        val start = -96f + (171f - sweep) / 2f
         k.rect.set(cx - radius, cy - radius, cx + radius, cy + radius)
         val s = k.stroke
         k.additive(s, f.night)
         val layers = if (f.night) arrayOf(
-            Triple(f.c1, 42f, 26), Triple(f.c2, 20f, 70), Triple(f.c2, 9f, 150), Triple(mix(f.c2, Color.WHITE, 0.55f), 4f, 210), Triple(Color.WHITE, 1.8f, 255),
+            Triple(f.c1, 76f, 32), Triple(f.c1, 35f, 63), Triple(f.c2, 16f, 105), Triple(mix(f.c2, Color.WHITE, 0.55f), 6f, 195), Triple(Color.WHITE, 2.8f, 255),
         ) else arrayOf(
             Triple(f.c2, 16f, 50), Triple(f.c2, 5f, 150), Triple(f.c1, 1.6f, 200),
         )
@@ -59,13 +59,14 @@ internal class OrbitRingfall(private val orbit: OrbitKit) {
 
         // A small moon crosses in front of the planet and its bright rings.
         val transit = f.t * 0.23f + 0.7f
-        val moonX = cx + sin(transit) * 405f + f.shiftX(1f)
-        val moonY = cy + cos(transit) * 84f - sin(transit) * 140f + f.shiftY(0.7f)
+        val moonX = cx + radius + 78f + sin(transit) * 123f + f.shiftX(1f)
+        val moonY = cy - 182f + cos(transit) * 84f - sin(transit) * 55f + f.shiftY(0.7f)
         p.color = if (f.night) mix(f.c0, Color.BLACK, 0.5f) else f.c0
-        canvas.drawCircle(moonX, moonY, 31f, p)
+        val moonRadius = 19f
+        canvas.drawCircle(moonX, moonY, moonRadius, p)
         s.color = if (f.night) mix(f.c2, Color.WHITE, 0.5f) else f.c2
-        s.strokeWidth = 3.6f
-        k.rect.set(moonX - 31f, moonY - 31f, moonX + 31f, moonY + 31f)
+        s.strokeWidth = 2.2f
+        k.rect.set(moonX - moonRadius, moonY - moonRadius, moonX + moonRadius, moonY + moonRadius)
         canvas.drawArc(k.rect, -82f, 142f, false, s)
 
         val horizon = h * 0.84f

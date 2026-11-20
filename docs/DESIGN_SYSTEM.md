@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Design decisions](DESIGN_PRINCIPLES.md) · [Contributing](../CONTRIBUTING.md)
 
-**Night is light, day is ink.** Every wallpaper is one scene with two physical treatments. At night it is emitted light on a deep ground, drawn additively so overlapping strokes build up like a long exposure. By day it is the same scene overprinted in two inks on cool paper, with a slight misregistration, like a risograph print. The app chrome borrows the same two materials.
+Phosphor's wallpapers layer emitted light over dark grounds. The app uses deep sky in its dark theme and cool paper in its light theme.
 
 Tokens live in `app/src/main/java/dev/sush/phosphor/ui/theme/PhosphorTheme.kt`; window and splash colors are mirrored in `res/values/colors.xml`.
 
@@ -15,7 +15,7 @@ Tokens live in `app/src/main/java/dev/sush/phosphor/ui/theme/PhosphorTheme.kt`; 
 | Text | Starlight `#E9ECF6` | Ink `#12141C` | Primary text |
 | Quiet text | Haze `#A5ACC6` | `#4A5068` | Secondary text |
 | Primary | Phosphor `#A9C0FF` | Ultramarine `#2742B8` | Actions, selection, icons in headings |
-| Ember | `#FF6A3A` | `#D5482A` | **Only** "live on your phone", the brand horizon, and a saved heart |
+| Ember | `#FF6A3A` | `#B83C24` | Active wallpaper status and the brand horizon |
 
 Selection containers (chips, navigation indicator, toggles) stay in the blue family so ember remains limited to those accents. "Use your phone's colors" swaps in Material You on Android 12+; Phosphor's palette is the default.
 
@@ -34,16 +34,14 @@ The scale steps by about 1.25 from a 16 sp body. Numbers in readouts use tabular
 
 ## Shape and space
 
-Radius follows hierarchy: phone-shaped plates 30 dp (they mimic a device), large controls 22 dp, controls 16 dp, small marks 6–10 dp. Plates use a 1:2 ratio so wallpapers are judged at the proportions they're used at. Spacing is a 4 dp grid; screen gutters are 20 dp. Sections are separated by space and a heading with an icon, not boxed cards.
+Explore and Saved use compact Material 3 app bars and an adaptive grid with 16 dp gutters and 12 dp tile spacing. Gallery thumbnails use 16 dp corners and a 1:2 ratio to preserve the wallpaper framing. Each tile pairs the artwork with its title and a save action.
 
 ## Motion
 
 | Token | Value | Use |
 | --- | --- | --- |
 | Arrive | cubic(0.05, 0.7, 0.1, 1) | Screens entering |
-| Shift | cubic(0.2, 0, 0, 1) | State changes in place |
 | Quick / Calm | 160 / 320 ms | Exits, toggles / entrances |
-| Mood | 520 ms | The day/night crossfade, the app's one orchestrated moment |
 
 The wallpapers' ambient movement and launcher parallax are described below. The app respects Android's animator scale and the wallpaper's Still mode.
 
@@ -55,16 +53,16 @@ The launcher icon is an adaptive icon: a grain of light inside a tilted orbit ov
 
 ## Wallpaper readability
 
-The artwork is composed for white launcher labels at night and near-black labels by day. The service supplies `WallpaperColors` hints on Android 12+ and a measured frame on earlier versions so launchers can choose a matching label color. Whether a launcher uses those signals is device-dependent; see [Android compatibility](ANDROID_COMPATIBILITY.md).
+The artwork is composed for white launcher labels. The service supplies `WallpaperColors` hints on Android 12+ and a measured frame on earlier versions so launchers can choose a matching label color. [Android compatibility](ANDROID_COMPATIBILITY.md)
 
 The artwork keeps labels readable by composition, not by dimming everything:
 
-- Night grounds are deep and day grounds pale, so the base always contrasts with the label color.
-- Bright features sit between typical icon rows. For example, Long exposure's horizon is at 55% height and Threshold's at 79%, between the last row and the dock.
+- Dark grounds give white labels contrast.
+- Bright features sit between typical icon rows. For example, Long exposure's horizon is at 55% height and Threshold's at about 82%, between the last row and the dock.
 - A soft veil of ground color sits behind the status bar, clock and dock (`WallpaperRenderer.LEGIBILITY_TOP/BOTTOM`).
-- "Calm the artwork" fades toward the ground: darker at night, paler by day.
+- "Calm the artwork" darkens the wallpaper.
 
-`WallpaperRendererTest.launcherLabelsStayReadableInBothMoods` scores 16 label slots, the clock and the dock for every procedural preset, in both treatments at three moments. The score is the share of pixels where a label reaches 4.5:1 contrast. Clock and dock require 90% coverage. Label slots require an 85% average and a 45% minimum per slot. Northern veil and Low tide have a 60% minimum per slot.
+`WallpaperRendererTest.launcherLabelsStayReadable` scores 16 label slots, the clock and the dock for every procedural preset at three moments. The score is the share of pixels where a label reaches 4.5:1 contrast. Clock and dock require 90% coverage. Label slots require an 85% average and a 45% minimum per slot. Northern veil and Low tide have a 60% minimum per slot.
 
 ## Ambient motion and parallax
 

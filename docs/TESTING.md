@@ -22,7 +22,7 @@ Tests run on the JVM through JUnit and Robolectric, including native Skia graphi
 
 | Check | Main coverage |
 | --- | --- |
-| `render/WallpaperRendererTest` | Scene output, both treatments, ambient movement, launcher offsets, still mode, photo framing, reveal effects, resource reuse, and label contrast. |
+| `render/WallpaperRendererTest` | Scene output, ambient movement, launcher offsets, still mode, photo framing, reveal effects, resource reuse, and label contrast. |
 | Scheduler tests | Frame deadlines, coalescing, cancellation, resume, and frame caps. |
 | Platform tests | Battery and power policies, lock/reveal behavior, settings round trips, and draft/active separation. |
 | UI/file tests | Shared attribution and version, private image handling, PNG export, preview lifecycle, and gallery cache invalidation. |
@@ -47,7 +47,7 @@ On Windows, replace `./gradlew` with `.\gradlew.bat`. Use the unfiltered standar
 | `app/build/reports/previews/` | Opt-in full-resolution artwork PNGs. |
 | `app/build/reports/screens/` | Opt-in Compose screenshots and icon renders. |
 
-Readability checks score 16 label slots, the clock, and the dock for every preset in both treatments at three times, using a 4.5:1 contrast threshold. See [the design system](DESIGN_SYSTEM.md#wallpaper-readability) for required coverage. This is a composition check using representative label positions, not proof for every launcher layout.
+Readability checks score 16 label slots, the clock, and the dock for every procedural preset at three times, using a 4.5:1 contrast threshold. The check uses representative label positions. [Required contrast coverage](DESIGN_SYSTEM.md#wallpaper-readability)
 
 ## Generate artwork and app previews
 
@@ -68,7 +68,7 @@ try {
 }
 ```
 
-The environment variable opts in to expensive rendering. `--rerun-tasks` prevents Gradle's up-to-date checks from skipping a run after changing only the environment. Artwork previews are 1080 × 2340 in both treatments. App screenshots include gallery, editor (with and without the home-screen overlay), and settings in light and dark, plus launcher icon renders. They are JVM renders, not device captures.
+The environment variable opts in to expensive rendering. `--rerun-tasks` prevents Gradle's up-to-date checks from skipping a run after changing only the environment. Artwork previews are 1080 × 2340. The JVM renders gallery, editor, and settings screenshots in both app themes, along with home-screen overlay and launcher icon previews.
 
 For a smaller artwork review, set `PHOSPHOR_PREVIEW_ONLY` to a preset ID prefix. Use `PHOSPHOR_PREVIEW_TIMES` for a comma-separated list of timestamps in seconds. Clear both variables before generating the distribution assets.
 

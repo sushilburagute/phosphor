@@ -230,23 +230,23 @@ internal class AuroraScene(private val k: RenderKit) {
         val h = f.h
         val reveal = smooth(f.reveal)
         val horizon = h * 0.68f + f.shiftY(0.4f)
-        k.glow(canvas, k.glowB, x, horizon, 510f, h * 0.26f, (105 * reveal).toInt(), k.modeFor(f))
+        k.glow(canvas, k.glowB, x, horizon, 510f, h * 0.26f, (91 * reveal).toInt(), k.modeFor(f))
         val p = k.fill
         val count = (72 * (0.5f + 0.5f * f.detail)).toInt()
         for (i in 0 until count) {
             val u = i / (count - 1f)
             val phase = fraction(i * 43 + 3) * 6.28f
             val opening = sin(f.t * 0.25f + phase) * 5f * f.amount
-            val angle = -54f + u * 88f + opening
+            val angle = -51f + u * 103f + opening
             val length = h * (0.18f + fraction(i * 31 + 7) * 0.33f +
                 cos(f.t * 0.41f + phase) * 0.035f * f.amount) * reveal
             val saved = canvas.save()
             canvas.translate(x + (u - 0.5f) * 100f, horizon)
             canvas.rotate(angle)
-            canvas.scale(4f + fraction(i * 17 + 1) * 12f, length.coerceAtLeast(1f))
+            canvas.scale(5f + fraction(i * 17 + 1) * 17f, length.coerceAtLeast(1f))
             p.shader = if (i % 4 == 1) rayBack else rayFront
             k.luminous(p, f.night)
-            p.alpha = (55f + 28f * sin(f.t * 0.55f + phase)).toInt()
+            p.alpha = (43f + 24f * sin(f.t * 0.55f + phase)).toInt()
             k.path.reset()
             k.path.moveTo(-0.3f, 0f)
             k.path.lineTo(-1.1f, -1f)
@@ -329,7 +329,7 @@ internal class AuroraScene(private val k: RenderKit) {
             val ratio = reach / (h * c.reach)
             val len = if (ratio < 0.62f) 0 else if (ratio < 0.87f) 1 else 2
             val top = (c.hemOf(cls) - c.reach * LENGTH[len] * (if (ratio > 1f) ratio else 1f)) * h
-            val slope = (vx - x) / (y - vy)
+            val slope = (vx - x) / (y - vy) - 0.23f + 0.14f * near
             val topX = x + slope * (y - top)
             val o = rays * 4
             rayGeom[o] = x; rayGeom[o + 1] = y + h * 0.018f; rayGeom[o + 2] = topX; rayGeom[o + 3] = top
@@ -375,15 +375,15 @@ internal class AuroraScene(private val k: RenderKit) {
             val level = b % LEVELS
             p.shader = c.shaders[b / LEVELS]
             p.strokeWidth = c.width * (0.8f + level * 0.12f)
-            p.alpha = ((if (f.night) LEVEL_NIGHT[level] else LEVEL_DAY[level]) * (0.7f + 0.3f * c.strength)).toInt()
+            p.alpha = ((if (f.night) LEVEL_NIGHT[level] else LEVEL_DAY[level]) * (0.52f + 0.25f * c.strength)).toInt()
             canvas.drawLines(sorted, starts[b], count, p)
         }
         // Soft body: wide, faint strokes give the curtain volume around the fine rays.
         p.shader = c.shaders[(CLASSES / 2) * LENGTHS + LENGTHS - 1]
         for (hz in 0 until 2) {
             if (hazeCounts[hz] == 0) continue
-            p.strokeWidth = c.width * (5f + hz * 2f)
-            p.alpha = ((if (f.night) 40 + hz * 40 else 18 + hz * 14) * c.strength).toInt()
+            p.strokeWidth = c.width * (7f + hz * 2f)
+            p.alpha = ((if (f.night) 29 + hz * 24 else 18 + hz * 14) * c.strength).toInt()
             canvas.drawLines(haze[hz], 0, hazeCounts[hz], p)
         }
         if (hotCount > 0) {

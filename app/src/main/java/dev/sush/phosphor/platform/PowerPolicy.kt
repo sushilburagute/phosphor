@@ -2,7 +2,6 @@ package dev.sush.phosphor.platform
 
 import android.content.Intent
 import android.os.BatteryManager
-import dev.sush.phosphor.model.Appearance
 import dev.sush.phosphor.model.WallpaperSettings
 
 /** What the device can currently afford. Charging includes any external power source. */
@@ -40,11 +39,4 @@ object PowerPolicy {
         }
         return FrameBudget(fps, motion, still)
     }
-}
-
-/** Resolve the artwork's treatment against the system's night mode. */
-fun Appearance.isNight(systemNight: Boolean): Boolean = when (this) {
-    Appearance.NIGHT -> true
-    Appearance.DAY -> false
-    Appearance.AUTO -> systemNight
 }
