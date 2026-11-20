@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.0
+
 - Check for newer Phosphor releases in Settings and open the release notes and APK download.
 - Let Echo trace respond to device music with an optional live frequency waterfall.
 
