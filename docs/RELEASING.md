@@ -4,10 +4,10 @@
 
 ## Version source
 
-Edit the root `version.properties` file. Gradle reads this file for the APK's `versionName` and `versionCode`, generates `BuildConfig` for the version shown beside app credits, and exposes `:app:printVersion` for tooling. Do not hardcode a second version in the app or workflow.
+The manual release workflow updates the root `version.properties` file before building the APK. Gradle reads this file for the APK's `versionName` and `versionCode`, generates `BuildConfig` for the version shown beside app credits, and exposes `:app:printVersion` for tooling.
 
 - `versionName` uses `MAJOR.MINOR.PATCH`, without prefixes or leading zeroes. Increase PATCH for fixes, MINOR for compatible features, and MAJOR for breaking changes. During 0.x development, MINOR may include breaking changes.
-- `versionCode` is a positive integer, at most 2100000000. Increase it for every distributed build, including fixes to the same release. It must exceed all previously distributed version codes so Android accepts the update. It is independent of the semantic version.
+- The workflow increases Android's `versionCode` by one for each release, up to 2100000000.
 - [CHANGELOG.md](../CHANGELOG.md) records user-facing changes under the matching version.
 
 Read the current version from the repository root:
@@ -20,7 +20,7 @@ On Windows PowerShell, use `.\gradlew.bat -q :app:printVersion`. This task print
 
 ## Debug APKs from main
 
-Each push to `main` runs the Android checks. After they pass, GitHub Actions commits the debug APK to `releases/` on `main`. For example, a push of `15b8062abcde` with `versionName=0.1.1` produces `releases/phosphor-0.1.1+g15b8062abcde-debug.apk`. The installed app shows the same version. The 12-digit Git revision is SemVer build metadata. To increase version precedence or the Android version code, edit `version.properties` as described above.
+Pushes and pull requests run the Android checks and upload the debug APK as an Actions artifact. Builds from pushes to `main` include the 12-digit Git revision in the artifact name and installed app version. For a numbered release, use the [manual release workflow](#publish-a-github-release).
 
 For a local copy after every commit on `main`, configure the [build prerequisites](GETTING_STARTED.md#prerequisites) and enable the tracked hook once per clone:
 
@@ -28,9 +28,7 @@ For a local copy after every commit on `main`, configure the [build prerequisite
 git config --local core.hooksPath .githooks
 ```
 
-The hook builds the committed snapshot, including for partially staged commits. A local build failure leaves the commit in place. Retry with `sh tools/build-debug-apk.sh` (Git Bash on Windows). Local APKs are ignored by Git until CI publishes its copy. Local and hosted builds can use different debug signing keys.
-
-The publish job needs permission to push to `main` under the repository's branch rules. It adds a follow-up commit, so run `git pull --rebase` to pick up published APKs before your next push. A multi-commit push publishes the APK for the pushed tip. Rerunning the same push workflow preserves an already published APK.
+The hook builds the committed snapshot, including for partially staged commits. A local build failure leaves the commit in place. Retry with `sh tools/build-debug-apk.sh` (Git Bash on Windows). Git ignores local APKs. Local and hosted builds can use different debug signing keys.
 
 ## Configure signing
 
@@ -67,15 +65,17 @@ Use `apksigner.bat` on Windows and substitute the actual signed filename if diff
 
 ## Prepare and validate
 
-1. Increase both version fields on a branch. Optionally add user-facing notes under `## Unreleased` in the changelog.
+1. Optionally add user-facing notes under `## Unreleased` in the changelog.
 2. Run `./gradlew -q :app:printVersion` and `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`. Use `.\gradlew.bat` on Windows PowerShell. Inspect [test and lint reports](TESTING.md#reports); a successful build alone does not establish device compatibility.
 3. Install and check the app. Confirm the credit opens `https://sush.dev?utm_source=phosphor` from Explore, the editor, and Settings, and that the adjacent version matches the build. Check wallpaper previews, the applied wallpaper, and a still export for absence of branding. Complete the relevant [device checks](ANDROID_COMPATIBILITY.md).
-4. Review and merge the version change into `main`.
+4. Review and merge the changes you want to release into `main`.
 
-## Automated GitHub Releases
+## Publish a GitHub Release
 
-When a push to `main` increases both `versionName` and `versionCode` relative to the previous tip, the Android workflow runs its normal checks and tags the tested commit as `vMAJOR.MINOR.PATCH`. It records the notes in `CHANGELOG.md` and publishes the verified CI debug APK on the matching GitHub Release. Ordinary pushes continue to produce commit-specific debug APKs.
+Open **Actions → Android → Run workflow**, select **main**, choose **patch**, **minor**, or **major**, and click **Run workflow**. From `0.1.1`, the choices produce `0.1.2`, `0.2.0`, or `1.0.0`, respectively. Each choice advances Android's version code from `2` to `3`.
 
-The workflow uses an existing entry for the new version or promotes the pushed commit’s **Unreleased** notes. If both are empty, it generates notes from commit subjects since the previous version. If publication is interrupted, rerun the original push workflow. The job can resume an existing draft and verifies the asset on an already published release.
+After tests, lint, and both APK builds pass, the workflow commits the new version, changelog, and verified debug APK to `main`. It tags that commit as `vMAJOR.MINOR.PATCH` and attaches the APK to the matching GitHub Release. The workflow uses an existing changelog entry for the new version, then falls back to **Unreleased** notes or commit subjects since the previous version.
+
+The publish job needs permission to push to `main` and create release tags under the repository rules. If `main` advances before the release commit lands, start a new run against the updated branch. If publication is interrupted after tagging, rerun the original workflow run to finish publishing the same APK.
 
 Settings checks GitHub’s latest published release when opened. Commit suffixes do not affect version precedence. Android may require a reinstall when CI debug signing keys differ. Uninstalling clears saved looks and imported photos.

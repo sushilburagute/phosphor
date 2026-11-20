@@ -2,6 +2,17 @@ name: Android
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Release version increment
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 permissions:
   contents: read
 jobs:
@@ -11,6 +22,18 @@ jobs:
       apk_version: ${{ steps.version.outputs.apk_version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && '0' || '1' }}
+      - name: Prepare selected release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo "::error::Select main to run a release."
+            exit 1
+          fi
+          node tools/release-changelog.mjs "$BUMP"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -42,22 +65,35 @@ jobs:
           name: phosphor-${{ steps.version.outputs.apk_version }}-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          overwrite: true
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: release-metadata
+          path: |
+            version.properties
+            CHANGELOG.md
+            release-notes.md
+          if-no-files-found: error
+          overwrite: true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: phosphor-reports
+          overwrite: true
           path: |
             app/build/reports/phosphor-artwork.png
             app/build/reports/phosphor-legibility.txt
             app/build/reports/tests/
 
   publish-debug:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
+      RELEASE_VERSION: ${{ needs.build.outputs.apk_version }}
       APK_NAME: phosphor-${{ needs.build.outputs.apk_version }}-debug
     steps:
       - uses: actions/checkout@v4
@@ -67,63 +103,45 @@ jobs:
         with:
           name: ${{ env.APK_NAME }}
           path: ${{ runner.temp }}/debug-apk
-      - name: Prepare release notes on a version increase
-        env:
-          BEFORE_SHA: ${{ github.event.before }}
-        run: |
-          cp tools/release-changelog.mjs "$RUNNER_TEMP/release-changelog.mjs"
-          node "$RUNNER_TEMP/release-changelog.mjs" prepare
-      - name: Commit the verified APK and any release notes to main
-        id: publish
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-metadata
+          path: ${{ runner.temp }}/release-metadata
+      - name: Commit and tag the verified release on main
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           destination="releases/$APK_NAME.apk"
-          for attempt in 1 2 3 4 5; do
-            git fetch origin main
-            tip=$(git rev-parse FETCH_HEAD)
-            if ! git merge-base --is-ancestor "$GITHUB_SHA" "$tip"; then
-              echo "Source commit is no longer on main. Skipping publication."
-              exit 0
+          tag="refs/tags/v$RELEASE_VERSION"
+          if git show-ref --verify --quiet "$tag"; then
+            if [[ "$(git rev-parse "$tag^")" != "$GITHUB_SHA" ||
+                  "$(git log -1 --format='%(trailers:key=Release-Run,valueonly)' "$tag")" != "$GITHUB_RUN_ID" ]]; then
+              echo "::error::Tag $tag already belongs to another release."
+              exit 1
             fi
-            git checkout --detach "$tip"
-            if ! git ls-files --error-unmatch -- "$destination" >/dev/null 2>&1; then
-              mkdir -p releases
-              cp "$RUNNER_TEMP/debug-apk/app-debug.apk" "$destination"
-              git add -f -- "$destination"
+          else
+            cp "$RUNNER_TEMP/release-metadata/"{version.properties,CHANGELOG.md} .
+            mkdir -p releases
+            cp "$RUNNER_TEMP/debug-apk/app-debug.apk" "$destination"
+            git add -- version.properties CHANGELOG.md
+            git add -f -- "$destination"
+            git commit -m "Release v$RELEASE_VERSION" -m "Release-Run: $GITHUB_RUN_ID"
+            git tag "v$RELEASE_VERSION"
+            if ! git push --atomic --force-with-lease="refs/heads/main:$GITHUB_SHA" origin HEAD:refs/heads/main "$tag"; then
+              echo "::error::Could not publish. If main advanced, start a new run from main."
+              exit 1
             fi
-            refs=(HEAD:refs/heads/main)
-            if [[ -n "${RELEASE_VERSION:-}" ]]; then
-              node "$RUNNER_TEMP/release-changelog.mjs" update
-              git add -- CHANGELOG.md
-              tag="refs/tags/v$RELEASE_VERSION"
-              if git show-ref --verify --quiet "$tag"; then
-                [[ "$(git rev-parse "$tag^{commit}")" == "$GITHUB_SHA" ]] || {
-                  echo "::error::Tag $tag already belongs to a different source commit"; exit 1;
-                }
-              else
-                refs+=("$GITHUB_SHA:$tag")
-              fi
-            fi
-            if ! git diff --cached --quiet; then git commit -m "Publish $APK_NAME"; fi
-            if git push --atomic origin "${refs[@]}"; then
-              echo "ready=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            sleep "$attempt"
-          done
-          echo "::error::Could not publish to main. Check branch rules and Actions write access."
-          exit 1
+          fi
+          git show "$tag:$destination" > "$RUNNER_TEMP/$APK_NAME.apk"
       - name: Publish the tagged GitHub Release with its APK
-        if: steps.publish.outputs.ready == 'true' && env.RELEASE_VERSION != ''
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           tag="v$RELEASE_VERSION"
           asset="phosphor-$RELEASE_VERSION-debug.apk"
-          cp "releases/$APK_NAME.apk" "$RUNNER_TEMP/$asset"
+          cp "$RUNNER_TEMP/release-metadata/release-notes.md" "$RUNNER_TEMP/release-notes.md"
           printf '\nThis CI debug APK may use a different signing key from your installed copy. If Android requires a reinstall, uninstalling clears saved looks and imported photos.\n' >> "$RUNNER_TEMP/release-notes.md"
           if release=$(gh release view "$tag" --json isDraft,assets); then
             if [[ "$(jq -r .isDraft <<< "$release")" == false ]]; then
