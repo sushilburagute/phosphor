@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+[ "$(git symbolic-ref -q HEAD)" = refs/heads/main ] || exit 0
+exec sh tools/build-debug-apk.sh

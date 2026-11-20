@@ -18,6 +18,20 @@ Read the current version from the repository root:
 
 On Windows PowerShell, use `.\gradlew.bat -q :app:printVersion`. This task prints the version name; read the Android version code from [version.properties](../version.properties).
 
+## Debug APKs from main
+
+Each push to `main` runs the Android checks. After they pass, GitHub Actions commits the debug APK to `releases/` on `main`. For example, a push of `15b8062abcde` with `versionName=0.1.1` produces `releases/phosphor-0.1.1+g15b8062abcde-debug.apk`. The installed app shows the same version. The 12-digit Git revision is SemVer build metadata. To increase version precedence or the Android version code, edit `version.properties` as described above.
+
+For a local copy after every commit on `main`, configure the [build prerequisites](GETTING_STARTED.md#prerequisites) and enable the tracked hook once per clone:
+
+```sh
+git config --local core.hooksPath .githooks
+```
+
+The hook builds the committed snapshot, including for partially staged commits. A local build failure leaves the commit in place. Retry with `sh tools/build-debug-apk.sh` (Git Bash on Windows). Local APKs are ignored by Git until CI publishes its copy. Local and hosted builds can use different debug signing keys.
+
+The publish job needs permission to push to `main` under the repository's branch rules. It adds a follow-up commit, so run `git pull --rebase` to pick up published APKs before your next push. A multi-commit push publishes the APK for the pushed tip. Rerunning the same push workflow preserves an already published APK.
+
 ## Configure signing
 
 The release build reads these names from Gradle properties first, then environment variables:

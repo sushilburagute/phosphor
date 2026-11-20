@@ -20,6 +20,11 @@ val appVersionCode = requireNotNull(appVersion.getProperty("versionCode")?.toInt
 }
 require(appVersionCode in 1..2_100_000_000) { "versionCode must be between 1 and 2100000000" }
 
+val debugRevision = providers.gradleProperty("phosphorDebugRevision").orNull
+require(debugRevision == null || debugRevision.matches(Regex("[0-9a-f]{12}"))) {
+    "phosphorDebugRevision must be the first 12 lowercase hex digits of the source commit"
+}
+
 tasks.register("printVersion") {
     group = "versioning"
     description = "Print the app version for release tooling."
@@ -49,6 +54,9 @@ android {
         }
     }
     buildTypes {
+        debug {
+            if (debugRevision != null) versionNameSuffix = "+g$debugRevision"
+        }
         release {
             signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
