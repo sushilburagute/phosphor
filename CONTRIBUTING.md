@@ -25,7 +25,7 @@ Release builds are unsigned unless you supply [release signing](docs/RELEASING.m
 
 ## Preserve these behaviors
 
-- Keep the app offline and permissions minimal. Avoid per-frame disk access, image decoding, and unbounded allocations.
+- Keep wallpaper rendering offline and permissions minimal. Avoid per-frame disk access, image decoding, and unbounded allocations.
 - Give each wallpaper engine its own renderer. Release resources and stop scheduling frames when hidden or non-interactive. Launcher offsets share the animation frame budget.
 - Keep draft settings separate from the applied wallpaper. Dismissing a system preview must not apply the draft.
 - Respect still mode, disabled system animations, system Battery Saver, and automatic low-battery settings.

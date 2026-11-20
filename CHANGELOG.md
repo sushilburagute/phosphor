@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Check for newer Phosphor releases in Settings and open the release notes and APK download.
 - Let Echo trace respond to device music with an optional live frequency waterfall.
 
 - Add scene-specific composition controls and curated wallpaper palettes. Expand ASCII, Glass, and Textures with Echo trace, Split spectrum, and Folded satin.

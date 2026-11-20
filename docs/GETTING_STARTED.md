@@ -67,7 +67,7 @@ Windows PowerShell:
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug
 ```
 
-The first build downloads Gradle, plugins, and dependencies. An internet connection is needed for these downloads and may be needed by Robolectric to resolve its Android runtime. The app itself has no network permission.
+The first build downloads Gradle, plugins, and dependencies. An internet connection is needed for these downloads and may be needed by Robolectric to resolve its Android runtime. Wallpapers work offline. Settings uses the internet to check GitHub for new releases.
 
 | Output | Location |
 | --- | --- |

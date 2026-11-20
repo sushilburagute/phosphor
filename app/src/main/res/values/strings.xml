@@ -5,5 +5,12 @@
     <string name="creator_credit">made by sush.dev</string>
     <string name="creator_url" translatable="false">https://sush.dev?utm_source=phosphor</string>
     <string name="app_version">v%1$s (%2$d)</string>
+    <string name="update_checking">Checking GitHub for updates…</string>
+    <string name="update_no_releases">No releases have been published yet.</string>
+    <string name="update_current">You’re up to date.</string>
+    <string name="update_unavailable">Couldn’t check for updates. Try again later.</string>
+    <string name="update_available">Phosphor %1$s is available.</string>
+    <string name="update_view">View release and download APK</string>
+    <string name="update_retry">Check again</string>
     <string name="wallpaper_author">sush.dev</string>
 </resources>

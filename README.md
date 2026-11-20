@@ -20,6 +20,6 @@ On Windows, use `.\gradlew.bat installDebug`. [Setup and troubleshooting](docs/G
 
 [User guide](docs/USER_GUIDE.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing](docs/TESTING.md) · [All docs](docs/README.md) · [Contributing](CONTRIBUTING.md)
 
-Phosphor works without an account, ads, analytics, or network permission. Imported photos stay in private app storage.
+Wallpapers work offline. Settings contacts GitHub to check for updates. Phosphor has no account, ads, or analytics, and imported photos stay in private app storage.
 
 Made by [sush.dev](https://sush.dev?utm_source=phosphor). [Code and original artwork (MIT)](LICENSE) · [Bricolage Grotesque (OFL)](app/src/main/assets/licenses/bricolage-grotesque-OFL.txt). Reference images in `ref-img/` and personal imports are outside the MIT grant.

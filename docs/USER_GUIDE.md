@@ -40,6 +40,10 @@ For **ASCII → Echo trace**, enable **Motion → React to music** and grant aud
 
 Battery Saver and the visible lock screen cap animation at 15 fps. With **Save battery when low**, an unplugged phone slows at 20% and holds still at 5%. Animation stops when hidden or screen-off.
 
+## Check for updates
+
+Open **Settings** and scroll to the installed version. When a newer version is available, **View release and download APK** opens its GitHub release page. **Check again** retries the check after an offline or unavailable response.
+
 ## Change colors
 
 **Settings → App appearance** changes the app theme. **Use your phone’s colors** follows the Android 12+ system palette. Use the editor’s **Color palette** to recolor a wallpaper.

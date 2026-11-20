@@ -67,22 +67,15 @@ Use `apksigner.bat` on Windows and substitute the actual signed filename if diff
 
 ## Prepare and validate
 
-1. Update both version fields and the changelog on a branch.
+1. Increase both version fields on a branch. Optionally add user-facing notes under `## Unreleased` in the changelog.
 2. Run `./gradlew -q :app:printVersion` and `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`. Use `.\gradlew.bat` on Windows PowerShell. Inspect [test and lint reports](TESTING.md#reports); a successful build alone does not establish device compatibility.
 3. Install and check the app. Confirm the credit opens `https://sush.dev?utm_source=phosphor` from Explore, the editor, and Settings, and that the adjacent version matches the build. Check wallpaper previews, the applied wallpaper, and a still export for absence of branding. Complete the relevant [device checks](ANDROID_COMPATIBILITY.md).
-4. Review and merge the version change before tagging that commit.
+4. Review and merge the version change into `main`.
 
-## Tag and distribute
+## Automated GitHub Releases
 
-Create an annotated tag `vMAJOR.MINOR.PATCH` matching `versionName` exactly on the reviewed release commit and push that tag. For example, only when releasing a commit with `versionName=0.1.1`:
+When a push to `main` increases both `versionName` and `versionCode` relative to the previous tip, the Android workflow runs its normal checks and tags the tested commit as `vMAJOR.MINOR.PATCH`. It records the notes in `CHANGELOG.md` and publishes the verified CI debug APK on the matching GitHub Release. Ordinary pushes continue to produce commit-specific debug APKs.
 
-```sh
-git tag -a v0.1.1 -m "Phosphor 0.1.1"
-git push origin v0.1.1
-```
+The workflow uses an existing entry for the new version or promotes the pushed commit’s **Unreleased** notes. If both are empty, it generates notes from commit subjects since the previous version. If publication is interrupted, rerun the original push workflow. The job can resume an existing draft and verifies the asset on an already published release.
 
-Replace the example version with the version being released. Do not recreate an existing release tag.
-
-The [Android workflow](../.github/workflows/android.yml) runs on pushes and pull requests, validates version fields through Gradle, and rejects a tag that does not match the version file. It builds/tests/lints the app and uploads a debug APK artifact named `phosphor-<versionName>-debug`. It also attempts to upload test and renderer reports as `phosphor-reports`, even after a failure. Release APKs are built but are not uploaded by this workflow. Signing secrets and store publishing are not configured in CI.
-
-Tagging does not create a GitHub Release or publish to a store. Distribute the verified signed artifact separately and publish release notes from the matching changelog entry. Regenerate and inspect [store assets](TESTING.md#build-store-assets) when artwork or UI changes require them.
+Settings checks GitHub’s latest published release when opened. Commit suffixes do not affect version precedence. Android may require a reinstall when CI debug signing keys differ. Uninstalling clears saved looks and imported photos.

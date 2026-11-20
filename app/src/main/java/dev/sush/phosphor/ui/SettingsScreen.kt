@@ -58,7 +58,7 @@ fun SettingsScreen(theme: String, dynamic: Boolean, onTheme: (String) -> Unit, o
         HorizontalDivider()
         Section("Private by design", R.drawable.ic_info) {
             Text(
-                "Every wallpaper is drawn on your phone. Imported images stay on your phone. No account, ads, trackers or network access.",
+                "Every wallpaper is drawn on your phone. Imported images stay on your phone. Settings contacts GitHub to check for app updates.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
@@ -71,6 +71,7 @@ fun SettingsScreen(theme: String, dynamic: Boolean, onTheme: (String) -> Unit, o
             Glyph(R.drawable.ic_explore, null, Modifier.size(28.dp), MaterialTheme.colorScheme.primary)
             Text("Phosphor ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.headlineSmall)
             AppAttribution()
+            UpdateCheck()
         }
     }
 }
