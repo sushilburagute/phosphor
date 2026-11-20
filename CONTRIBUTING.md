@@ -26,7 +26,7 @@ Release builds are unsigned unless you supply [release signing](docs/RELEASING.m
 ## Preserve these behaviors
 
 - Keep the app offline and permissions minimal. Avoid per-frame disk access, image decoding, and unbounded allocations.
-- Give each wallpaper engine its own renderer. Release resources and stop scheduling frames when hidden or non-interactive; preserve frame caps for touch and scroll requests too.
+- Give each wallpaper engine its own renderer. Release resources and stop scheduling frames when hidden or non-interactive. Launcher offsets share the animation frame budget.
 - Keep draft settings separate from the applied wallpaper. Dismissing a system preview must not apply the draft.
 - Respect still mode, disabled system animations, system Battery Saver, and automatic low-battery settings.
 - Keep wallpapers, artwork previews, and exports free of branding. Preserve the clickable `made by sush.dev` credit and installed version in Explore, the editor, and Settings.
@@ -34,11 +34,11 @@ Release builds are unsigned unless you supply [release signing](docs/RELEASING.m
 
 ## Add a wallpaper preset
 
-1. Add a stable ID, name, description, interaction hint, and both night/day palettes to [`WallpaperCatalog`](app/src/main/java/dev/sush/phosphor/model/WallpaperModels.kt). Palette order is ground, accent, accent; use a deep night ground and a pale day ground.
+1. Add a stable ID, name, description, and both night/day palettes to [`WallpaperCatalog`](app/src/main/java/dev/sush/phosphor/model/WallpaperModels.kt). Palette order is ground, accent, accent. Use a deep night ground and a pale day ground.
 2. Implement or extend the appropriate scene under [`render/`](app/src/main/java/dev/sush/phosphor/render). Route new families through `WallpaperRenderer` if needed. The gallery, editor, system wallpaper, and exports share this renderer.
-3. Respond to taps and drags using `Frame.wave` and `Frame.dragInfluence`; honor `Frame.reveal` and the existing motion inputs. Touch must settle and should work at zero ambient speed when enabled.
+3. Give the scene a recognizable silhouette and an ambient movement that suits its subject. Offset near and distant layers at different rates on launcher scroll. Honor the shared speed, intensity, reveal and still-mode inputs.
 4. Pass `WallpaperRendererTest.launcherLabelsStayReadableInBothMoods`. Keep bright features away from icon rows and preserve the clock/dock veils. See the [readability rules](docs/DESIGN_SYSTEM.md#wallpaper-readability).
-5. Inspect both treatments, portrait and landscape, multiple animation times, still mode, calm/dimming, touch, and launcher offsets. Generate full-resolution previews before updating [store assets](docs/TESTING.md#build-store-assets).
+5. Inspect both treatments, portrait and landscape, multiple animation times, still mode, calm/dimming, and launcher offsets. Generate full-resolution previews before updating [store assets](docs/TESTING.md#build-store-assets).
 
 UI changes follow the [design system](docs/DESIGN_SYSTEM.md): use theme tokens and `ic_*` vector glyphs, follow its ember color rules for the live marker, brand horizon, and saved heart, and check large text and wide windows.
 

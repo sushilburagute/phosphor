@@ -18,6 +18,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.abs
 
 /** Exercise actual Skia drawing, rather than Robolectric's legacy recording Canvas. */
 @RunWith(RobolectricTestRunner::class)
@@ -33,7 +34,7 @@ class WallpaperRendererTest {
         val sheetCanvas = Canvas(sheet)
         val caption = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 13f }
         for (night in listOf(true, false)) {
-            for ((index, preset) in WallpaperCatalog.presets.withIndex()) {
+            for (preset in WallpaperCatalog.presets) {
                 val bitmap = render(preset, night = night)
                 val pixels = pixels(bitmap)
                 assertTrue("${preset.id} contains transparent pixels", pixels.all { Color.alpha(it) == 255 })
@@ -86,7 +87,11 @@ class WallpaperRendererTest {
                     }
                     val mean = sum / 16f
                     report.append("${preset.id} $mood t=$time clock=${"%.2f".format(clock)} dock=${"%.2f".format(dock)} labelsMean=${"%.2f".format(mean)} labelsWorst=${"%.2f".format(worst)}\n")
-                    if (clock < 0.9f || dock < 0.9f || mean < 0.85f || worst < 0.45f) {
+                    val minimumSlot = when (preset.id) {
+                        "aurora-veil", "gradient-tide" -> 0.60f
+                        else -> 0.45f
+                    }
+                    if (clock < 0.9f || dock < 0.9f || mean < 0.85f || worst < minimumSlot) {
                         failures += "${preset.id} $mood t=$time clock=$clock dock=$dock mean=$mean worst=$worst"
                     }
                     bitmap.recycle()
@@ -95,76 +100,6 @@ class WallpaperRendererTest {
         }
         File("build/reports/phosphor-legibility.txt").apply { parentFile?.mkdirs() }.writeText(report.toString())
         assertTrue("Labels would be hard to read:\n" + failures.joinToString("\n"), failures.isEmpty())
-    }
-
-    @Test
-    fun tapsVisiblyAnswerInEveryFamilyEvenWhenMotionSpeedIsZero() {
-        for (preset in WallpaperCatalog.presets) {
-            val settings = WallpaperSettings(presetId = preset.id, speed = 0f)
-            val calm = render(preset, settings, time = 5f)
-            val touch = TouchField().apply { tap(0.5f, 0.5f, 10f) }
-            val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
-            val renderer = WallpaperRenderer()
-            try {
-                renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, 5f, preset, settings, touch = touch, realSeconds = 10.5f)
-                assertTrue("${preset.id} ignores taps", changedFraction(calm, bitmap) > 0.01f)
-                assertTrue(touch.isActive(10.5f))
-                assertFalse("pulses must end", touch.isActive(10f + TouchField.LIFE + 0.1f))
-            } finally {
-                renderer.release(); bitmap.recycle(); calm.recycle()
-            }
-        }
-    }
-
-    /** The wake and the finger's velocity must show, not just where the finger ends up. */
-    @Test
-    fun swipesLeaveAVisibleWakeInEveryFamily() {
-        for (preset in WallpaperCatalog.presets) {
-            for (night in listOf(true, false)) {
-                val swipe = Gestures.swipe()
-                val end = swipe.touch
-                val still = Gestures.hold(swipe.now - 10f, end.dragX, end.dragY)
-                val moving = renderGesture(preset, swipe, night)
-                val resting = renderGesture(preset, still, night)
-                try {
-                    assertTrue("${preset.id} ${if (night) "night" else "day"} shows no wake behind a swipe",
-                        changedFraction(moving, resting) > 0.01f)
-                } finally {
-                    moving.recycle(); resting.recycle()
-                }
-            }
-        }
-    }
-
-    @Test
-    fun holdingStillVisiblyGathersChargeInEveryFamily() {
-        for (preset in WallpaperCatalog.presets) {
-            val early = renderGesture(preset, Gestures.hold(0.6f))
-            val full = renderGesture(preset, Gestures.hold(TouchField.FULL_HOLD))
-            try {
-                assertTrue("${preset.id} does not show a held charge", changedFraction(early, full) > 0.005f)
-            } finally {
-                early.recycle(); full.recycle()
-            }
-        }
-    }
-
-    @Test
-    fun gesturesSettleSoTheWallpaperCanStopDrawing() {
-        val swipe = Gestures.swipe()
-        swipe.touch.release(swipe.now)
-        assertTrue(swipe.touch.isActive(swipe.now + 0.1f))
-        var now = swipe.now
-        repeat(240) { now += 1f / 60f; swipe.touch.advance(now) }
-        assertFalse("swipe glide and wake must end", swipe.touch.isActive(now))
-
-        val burst = Gestures.burst(0f)
-        val frame = Frame()
-        burst.touch.fill(frame, burst.now + 0.01f)
-        assertTrue("a charged release bursts", (0 until frame.pulses).any { frame.pulseA[it] > 1f })
-        now = burst.now
-        repeat(((TouchField.LIFE + 1f) * 60f).toInt()) { now += 1f / 60f; burst.touch.advance(now) }
-        assertFalse("the burst must end", burst.touch.isActive(now))
     }
 
     @Test
@@ -196,6 +131,31 @@ class WallpaperRendererTest {
             assertTrue("${preset.id} did not animate", changedFraction(first, later) > 0.02f)
             first.recycle()
             later.recycle()
+        }
+    }
+
+    @Test
+    fun auroraAndGradientVariantsHaveDifferentCompositionsEvenWithMatchingColors() {
+        for ((firstId, secondId) in listOf("aurora-veil" to "aurora-solstice", "gradient-daybreak" to "gradient-tide")) {
+            val firstPreset = WallpaperCatalog.find(firstId)
+            val secondPreset = WallpaperCatalog.find(secondId).copy(colors = firstPreset.colors, dayColors = firstPreset.dayColors)
+            for (night in listOf(false, true)) {
+                val first = render(firstPreset, night = night)
+                val second = render(secondPreset, night = night)
+                try {
+                    val a = pixels(first)
+                    val b = pixels(second)
+                    // Ignore faint grain and rounding differences. Require a visible change over an area of the artwork.
+                    val different = a.indices.count { i ->
+                        maxOf(abs(Color.red(a[i]) - Color.red(b[i])), abs(Color.green(a[i]) - Color.green(b[i])),
+                            abs(Color.blue(a[i]) - Color.blue(b[i]))) >= 16
+                    }
+                    assertTrue("$firstId and $secondId share the same composition (night=$night)", different > a.size * 0.03f)
+                } finally {
+                    first.recycle()
+                    second.recycle()
+                }
+            }
         }
     }
 
@@ -234,9 +194,8 @@ class WallpaperRendererTest {
                 renderer.draw(
                     Canvas(bitmap), bitmap.width, bitmap.height, 15f,
                     WallpaperCatalog.find("image-custom"),
-                    WallpaperSettings(imagePath = imageFile.absolutePath, intensity = 1f),
+                    WallpaperSettings(imagePath = imageFile.absolutePath, intensity = 1f, imageFocusX = 0f, imageFocusY = 1f),
                     offsetX = 1f, offsetY = -1f,
-                    interaction = WallpaperInteraction(offsetX = 1f, offsetY = -1f),
                 )
                 // A tall image must still cover all four corners of a wide surface.
                 for ((x, y) in listOf(0 to 0, 359 to 0, 0 to 149, 359 to 149)) {
@@ -252,6 +211,64 @@ class WallpaperRendererTest {
         } finally {
             source.recycle()
             imageFile.delete()
+        }
+    }
+
+    @Test
+    fun selectedPhotoSubjectStaysCenteredOnPortraitAndLandscapeSurfaces() {
+        // The red and green channels encode the source pixel's horizontal and vertical coordinates.
+        val source = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 256) for (x in 0 until 256) source.setPixel(x, y, Color.rgb(x, y, 0))
+        val file = File.createTempFile("phosphor-framing-", ".png")
+        val renderer = WallpaperRenderer()
+        try {
+            file.outputStream().use { source.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            val settings = WallpaperSettings(
+                imagePath = file.absolutePath, imageFocusX = 0.25f, imageFocusY = 0.75f, reducedMotion = true,
+            )
+            for ((width, height) in listOf(120 to 300, 300 to 120)) {
+                val frame = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                try {
+                    renderer.draw(Canvas(frame), width, height, 0f, WallpaperCatalog.find("image-custom"), settings)
+                    val center = frame.getPixel(width / 2, height / 2)
+                    if (width < height) {
+                        assertEquals(64f, Color.red(center).toFloat(), 3f)
+                        assertEquals(128f, Color.green(center).toFloat(), 3f)
+                    } else {
+                        assertEquals(128f, Color.red(center).toFloat(), 3f)
+                        assertEquals(192f, Color.green(center).toFloat(), 3f)
+                    }
+                } finally {
+                    frame.recycle()
+                }
+            }
+        } finally {
+            renderer.release()
+            source.recycle()
+            file.delete()
+        }
+    }
+
+    @Test
+    fun everySceneCanRecoverItsFullDetailFrameAfterLiveDensityDrops() {
+        val renderer = WallpaperRenderer()
+        val frame = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(frame)
+        try {
+            for (preset in WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE }) {
+                val settings = WallpaperSettings(presetId = preset.id)
+                renderer.draw(canvas, WIDTH, HEIGHT, 12f, preset, settings)
+                val full = pixels(frame)
+                renderer.draw(canvas, WIDTH, HEIGHT, 12f, preset, settings, detailScale = 0.1f)
+                if (preset.id == "orbit-exposure") {
+                    assertFalse("Orbital trails should thin out at minimum density", full.contentEquals(pixels(frame)))
+                }
+                renderer.draw(canvas, WIDTH, HEIGHT, 12f, preset, settings)
+                assertTrue("${preset.id} changed after recovering full detail", full.contentEquals(pixels(frame)))
+            }
+        } finally {
+            renderer.release()
+            frame.recycle()
         }
     }
 
@@ -289,28 +306,32 @@ class WallpaperRendererTest {
     }
 
     @Test
-    fun everyFamilyRespondsToATapEvenWhenAmbientSpeedIsZero() {
+    fun launcherOffsetsMoveEverySceneAtZeroSpeedAndRespectTheParallaxSwitch() {
         for (preset in WallpaperCatalog.presets) {
             val settings = WallpaperSettings(presetId = preset.id, speed = 0f)
-            val first = render(preset, settings)
-            val touched = render(preset, settings, interaction = WallpaperInteraction(
-                x = 0.4f, y = 0.45f, strength = 0.8f, rippleProgress = 0.3f, offsetX = 0.4f,
-            ))
-            assertTrue("${preset.id} ignores touch at zero speed", changedFraction(first, touched) > 0.02f)
-            first.recycle()
-            touched.recycle()
+            val left = render(preset, settings, offsetX = -1f)
+            val right = render(preset, settings, offsetX = 1f)
+            val fixed = settings.copy(parallax = false)
+            val fixedLeft = render(preset, fixed, offsetX = -1f)
+            val fixedRight = render(preset, fixed, offsetX = 1f)
+            try {
+                assertTrue(preset.id + " has no visible launcher parallax", changedFraction(left, right) > 0.01f)
+                assertTrue(preset.id + " moves with parallax disabled", fixedLeft.sameAs(fixedRight))
+            } finally {
+                listOf(left, right, fixedLeft, fixedRight).forEach { it.recycle() }
+            }
         }
     }
 
     @Test
-    fun reducedMotionSuppressesTouchEffectsAndLockReveal() {
+    fun reducedMotionSuppressesLockReveal() {
         val preset = WallpaperCatalog.find("aurora-veil")
         val settings = WallpaperSettings(reducedMotion = true)
         val first = render(preset, settings)
-        val touched = render(preset, settings, interaction = WallpaperInteraction(strength = 1f, rippleProgress = 0.2f), reveal = 0f)
-        assertTrue(first.sameAs(touched))
+        val locked = render(preset, settings, reveal = 0f)
+        assertTrue(first.sameAs(locked))
         first.recycle()
-        touched.recycle()
+        locked.recycle()
     }
 
     @Test
@@ -363,25 +384,12 @@ class WallpaperRendererTest {
         offsetX: Float = 0f,
         offsetY: Float = 0f,
         night: Boolean = true,
-        interaction: WallpaperInteraction? = null,
         reveal: Float = 1f,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val renderer = WallpaperRenderer()
         try {
-            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY, night = night, interaction = interaction, unlockReveal = reveal)
-        } finally {
-            renderer.release()
-        }
-        return bitmap
-    }
-
-    private fun renderGesture(preset: WallpaperPreset, gesture: Gestures.Gesture, night: Boolean = true): Bitmap {
-        val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
-        val renderer = WallpaperRenderer()
-        try {
-            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, 12f, preset, WallpaperSettings(presetId = preset.id),
-                night = night, touch = gesture.touch, realSeconds = gesture.now)
+            renderer.draw(Canvas(bitmap), WIDTH, HEIGHT, time, preset, settings, offsetX, offsetY, night = night, unlockReveal = reveal)
         } finally {
             renderer.release()
         }

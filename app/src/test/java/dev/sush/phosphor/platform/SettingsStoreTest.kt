@@ -44,7 +44,7 @@ class SettingsStoreTest {
     fun confirmingPreviewPromotesWholeDraftAndPersistsIt() {
         val draft = WallpaperSettings(
             presetId = "photo", speed = 0.2f, intensity = 0.4f, parallax = false,
-            fps = 24, darken = 0.25f, imagePath = "/private/photo.png", reducedMotion = true,
+            fps = 24, darken = 0.25f, imagePath = "/private/photo.png", imageFocusX = 0.15f, imageFocusY = 0.72f, reducedMotion = true,
             appearance = dev.sush.phosphor.model.Appearance.DAY, wakeReveal = false, lowBatteryMode = false, unlockAnimation = false,
         )
         store.savePreview(draft)
@@ -63,6 +63,8 @@ class SettingsStoreTest {
         val settings = store.load()
         assertEquals("glass-prism", settings.presetId)
         assertEquals(0.25f, settings.speed)
+        assertEquals(0.5f, settings.imageFocusX)
+        assertEquals(0.5f, settings.imageFocusY)
         assertEquals(true, settings.lowBatteryMode)
         assertEquals(true, settings.unlockAnimation)
     }
@@ -101,7 +103,7 @@ class SettingsStoreTest {
     fun legacyOrTamperedNumericValuesAreClampedOnRead() {
         context.getSharedPreferences("phosphor", Context.MODE_PRIVATE).edit().putString(
             "active",
-            """{"speed":-8,"intensity":42,"fps":0,"darken":3,"imagePath":null}""",
+            """{"speed":-8,"intensity":42,"fps":0,"darken":3,"imagePath":null,"imageFocusX":-99,"imageFocusY":4}""",
         ).commit()
 
         val settings = store.load()
@@ -110,6 +112,8 @@ class SettingsStoreTest {
         assertEquals(15, settings.fps)
         assertEquals(1f, settings.darken)
         assertNull(settings.imagePath)
+        assertEquals(0f, settings.imageFocusX)
+        assertEquals(1f, settings.imageFocusY)
     }
 
     @Test
@@ -120,6 +124,28 @@ class SettingsStoreTest {
         assertEquals(0.6f, settings.intensity)
         assertEquals(0f, settings.darken)
         assertEquals(60, settings.fps)
+    }
+
+    @Test
+    fun activeAndPreviewListenersOnlyReloadWhenTheirOwnConfigurationCanChange() {
+        var activeEvents = 0
+        var previewEvents = 0
+        store.addListener({ activeEvents++ }, preview = false)
+        store.addListener({ previewEvents++ }, preview = true)
+        store.save(WallpaperSettings(speed = 0.2f))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(1, activeEvents)
+        assertEquals(1, previewEvents) // The preview still falls back to active.
+
+        store.savePreview(WallpaperSettings(speed = 0.8f))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(1, activeEvents)
+        assertEquals(2, previewEvents)
+
+        store.save(WallpaperSettings(speed = 0.4f))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(2, activeEvents)
+        assertEquals(2, previewEvents)
     }
 
     @Test

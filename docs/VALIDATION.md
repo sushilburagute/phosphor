@@ -4,7 +4,31 @@
 
 This file preserves results reported for earlier commits and branches. Counts, warnings, APK sizes, and screenshots describe those builds, not necessarily the current checkout. Re-run the [standard checks](TESTING.md#standard-checks) to validate a new change; do not infer physical-device coverage from JVM tests or earlier emulator checks.
 
-The most recent recorded integrated build below passed 65 tests and reported 33 lint warnings on 2026-11-14. Physical Pixel/One UI compatibility and energy profiling remain outstanding. No device results were added by the documentation reorganization.
+## Main integration verification
+
+On 2026-11-20, the passive-motion and editor changes were integrated with the wallpaper renderers from `main` at `2d4299d`. With `PHOSPHOR_PREVIEWS=1`, all 79 tests passed, including the native Skia checks for label contrast, launcher offsets, still mode and recovery from minimum live detail across all 15 procedural presets. Debug and unsigned release APKs built successfully. Android lint reported zero errors and 50 warnings.
+
+The merged renderer produced 30 full-resolution day and night previews. The feature graphic and nine store screenshots were regenerated from this run. The frame timings below were measured on the earlier branch. Device frame timing and power use for this integration remain unmeasured.
+
+## Ambient artwork and editor verification
+
+Tested the working tree based on `1281fbe` on 2026-11-20 using Windows, JDK 21.0.9, Android SDK Platform 36, and Gradle 8.13.
+
+- With `PHOSPHOR_PREVIEWS=1`, `gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleRelease` passed all 78 tests. Lint reported zero errors and 38 warnings. The release APK was unsigned.
+- Rendered all 15 procedural presets at 1080 × 2340 in both treatments and inspected the refreshed store screenshots. In the weakest sampled icon-label slot, the share of pixels meeting 4.5:1 contrast went from 47% to 66% for Northern veil and from 48% to 100% for Low tide (rounded). These are the same 16 representative slots and three animation times used in the previous renderer report.
+- On the API 36 Pixel-launcher emulator, saved a named Signal bloom look, reopened it from Saved, applied it through the native wallpaper picker, and confirmed the home-screen service with `dumpsys wallpaper`.
+
+### Long exposure frame timing
+
+Measured the old and revised release APKs, both locally signed for testing, in the Android live wallpaper picker. Both runs used the same API 36 x86-64 emulator, host NVIDIA RTX 4060 Laptop GPU, 1080 × 2400 display, Night treatment, 30 fps selection, default speed and intensity. Each run used a 30-second warm-up followed by a 20-second Perfetto trace. The revised service could reduce scene density during warm-up and capture.
+
+| Measure | Previous renderer | Revised renderer |
+| --- | ---: | ---: |
+| Median interval between RenderThread draw starts | 554 ms | 48 ms |
+| 95th-percentile interval between RenderThread draw starts | 730 ms | 68 ms |
+| Wallpaper layer average FPS reported by SurfaceFlinger | 1.6 | 20.0 |
+
+The revised renderer delivered smoother motion in this workload and still fell short of the selected 30 fps. The captures cover stationary ambient motion in one emulator. Physical Pixel and Samsung frame timing, power use, thermal behavior, and launcher-specific parallax remain unmeasured. A separate SwiftShader attempt ended in a host emulator crash and is excluded from this comparison.
 
 ## Branding branch merge verification
 

@@ -14,8 +14,8 @@ import dev.sush.phosphor.render.RenderKit.Companion.fraction
 
 /**
  * Glyphs pre-rendered once into an alpha-only atlas. An ALPHA_8 bitmap is tinted by the
- * paint's color, so each glyph is one `drawBitmap` from a shared texture (no text shaping, and
- * the GPU batches draws that share it) and color changes cost nothing.
+ * paint's color, so each glyph is one `drawBitmap` from a shared texture and the renderer
+ * can redraw moving characters without shaping text or generating a texture for each tint.
  *
  * Also builds a tile of dim, randomly chosen glyphs: the unlit "screen" behind the art, drawn
  * as a single shader-filled rectangle.
@@ -26,7 +26,7 @@ internal class AsciiGlyphs {
     private val src = Array(CHARS.length) { Rect() }
     private val dst = RectF()
     private val matrix = Matrix()
-    var lattice: Shader? = null; private set
+    private var latticeShader: BitmapShader? = null
 
     val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val latticePaint = Paint(Paint.FILTER_BITMAP_FLAG)
@@ -63,9 +63,10 @@ internal class AsciiGlyphs {
             text.alpha = (90 + 165 * fraction(r * 7 + q * 3 + 11)).toInt()
             tcv.drawText(CHARS, g, g + 1, q * PX_W + PX_W * 0.5f, r * PX_H + PX_H * 0.5f + text.textSize * 0.36f, text)
         }
-        tile = t.extractAlpha()
+        val mask = t.extractAlpha()
         t.recycle()
-        lattice = BitmapShader(tile!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+        tile = mask
+        latticeShader = BitmapShader(mask, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
     }
 
     /** Draw glyph [index] filling a [w] x [h] cell centred on ([x], [y]), tinted by [paint]'s color. */
@@ -78,8 +79,9 @@ internal class AsciiGlyphs {
     fun lattice(canvas: Canvas, left: Float, top: Float, right: Float, bottom: Float, w: Float, h: Float, ox: Float, oy: Float, color: Int, mode: RenderKit.Mode, k: RenderKit) {
         matrix.setScale(w / PX_W, h / PX_H)
         matrix.postTranslate(ox - w * 0.5f, oy - h * 0.5f)
-        lattice!!.setLocalMatrix(matrix)
-        latticePaint.shader = lattice
+        val shader = requireNotNull(latticeShader)
+        shader.setLocalMatrix(matrix)
+        latticePaint.shader = shader
         latticePaint.color = color
         k.blend(latticePaint, mode)
         canvas.drawRect(left, top, right, bottom, latticePaint)
@@ -88,9 +90,11 @@ internal class AsciiGlyphs {
     }
 
     fun release() {
-        atlas?.recycle(); atlas = null
-        tile?.recycle(); tile = null
-        lattice = null
+        latticeShader = null
+        atlas?.recycle()
+        atlas = null
+        tile?.recycle()
+        tile = null
     }
 
     companion object {

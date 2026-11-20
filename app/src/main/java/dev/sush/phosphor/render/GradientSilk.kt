@@ -14,8 +14,7 @@ import kotlin.math.sin
 /**
  * Low tide's silk: a cached sheet of fine brushed streaks, bent through a mesh that follows the
  * folds of the colour field, so thousands of fibres flow and curve for the cost of two draws.
- * Mesh vertices take the field's own colour, so each fibre carries the colour beneath it, and
- * they move with the same smear and lens as the field, so a swipe visibly combs the silk.
+ * Mesh vertices follow the same parallax as the colour field, keeping each fibre on its fold.
  */
 internal class GradientSilk {
     private var streaks: Bitmap? = null
@@ -75,10 +74,9 @@ internal class GradientSilk {
                 val c = cp - warp(a / 1000f, cp / 1000f, t) * 1000f
                 val x = a * ca - c * sa
                 val y = a * sa + c * ca
-                // Match the field's sampling offset, so fibres and colour smear together.
-                field.displace(f, x, y, smear = 105f, lens = 0.6f, ripple = 38f)
-                val vx = x - field.dx - f.shiftX(0.8f)
-                val vy = y - field.dy - f.shiftY(0.5f)
+                // Keep the fibres registered with the underlying folds as parallax moves them.
+                val vx = x - f.shiftX(0.8f)
+                val vy = y - f.shiftY(0.5f)
                 verts[v++] = vx; verts[v++] = vy
                 val cover = field.sample(vx, vy) * reveal
                 val base = field.color(vx, vy)

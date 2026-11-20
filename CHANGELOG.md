@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rework the wallpaper collections with ambient movement and layered launcher parallax. Retire wallpaper tap, drag, and icon-drop effects. Cache Long exposure’s orbital trail geometry.
+- Keep a live preview in view while editing on phones, carry the gallery treatment into the editor, save tuned looks and frame imported photos.
 - Animate the orbit mark on the native Android 12+ splash screen and fade into the app as soon as its first frame is ready. Older Android versions show the static mark; the exit respects disabled animations and Still mode.
 
 ## 0.1.1

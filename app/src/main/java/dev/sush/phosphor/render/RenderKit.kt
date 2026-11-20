@@ -12,20 +12,11 @@ import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.os.Build
-import kotlin.math.exp
-import kotlin.math.sqrt
 
-/**
- * Everything a scene needs for one frame. Positions are in artwork units: 1000 wide, [h] tall.
- *
- * [t] is animation time (already scaled by the speed setting). [now] is real time, used for
- * touch pulses so a tap still answers when ambient motion speed is zero.
- */
+/** Coordinates are 1000 units wide. The renderer freezes both phase and offsets in still mode. */
 class Frame {
     var h = 2000f
     var t = 0f
-    var now = 0f
-    var dt = 0f
     var amount = 0.6f
     var night = true
     var reveal = 1f
@@ -36,91 +27,8 @@ class Frame {
     var c1 = Color.WHITE
     var c2 = Color.GRAY
 
-    val pulseX = FloatArray(TouchField.MAX)
-    val pulseY = FloatArray(TouchField.MAX)
-    val pulseR = FloatArray(TouchField.MAX)
-    val pulseA = FloatArray(TouchField.MAX)
-    var pulses = 0
-    var dragX = 500f
-    var dragY = 1000f
-    var drag = 0f
-
-    /** Finger velocity in artwork units per second; keeps gliding briefly after release. */
-    var flowX = 0f
-    var flowY = 0f
-    /** 0..1 energy of a finger resting in place. Release turns it into a strong pulse. */
-    var charge = 0f
-
-    /** The finger's recent path, oldest first, with 0..1 freshness in [trailA]. */
-    val trailX = FloatArray(TouchField.TRAIL)
-    val trailY = FloatArray(TouchField.TRAIL)
-    val trailA = FloatArray(TouchField.TRAIL)
-    var trail = 0
-
-    /** Horizontal parallax shift for a layer; distant layers pass small depths. */
-    fun shiftX(depth: Float) = offsetX * 34f * depth * (0.4f + amount * 0.6f)
-    fun shiftY(depth: Float) = offsetY * 26f * depth * (0.4f + amount * 0.6f)
-
-    /** Strength of every pulse wavefront passing through a point, 0 when nothing is happening. */
-    fun wave(x: Float, y: Float, width: Float = 80f): Float {
-        var sum = 0f
-        for (i in 0 until pulses) {
-            val dx = x - pulseX[i]
-            val dy = y - pulseY[i]
-            val d = sqrt(dx * dx + dy * dy)
-            val k = (d - pulseR[i]) / width
-            if (k > -3f && k < 3f) sum += exp(-k * k) * pulseA[i]
-        }
-        return sum
-    }
-
-    /** One-dimensional wavefronts travelling sideways from each tap, for curtain-like art. */
-    fun waveX(x: Float, width: Float = 70f): Float {
-        var sum = 0f
-        for (i in 0 until pulses) {
-            val k = (kotlin.math.abs(x - pulseX[i]) - pulseR[i] * 0.8f) / width
-            if (k > -3f && k < 3f) sum += exp(-k * k) * pulseA[i]
-        }
-        return sum
-    }
-
-    /** Gaussian influence of the finger currently held on the screen. */
-    fun dragInfluence(x: Float, y: Float, radius: Float): Float {
-        if (drag <= 0.001f) return 0f
-        val dx = x - dragX
-        val dy = y - dragY
-        return exp(-(dx * dx + dy * dy) / (radius * radius)) * drag
-    }
-
-    /** Speed of the finger (or its glide after release), artwork units per second. */
-    val flowSpeed: Float get() = sqrt(flowX * flowX + flowY * flowY)
-
-    /** Strongest wake influence at a point: fresh, nearby trail points count most. */
-    fun trailInfluence(x: Float, y: Float, radius: Float): Float {
-        var best = 0f
-        val r2 = radius * radius
-        for (i in 0 until trail) {
-            val dx = x - trailX[i]
-            val dy = y - trailY[i]
-            val d2 = dx * dx + dy * dy
-            if (d2 > r2 * 9f) continue
-            val v = exp(-d2 / r2) * trailA[i]
-            if (v > best) best = v
-        }
-        return best
-    }
-
-    /** Clear every gesture input; frames drawn without a touch surface are deterministic. */
-    fun clearTouch() {
-        pulses = 0
-        drag = 0f
-        flowX = 0f
-        flowY = 0f
-        charge = 0f
-        trail = 0
-    }
-
-    val busy: Boolean get() = pulses > 0 || drag > 0.001f || trail > 0 || flowX != 0f || flowY != 0f
+    fun shiftX(depth: Float) = offsetX * 38f * depth * (0.4f + amount * 0.6f)
+    fun shiftY(depth: Float) = offsetY * 28f * depth * (0.4f + amount * 0.6f)
 }
 
 /** Shared paints, cached palette shaders and pure helpers. One kit per renderer. */

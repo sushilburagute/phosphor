@@ -80,7 +80,7 @@ internal class AuroraLand(private val k: RenderKit) {
     }
 
     /** Airglow behind everything: a faint wash high up and a glowing band along the horizon. */
-    fun sky(canvas: Canvas, f: Frame, solstice: Boolean) {
+    fun sky(canvas: Canvas, f: Frame, solstice: Boolean, sunX: Float) {
         prepare(f, solstice)
         val h = f.h
         val mode = k.modeFor(f)
@@ -88,9 +88,9 @@ internal class AuroraLand(private val k: RenderKit) {
         k.glow(canvas, k.glowB, 520f, h * 0.32f, 900f, h * 0.2f, ((if (f.night) 34 else 26) * reveal).toInt(), mode)
         k.glow(canvas, k.glowA, 480f, h * 0.55f, 900f, h * 0.06f, ((if (f.night) 30 else 20) * reveal).toInt(), mode)
         if (solstice) {
-            // The midsummer sun is just below the horizon: an amber band under the ridges.
-            k.glow(canvas, k.glowB, 260f + f.shiftX(0.3f), h * 0.68f, 1100f, h * 0.07f, if (f.night) 170 else 110, mode)
-            k.glow(canvas, k.glowWhite, 240f + f.shiftX(0.3f), h * 0.672f, 620f, h * 0.025f, if (f.night) 110 else 60, mode)
+            // Amber light spreads below the sun and behind the ridges.
+            k.glow(canvas, k.glowB, sunX, h * 0.68f, 1100f, h * 0.07f, if (f.night) 170 else 110, mode)
+            k.glow(canvas, k.glowWhite, sunX, h * 0.672f, 620f, h * 0.025f, if (f.night) 110 else 60, mode)
         } else {
             k.glow(canvas, k.glowA, 500f, h * 0.665f, 1000f, h * 0.035f, if (f.night) 50 else 30, mode)
         }
@@ -280,8 +280,7 @@ internal class AuroraLand(private val k: RenderKit) {
                 val y = shore + 6f + depth * u * u * 0.8f + depth * u * 0.2f
                 // Wind on the water: each ripple flickers and drifts on its own.
                 val ripple = 0.5f + 0.5f * sin(f.sky * (1.1f + fraction(r * 7 + b) * 1.4f) + r * 1.9f + b * 0.71f)
-                val v = light * 0.42f * ripple * (0.35f + 0.65f * exp(-u * 2.2f)) + f.wave(cx, y, 60f) * 0.6f +
-                    (if (f.trail > 0) f.trailInfluence(cx, y, 70f) * 0.8f else 0f)
+                val v = light * 0.42f * ripple * (0.35f + 0.65f * exp(-u * 2.2f))
                 val level = (v * 4f).toInt()
                 if (level <= 0) continue
                 val l = min(level - 1, 3)
@@ -328,7 +327,7 @@ internal class AuroraLand(private val k: RenderKit) {
     }
 
     /** Solstice: a snowfield lit rose and amber, glinting, with one small watcher. */
-    fun snow(canvas: Canvas, f: Frame, scene: AuroraScene) {
+    fun snow(canvas: Canvas, f: Frame, sunX: Float) {
         val h = f.h
         val top = h * 0.75f + f.shiftY(1.15f)
         val path = k.path
@@ -350,14 +349,18 @@ internal class AuroraLand(private val k: RenderKit) {
         k.glow(canvas, k.glowA, 520f, top + 30f, 760f, 70f, if (f.night) 55 else 30, mode)
         k.glow(canvas, k.glowB, 260f, top + 10f, 600f, 40f, if (f.night) 70 else 36, mode)
 
-        // Snow reflects the curtains diffusely: soft columns of their light under each fold.
-        columnLight(scene)
+        // Reflected sunlight falls off across the snowfield, strongest beneath the solar disc.
+        val sunlight = smoothBins[0]
+        for (b in sunlight.indices) {
+            val dx = ((b + 0.5f) * AuroraScene.BIN_W - sunX) / 230f
+            sunlight[b] = exp(-dx * dx)
+        }
         val sl = line
         k.additive(sl, f.night)
         sl.shader = snowShine
         sl.strokeWidth = AuroraScene.BIN_W * 1.3f
         for (b in 0 until AuroraScene.BINS) {
-            val light = smoothBins[2][b] + smoothBins[1][b] * 0.7f + smoothBins[0][b] * 0.4f
+            val light = sunlight[b]
             if (light < 0.1f) continue
             val cx = b * AuroraScene.BIN_W + AuroraScene.BIN_W * 0.5f + f.shiftX(1.15f)
             sl.alpha = (light / (1f + light) * if (f.night) 120f else 70f).toInt()
@@ -384,7 +387,7 @@ internal class AuroraLand(private val k: RenderKit) {
         }
         k.reset(s)
 
-        // Glints: snow crystals catching the curtains.
+        // Glints: snow crystals catching the sun.
         glintCounts.fill(0)
         val n = (360 * (0.4f + 0.6f * f.detail)).toInt()
         for (i in 0 until n) {
@@ -392,9 +395,9 @@ internal class AuroraLand(private val k: RenderKit) {
             val u = fraction(i * 43 + 9)
             val gy = top + 18f + u * u * (h * 0.85f - top)
             val b = (gx / AuroraScene.BIN_W).toInt().coerceIn(0, AuroraScene.BINS - 1)
-            val light = 0.35f + smoothBins[2][b] * 0.4f + smoothBins[1][b] * 0.25f
+            val light = 0.35f + sunlight[b] * 0.65f
             val sparkle = sin(f.sky * (0.9f + fraction(i + 5) * 2f) + i * 2.3f).coerceAtLeast(0f).let { it * it * it * it }
-            val v = light * sparkle + f.wave(gx, gy, 70f) * 0.7f + (if (f.trail > 0) f.trailInfluence(gx, gy, 80f) else 0f)
+            val v = light * sparkle
             val level = (v * 4f).toInt()
             if (level <= 0) continue
             val l = min(level - 1, 3)

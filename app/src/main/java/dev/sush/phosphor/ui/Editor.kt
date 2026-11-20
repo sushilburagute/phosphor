@@ -1,9 +1,10 @@
 package dev.sush.phosphor.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,9 +22,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalIconToggleButton
@@ -46,23 +45,28 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.sush.phosphor.R
 import dev.sush.phosphor.model.Appearance
+import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
-import dev.sush.phosphor.platform.isNight
 import dev.sush.phosphor.ui.theme.Motion
 
 @Composable
 fun Editor(
     preset: WallpaperPreset,
     settings: WallpaperSettings,
-    favorite: Boolean,
     uncertainApply: Boolean,
-    systemNight: Boolean,
+    night: Boolean,
+    appliedNight: Boolean,
+    title: String,
     onBack: () -> Unit,
-    onFavorite: () -> Unit,
+    onSaveLook: () -> Unit,
+    onUseAppliedAppearance: () -> Unit,
     onChange: (WallpaperSettings) -> Unit,
     onApply: () -> Unit,
     onConfirm: () -> Unit,
@@ -71,63 +75,81 @@ fun Editor(
 ) {
     var homeScreen by rememberSaveable { mutableStateOf(false) }
     var replay by rememberSaveable { mutableIntStateOf(0) }
-    val night = settings.appearance.isNight(systemNight)
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    fun back() { if (expanded) expanded = false else onBack() }
+    BackHandler(expanded) { expanded = false }
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Glyph(R.drawable.ic_back, "Back to wallpapers") }
-            Text(preset.name, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f).padding(start = 4.dp).semantics { heading() })
-            IconButton(onClick = onFavorite) {
-                Glyph(if (favorite) R.drawable.ic_saved_filled else R.drawable.ic_saved, if (favorite) "Remove from saved" else "Save wallpaper",
-                    tint = if (favorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface)
-            }
+            IconButton(onClick = ::back) { Glyph(R.drawable.ic_back, if (expanded) "Back to tuning" else "Back to wallpapers") }
+            Text(title, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(start = 4.dp).semantics { heading() })
+            TextButton(onClick = onSaveLook) { Text("Save look") }
         }
         BoxWithConstraints(Modifier.weight(1f)) {
-            val wide = maxWidth >= 840.dp && LocalDensity.current.fontScale < 1.4f
-            // The plate is as tall as the window allows, leaving room for the controls row.
-            val plateHeight = if (wide) (maxHeight - 96.dp).coerceAtLeast(120.dp) else minOf(560.dp, maxHeight * 0.74f)
+            val wide = maxWidth >= 840.dp || (maxWidth >= 540.dp && maxWidth > maxHeight * 1.4f)
+            val plateHeight = when {
+                wide -> (maxHeight - 86.dp).coerceAtLeast(1.dp)
+                expanded -> (maxHeight - 66.dp).coerceAtLeast(1.dp)
+                else -> minOf(260.dp, maxHeight * if (LocalDensity.current.fontScale > 1.4f) 0.26f else 0.36f)
+            }
             val stage: @Composable (Modifier) -> Unit = { modifier ->
                 Stage(preset, settings, night, homeScreen, replay, plateHeight, modifier,
-                    onHomeScreen = { homeScreen = it }, onReplay = { replay++ })
+                    onHomeScreen = { homeScreen = it }, onReplay = { replay++ },
+                    expanded = expanded, onExpand = if (wide) null else ({ expanded = !expanded }))
             }
-            val controls: @Composable (Modifier, Boolean) -> Unit = { modifier, scroll ->
-                Controls(preset, settings, night, uncertainApply, onChange, onConfirm, onExport, onPaletteHelp, modifier, scroll)
+            val controls: @Composable (Modifier) -> Unit = { modifier ->
+                Controls(preset, settings, night, appliedNight, uncertainApply, onChange, onUseAppliedAppearance,
+                    onConfirm, onExport, onPaletteHelp, modifier)
             }
             if (wide) {
                 Row(Modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                     stage(Modifier.weight(0.9f).fillMaxHeight().padding(vertical = 12.dp))
-                    controls(Modifier.weight(1.1f).fillMaxHeight(), true)
+                    controls(Modifier.weight(1.1f).fillMaxHeight())
                 }
             } else {
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                Column(Modifier.fillMaxSize()) {
                     stage(Modifier.fillMaxWidth().padding(horizontal = 20.dp))
-                    controls(Modifier.fillMaxWidth(), false)
+                    if (!expanded) controls(Modifier.fillMaxWidth().weight(1f))
                 }
             }
         }
         Surface(tonalElevation = 2.dp, shadowElevation = 6.dp) {
-            Button(
-                onClick = onApply,
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp).heightIn(min = 56.dp),
-                shape = MaterialTheme.shapes.large,
-            ) {
-                Glyph(R.drawable.ic_check, null, Modifier.size(20.dp))
-                Text("Set live wallpaper", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 10.dp))
+            Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
+                if (night != appliedNight) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (night) "Night preview · Applies Day" else "Day preview · Applies Night",
+                        style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    TextButton(onClick = {
+                        onUseAppliedAppearance()
+                        onChange(settings.copy(appearance = if (night) Appearance.NIGHT else Appearance.DAY))
+                    }) { Text(if (night) "Use Night" else "Use Day") }
+                }
+                Button(
+                    onClick = onApply, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    shape = MaterialTheme.shapes.large,
+                ) {
+                    Glyph(R.drawable.ic_check, null, Modifier.size(20.dp))
+                    Text("Set live wallpaper", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 10.dp))
+                }
             }
         }
     }
 }
 
-/** The live, touchable preview, with optional home-screen overlay and a wake replay. */
+/** The preview stays visible while the settings below it scroll. */
 @Composable
 private fun Stage(
     preset: WallpaperPreset, settings: WallpaperSettings, night: Boolean, homeScreen: Boolean, replay: Int,
-    plateHeight: androidx.compose.ui.unit.Dp, modifier: Modifier, onHomeScreen: (Boolean) -> Unit, onReplay: () -> Unit,
+    plateHeight: Dp, modifier: Modifier, onHomeScreen: (Boolean) -> Unit, onReplay: () -> Unit,
+    expanded: Boolean, onExpand: (() -> Unit)?,
 ) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val sizeAction = if (expanded) "Back to tuning" else "Expand preview"
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Box(
             Modifier.height(plateHeight).aspectRatio(PLATE_RATIO, matchHeightConstraintsFirst = true)
-                .clip(MaterialTheme.shapes.extraLarge),
+                .clip(MaterialTheme.shapes.large).then(
+                    if (onExpand == null) Modifier else Modifier.clickable(role = Role.Button, onClickLabel = sizeAction, onClick = onExpand)
+                ),
         ) {
             WallpaperPreview(preset, settings, Modifier.fillMaxSize(), animate = true, night = night, replayReveal = replay)
             androidx.compose.animation.AnimatedVisibility(visible = homeScreen, enter = fadeIn(tween(if (settings.reducedMotion) 0 else Motion.CALM)), exit = fadeOut(tween(if (settings.reducedMotion) 0 else Motion.QUICK))) {
@@ -139,29 +161,23 @@ private fun Stage(
                 checked = homeScreen, onCheckedChange = onHomeScreen,
                 modifier = Modifier.semantics { contentDescription = if (homeScreen) "Hide home screen preview" else "Show home screen preview" },
             ) { Glyph(R.drawable.ic_home_screen, null) }
-            FilledTonalIconToggleButton(
-                checked = false, onCheckedChange = { onReplay() }, enabled = settings.wakeReveal && !settings.reducedMotion,
+            IconButton(
+                onClick = onReplay, enabled = settings.wakeReveal && !settings.reducedMotion,
                 modifier = Modifier.semantics { contentDescription = "Replay the wake animation" },
             ) { Glyph(R.drawable.ic_wake, null) }
-            if (settings.parallax && !settings.reducedMotion) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp)) {
-                    Glyph(R.drawable.ic_touch, null, Modifier.size(18.dp), MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(preset.interaction, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 6.dp).widthIn(max = 220.dp))
-                }
-            }
+            if (onExpand != null) TextButton(onClick = onExpand) { Text(sizeAction) }
         }
     }
 }
 
 @Composable
 private fun Controls(
-    preset: WallpaperPreset, settings: WallpaperSettings, night: Boolean, uncertainApply: Boolean,
-    onChange: (WallpaperSettings) -> Unit, onConfirm: () -> Unit, onExport: () -> Unit, onPaletteHelp: () -> Unit,
-    modifier: Modifier, scroll: Boolean,
+    preset: WallpaperPreset, settings: WallpaperSettings, night: Boolean, appliedNight: Boolean, uncertainApply: Boolean,
+    onChange: (WallpaperSettings) -> Unit, onUseAppliedAppearance: () -> Unit, onConfirm: () -> Unit,
+    onExport: () -> Unit, onPaletteHelp: () -> Unit, modifier: Modifier,
 ) {
     Column(
-        (if (scroll) modifier.verticalScroll(rememberScrollState()) else modifier).padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 28.dp),
+        modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(30.dp),
     ) {
         if (uncertainApply) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.large) {
@@ -180,40 +196,49 @@ private fun Controls(
             }
         }
 
-        Section("Day and night", if (night) R.drawable.ic_moon else R.drawable.ic_sun) {
+        if (preset.kind == WallpaperKind.IMAGE) {
+            PhotoFraming(settings, onChange)
+        }
+
+        Section("Wallpaper appearance", if (night) R.drawable.ic_moon else R.drawable.ic_sun) {
             Segmented(
                 listOf(
                     Triple(Appearance.AUTO, "Auto", R.drawable.ic_auto),
                     Triple(Appearance.DAY, "Day", R.drawable.ic_sun),
                     Triple(Appearance.NIGHT, "Night", R.drawable.ic_moon),
                 ),
-                settings.appearance, { onChange(settings.copy(appearance = it)) },
+                settings.appearance, { onUseAppliedAppearance(); onChange(settings.copy(appearance = it)) },
             )
             Text(
                 when (settings.appearance) {
                     Appearance.AUTO -> "Follows your phone’s dark theme. Glows at night, prints in ink by day."
-                    Appearance.DAY -> "Always ink on paper. Your launcher switches to dark labels."
-                    Appearance.NIGHT -> "Always emitted light. Your launcher keeps light labels."
+                    Appearance.DAY -> "Always use the daylight palette."
+                    Appearance.NIGHT -> "Always use the night palette."
                 },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (night != appliedNight) {
+                TextButton(onClick = onUseAppliedAppearance) {
+                    Text(if (night) "Preview applied appearance (Day)" else "Preview applied appearance (Night)")
+                }
+            }
             SliderRow("Calm the artwork", settings.darken, "Fades toward the background so icons and widgets stand out more.") { onChange(settings.copy(darken = it)) }
         }
 
         Section("Motion", R.drawable.ic_motion) {
             SliderRow("Speed", settings.speed, enabled = !settings.reducedMotion) { onChange(settings.copy(speed = it)) }
             SliderRow("Intensity", settings.intensity, "How far the artwork moves and how much detail it shows.") { onChange(settings.copy(intensity = it)) }
-            ToggleRow("Respond to touch", "Taps, drags and home-screen swipes move the artwork.", settings.parallax, { onChange(settings.copy(parallax = it)) }, !settings.reducedMotion)
+            ToggleRow("Home-screen parallax", "Layers shift at different speeds as your launcher moves between pages.", settings.parallax, { onChange(settings.copy(parallax = it)) }, !settings.reducedMotion)
             ToggleRow("Still mode", "Keep the artwork, stop all animation.", settings.reducedMotion, { onChange(settings.copy(reducedMotion = it)) })
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Frame rate", style = MaterialTheme.typography.titleMedium)
                 Segmented(listOf(15, 30, 60).map { Triple(it, "$it fps", null) }, settings.fps, { onChange(settings.copy(fps = it)) }, enabled = !settings.reducedMotion)
-                Text("30 fps balances smoothness and battery. The lock screen uses up to 15 fps. Animation pauses when hidden or the screen is off, and touches follow the same battery limits.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("The lock screen uses up to 15 fps. Animation pauses when the wallpaper is hidden or the screen is off.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
         Section("Battery and wake", R.drawable.ic_battery) {
-            ToggleRow("Light up on wake", "The artwork rises from dark when you turn on the screen, and blooms when you unlock.", settings.wakeReveal, { onChange(settings.copy(wakeReveal = it)) }, !settings.reducedMotion)
+            ToggleRow("Light up on wake", "Gradually reveal the scene when you turn on the screen.", settings.wakeReveal, { onChange(settings.copy(wakeReveal = it)) }, !settings.reducedMotion)
             ToggleRow("Lock and unlock animation", "Gently settle on lock and reveal on unlock. Availability depends on your phone.", settings.unlockAnimation, { onChange(settings.copy(unlockAnimation = it)) }, !settings.reducedMotion)
             ToggleRow("Save battery when low", "Below 20% and unplugged, motion slows to 15 fps. At 5%, it holds still. Battery Saver is always respected.", settings.lowBatteryMode, { onChange(settings.copy(lowBatteryMode = it)) })
         }

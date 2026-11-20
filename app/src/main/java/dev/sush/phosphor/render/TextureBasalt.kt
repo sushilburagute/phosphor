@@ -3,8 +3,6 @@ package dev.sush.phosphor.render
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RadialGradient
-import android.graphics.Shader
 import dev.sush.phosphor.render.RenderKit.Companion.alpha
 import dev.sush.phosphor.render.RenderKit.Companion.fraction
 import dev.sush.phosphor.render.RenderKit.Companion.hash
@@ -12,7 +10,6 @@ import dev.sush.phosphor.render.RenderKit.Companion.mix
 import dev.sush.phosphor.render.RenderKit.Companion.smooth
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.pow
 import kotlin.math.sin
@@ -24,31 +21,24 @@ import kotlin.math.sqrt
  * The terrain is cached; only the light moves. A low sun circles slowly, so slopes turn from
  * shadow to light and specks glint as the light crosses their facets. Contours are traced
  * with marching squares and drawn as engraved grooves (a shadow on one side, a lit lip on the
- * other). Touch changes the terrain itself: a swipe etches a glowing fissure that cools, a
- * held finger heats a magma dome that rises through the contours, and its release cracks out.
+ * other). Foreground minerals shift separately as the launcher scrolls.
  */
 internal class TextureBasalt(private val k: RenderKit) {
     private val grid = ShadedGrid()
-    private var base = FloatArray(0)
     private var height = FloatArray(0)
     private var nX = FloatArray(0)
     private var nY = FloatArray(0)
     private var baseKey = 0L
-    private var shaped = false
 
     private val minor = FloatArray(MAX_SEGMENTS * 4)
     private val major = FloatArray(MAX_SEGMENTS / 3 * 4)
-    private val hot = FloatArray(MAX_SEGMENTS / 3 * 4)
     private var minorCount = 0
     private var majorCount = 0
-    private var hotCount = 0
 
     private val specks = Array(3) { FloatArray(SPECKS * 2) }
     private val speckCount = IntArray(3)
     private val stars = FloatArray(MAX_STARS * 8)
     private var starCount = 0
-
-    private var magma: Shader? = null
 
     fun draw(canvas: Canvas, f: Frame) {
         val h = f.h
@@ -60,19 +50,13 @@ internal class TextureBasalt(private val k: RenderKit) {
         if (rebuilt || key != baseKey) {
             baseKey = key
             val n = (cols + 1) * (rows + 1)
-            base = FloatArray(n); height = FloatArray(n); nX = FloatArray(n); nY = FloatArray(n)
-            for (at in 0 until n) base[at] = terrain(grid.verts[at * 2], grid.verts[at * 2 + 1])
-            shaped = false
-        }
-        // Terrain only changes under touch; otherwise the cached contours stand.
-        val touched = f.busy
-        if (touched || !shaped) {
-            reshape(f)
-            contours(f)
-            shaped = !touched
+            height = FloatArray(n); nX = FloatArray(n); nY = FloatArray(n)
+            for (at in 0 until n) height[at] = terrain(grid.verts[at * 2], grid.verts[at * 2 + 1])
+            normals()
+            contours()
         }
         // A low sun circling slowly.
-        val az = 0.6f + f.t * 0.04f
+        val az = 0.6f + f.t * 0.12f
         val el = 0.62f
         val lx = cos(az) * cos(el); val ly = sin(az) * cos(el); val lz = sin(el)
         shade(f, lx, ly, lz, reveal)
@@ -80,10 +64,12 @@ internal class TextureBasalt(private val k: RenderKit) {
         k.normal(p)
         p.style = Paint.Style.FILL
         p.color = Color.WHITE
+        val saved = canvas.save()
+        canvas.translate(f.shiftX(0.58f), f.shiftY(0.58f))
         grid.draw(canvas, p)
         etch(canvas, f, lx, ly, reveal)
+        canvas.restoreToCount(saved)
         glints(canvas, f, az, reveal)
-        touch(canvas, f, reveal)
     }
 
     // region Terrain
@@ -118,27 +104,8 @@ internal class TextureBasalt(private val k: RenderKit) {
         return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v
     }
 
-    private fun reshape(f: Frame) {
+    private fun normals() {
         val g = grid
-        for (at in base.indices) {
-            var z = base[at]
-            if (f.busy) {
-                val x = g.verts[at * 2]; val y = g.verts[at * 2 + 1]
-                // The fissure sinks a groove; the magma dome swells under a held finger.
-                if (f.trail > 1) z -= 0.22f * f.trailInfluence(x, y, 26f)
-                if (f.drag > 0.01f) {
-                    val dx = x - f.dragX; val dy = y - f.dragY
-                    val r = 120f + f.charge * 60f
-                    z += f.drag * (0.08f + f.charge * 0.62f) * exp(-(dx * dx + dy * dy) / (r * r))
-                }
-                for (i in 0 until f.pulses) {
-                    val dx = x - f.pulseX[i]; val dy = y - f.pulseY[i]
-                    val q = (sqrt(dx * dx + dy * dy) - f.pulseR[i]) / 50f
-                    if (q > -3f && q < 3f) z += exp(-q * q) * sin(q * 3f) * f.pulseA[i] * 0.16f
-                }
-            }
-            height[at] = z
-        }
         val dx = (g.verts[2] - g.verts[0]) * 2f
         val dy = (g.y(1) - g.y(0)) * 2f
         for (j in 0..g.rows) for (i in 0..g.cols) {
@@ -150,12 +117,10 @@ internal class TextureBasalt(private val k: RenderKit) {
         }
     }
 
-    /** Marching squares over the height grid, into minor, major (every fifth) and hot batches. */
-    private fun contours(f: Frame) {
+    /** Marching squares separates minor contours from each fifth, heavier contour. */
+    private fun contours() {
         val g = grid
-        minorCount = 0; majorCount = 0; hotCount = 0
-        val heat = f.drag * f.charge
-        val heatR2 = (200f + f.charge * 90f).let { it * it }
+        minorCount = 0; majorCount = 0
         for (j in 0 until g.rows) for (i in 0 until g.cols) {
             val a = g.index(i, j); val b = g.index(i + 1, j)
             val c = g.index(i + 1, j + 1); val d = g.index(i, j + 1)
@@ -172,8 +137,8 @@ internal class TextureBasalt(private val k: RenderKit) {
                 if ((zc < v) != (zd < v)) { val t = (v - zc) / (zd - zc); edgePoint(g, c, d, t, n++) }
                 if ((zd < v) != (za < v)) { val t = (v - zd) / (za - zd); edgePoint(g, d, a, t, n++) }
                 if (n >= 2) {
-                    emit(level, 0, heat, heatR2, f)
-                    if (n == 4) emit(level, 2, heat, heatR2, f)
+                    emit(level, 0)
+                    if (n == 4) emit(level, 2)
                 }
                 level++
             }
@@ -188,15 +153,8 @@ internal class TextureBasalt(private val k: RenderKit) {
         ey[n] = g.verts[a * 2 + 1] + (g.verts[b * 2 + 1] - g.verts[a * 2 + 1]) * t
     }
 
-    private fun emit(level: Int, from: Int, heat: Float, heatR2: Float, f: Frame) {
+    private fun emit(level: Int, from: Int) {
         val x0 = ex[from]; val y0 = ey[from]; val x1 = ex[from + 1]; val y1 = ey[from + 1]
-        if (heat > 0.05f) {
-            val dx = (x0 + x1) * 0.5f - f.dragX; val dy = (y0 + y1) * 0.5f - f.dragY
-            if (dx * dx + dy * dy < heatR2 && hotCount + 4 <= hot.size) {
-                hot[hotCount] = x0; hot[hotCount + 1] = y0; hot[hotCount + 2] = x1; hot[hotCount + 3] = y1
-                hotCount += 4
-            }
-        }
         if (Math.floorMod(level, 5) == 0) {
             if (majorCount + 4 > major.size) return
             major[majorCount] = x0; major[majorCount + 1] = y0; major[majorCount + 2] = x1; major[majorCount + 3] = y1
@@ -253,14 +211,7 @@ internal class TextureBasalt(private val k: RenderKit) {
             if (majorCount > 0) canvas.drawLines(major, 0, majorCount, s)
             canvas.restore()
         }
-        if (hotCount > 0) {
-            k.additive(s, night)
-            val heat = f.drag * f.charge
-            s.color = EMBER; s.strokeWidth = 3f; s.alpha = (heat * (if (night) 120 else 90)).toInt()
-            canvas.drawLines(hot, 0, hotCount, s)
-            s.color = if (night) HOT else EMBER; s.strokeWidth = 1.1f; s.alpha = (heat * 230).toInt()
-            canvas.drawLines(hot, 0, hotCount, s)
-        }
+
         k.reset(s)
         s.strokeCap = Paint.Cap.ROUND
     }
@@ -272,17 +223,13 @@ internal class TextureBasalt(private val k: RenderKit) {
         val count = (SPECKS * (0.35f + f.detail * 0.65f)).toInt()
         for (i in 0 until count) {
             val seed = i * 3301 + 41
-            val x = fraction(seed) * 1000f
-            val y = fraction(seed + 1) * f.h
+            val x = fraction(seed) * 1080f - 40f + f.shiftX(0.92f)
+            val y = fraction(seed + 1) * (f.h + 80f) - 40f + f.shiftY(0.92f)
             val facet = fraction(seed + 2) * 6.283f
             val c = cos(az - facet)
             var glint = if (c > 0f) c.pow(36f) else 0f
             glint *= 0.7f + 0.3f * sin(f.t * 1.1f + seed)
-            if (f.busy) {
-                glint += f.wave(x, y, 70f) * 1.1f
-                if (f.drag > 0.01f) glint += f.dragInfluence(x, y, 130f + f.charge * 60f) * f.charge
-                if (f.trail > 1) glint += f.trailInfluence(x, y, 40f) * 0.8f
-            }
+
             val bucket = when { glint > 0.55f -> 2; glint > 0.18f -> 1; else -> 0 }
             val at = speckCount[bucket] * 2
             specks[bucket][at] = x; specks[bucket][at + 1] = y
@@ -329,122 +276,11 @@ internal class TextureBasalt(private val k: RenderKit) {
         }
     }
 
-    private fun touch(canvas: Canvas, f: Frame, reveal: Float) {
-        val night = f.night
-        val mode = if (night) RenderKit.Mode.ADD else RenderKit.Mode.INK
-        if (f.drag > 0.01f) {
-            if (magma == null) magma = RadialGradient(0f, 0f, 1f,
-                intArrayOf(HOT, EMBER, alpha(DEEP, 150), alpha(DEEP, 0)), floatArrayOf(0f, 0.18f, 0.5f, 1f), Shader.TileMode.CLAMP)
-            val c = f.charge
-            val r = 50f + c * 150f
-            k.glow(canvas, magma, f.dragX, f.dragY, r, r, ((40 + c * 200) * f.drag * reveal).toInt(), mode)
-            if (c > 0.2f) cracks(canvas, f, c)
-        }
-        if (f.trail > 1) fissure(canvas, f)
-        val s = k.stroke
-        for (i in 0 until f.pulses) {
-            val a = f.pulseA[i].coerceAtMost(1.5f)
-            if (a < 0.02f) continue
-            // The shock ring: an ember front on a dark trough.
-            k.additive(s, night)
-            s.color = EMBER; s.strokeWidth = 3f + a * 3f; s.alpha = (a * 90).toInt().coerceAtMost(255)
-            canvas.drawCircle(f.pulseX[i], f.pulseY[i], f.pulseR[i], s)
-            s.color = if (night) HOT else DEEP; s.strokeWidth = 1.2f; s.alpha = (a * 120).toInt().coerceAtMost(255)
-            canvas.drawCircle(f.pulseX[i], f.pulseY[i], f.pulseR[i], s)
-        }
-        k.reset(s)
-    }
-
-    /** Hairline cracks radiating from the magma, lengthening with charge. */
-    private fun cracks(canvas: Canvas, f: Frame, c: Float) {
-        val s = k.stroke
-        k.additive(s, f.night)
-        k.path.reset()
-        for (n in 0 until 9) {
-            val seed = n * 211 + 5
-            var a = fraction(seed) * 6.283f
-            var x = f.dragX; var y = f.dragY
-            val reach = (40f + fraction(seed + 1) * 90f) * (c - 0.2f) / 0.8f * f.drag
-            k.path.moveTo(x, y)
-            var walked = 0f
-            var step = 0
-            while (walked < reach) {
-                a += (fraction(seed + 7 + step) - 0.5f) * 0.9f
-                x += cos(a) * 12f; y += sin(a) * 12f
-                k.path.lineTo(x, y)
-                walked += 12f; step++
-            }
-        }
-        s.color = EMBER; s.strokeWidth = 4f; s.alpha = (c * 80 * f.drag).toInt()
-        canvas.drawPath(k.path, s)
-        s.color = if (f.night) HOT else DEEP; s.strokeWidth = 1.2f; s.alpha = (c * 230 * f.drag).toInt()
-        canvas.drawPath(k.path, s)
-        k.reset(s)
-    }
-
-    /** The swipe's fissure: jagged, white-hot where fresh, cooling through ember to dark red. */
-    private fun fissure(canvas: Canvas, f: Frame) {
-        val s = k.stroke
-        val night = f.night
-        for (pass in 0 until 3) {
-            for (j in 1 until f.trail) {
-                val heat = f.trailA[j]
-                if (heat < 0.02f) continue
-                val x0 = f.trailX[j - 1]; val y0 = f.trailY[j - 1]
-                val x1 = f.trailX[j]; val y1 = f.trailY[j]
-                val dx = x1 - x0; val dy = y1 - y0
-                val len = sqrt(dx * dx + dy * dy).coerceAtLeast(0.001f)
-                val nx = -dy / len; val ny = dx / len
-                // Jitter is keyed to the ground position so the crack holds still as the wake ages.
-                val j0 = jag(x0, y0); val j1 = jag(x1, y1)
-                val mx = (x0 + x1) * 0.5f + nx * jag(x0 + x1, y0 + y1) * 1.4f
-                val my = (y0 + y1) * 0.5f + ny * jag(x0 + x1, y0 + y1) * 1.4f
-                val ax = x0 + nx * j0; val ay = y0 + ny * j0
-                val bx = x1 + nx * j1; val by = y1 + ny * j1
-                when (pass) {
-                    0 -> {
-                        k.additive(s, night)
-                        s.color = if (heat > 0.5f) EMBER else DEEP
-                        s.strokeWidth = 4f + heat * 16f; s.alpha = (heat * (if (night) 70 else 60)).toInt()
-                    }
-                    1 -> {
-                        if (night) k.normal(s) else k.blend(s, RenderKit.Mode.INK)
-                        s.color = if (night) Color.BLACK else f.c2
-                        s.strokeWidth = 3.2f; s.alpha = ((1f - heat * 0.5f) * (if (night) 200 else 200) * (0.3f + heat)).toInt().coerceAtMost(255)
-                    }
-                    else -> {
-                        k.additive(s, night)
-                        s.color = when { heat > 0.7f -> HOT; heat > 0.35f -> EMBER; else -> DEEP }
-                        if (!night && heat > 0.7f) s.color = EMBER
-                        s.strokeWidth = 0.8f + heat * 1.8f; s.alpha = (80 + heat * 175).toInt()
-                    }
-                }
-                canvas.drawLine(ax, ay, mx, my, s)
-                canvas.drawLine(mx, my, bx, by, s)
-                // Occasional branch.
-                if (pass != 1 && hash(j0.toInt() * 31 + j) % 4 == 0) {
-                    val side = if (j0 > 0f) 1f else -1f
-                    val bl = 10f + abs(j0) * 3f
-                    canvas.drawLine(mx, my, mx + (dx / len * 0.6f + nx * side) * bl, my + (dy / len * 0.6f + ny * side) * bl, s)
-                }
-            }
-        }
-        k.reset(s)
-    }
-
-    private fun jag(x: Float, y: Float): Float =
-        (fraction((x / 9f).toInt() * 7919 + (y / 9f).toInt() * 104729) - 0.5f) * 9f
-
-    // endregion
-
     private companion object {
         const val RELIEF = 300f
         const val STEP = 0.055f
         const val MAX_SEGMENTS = 9000
         const val SPECKS = 900
         const val MAX_STARS = 40
-        const val EMBER = 0xFFFF6A3A.toInt()
-        const val HOT = 0xFFFFE6B0.toInt()
-        const val DEEP = 0xFF8A1A10.toInt()
     }
 }

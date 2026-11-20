@@ -24,8 +24,8 @@ import kotlin.math.sin
 /**
  * The renderer shared by the gallery, editor, exported stills and the WallpaperService.
  *
- * Give each surface its own instance: it caches shaders, noise, imported bitmaps and a little
- * per-scene spring state. Call [release] when that surface is destroyed. Offsets are -1..1.
+ * Give each surface its own instance: it caches shaders, noise, imported bitmaps and scene geometry.
+ * Call [release] when that surface is destroyed. Offsets are -1..1.
  * Artwork is drawn in a 1000-unit-wide space so it is independent of screen density.
  *
  * Readability is part of the composition. Night artwork stays dark behind the clock and dock;
@@ -39,7 +39,7 @@ class WallpaperRenderer {
     private val orbit = OrbitScene(kit)
     private val aurora = AuroraScene(kit)
     private val ascii = AsciiScene(kit)
-    private val gradient = GradientScene(kit, halftone)
+    private val gradient = GradientScene(kit)
     private val glass = GlassScene(kit)
     private val abstract = AbstractScene(kit)
     private val texture = TextureScene(kit, halftone)
@@ -50,7 +50,6 @@ class WallpaperRenderer {
     private var noiseShader: Shader? = null
     private var importedBitmap: Bitmap? = null
     private var importedPath: String? = null
-    private var lastReal = Float.NaN
     private var veilKey = 0L
     private var veilTop: Shader? = null
     private var veilBottom: Shader? = null
@@ -72,11 +71,9 @@ class WallpaperRenderer {
         offsetX: Float = 0f,
         offsetY: Float = 0f,
         night: Boolean = true,
-        touch: TouchField? = null,
-        realSeconds: Float = Float.NaN,
         reveal: Float = 1f,
-        interaction: WallpaperInteraction? = null,
         unlockReveal: Float = 1f,
+        detailScale: Float = 1f,
     ) {
         if (width <= 0 || height <= 0) return
         val h = 1000f * height / width
@@ -88,45 +85,23 @@ class WallpaperRenderer {
         f.night = night
         f.reveal = if (still || !settings.wakeReveal) 1f else finiteUnit(reveal)
         val awake = if (still || !settings.unlockAnimation) 1f else finiteUnit(unlockReveal)
-        // Thumbnails draw fewer elements; the composition is identical.
-        f.detail = if (forcedDetail > 0f) forcedDetail else (width / 1080f).coerceIn(0.35f, 1f)
-        f.offsetX = if (settings.parallax && !still) safeOffset(offsetX) else 0f
-        f.offsetY = if (settings.parallax && !still) safeOffset(offsetY) else 0f
+        // Size determines the default density. Only a live engine adapts it under load.
+        f.detail = if (forcedDetail > 0f) forcedDetail else {
+            val scale = if (detailScale.isFinite()) detailScale.coerceIn(0.1f, 1f) else 1f
+            (width / 1080f).coerceIn(0.35f, 1f) * scale
+        }
+        // Layered camera movement also works on launchers that never report page offsets.
+        if (settings.parallax && !still) {
+            f.offsetX = 0.75f * safeOffset(offsetX) + 0.25f * sin(f.t * 0.23f)
+            f.offsetY = 0.8f * safeOffset(offsetY) + 0.2f * sin(f.t * 0.17f)
+        } else {
+            f.offsetX = 0f
+            f.offsetY = 0f
+        }
         val palette = preset.palette(night)
         f.c0 = palette.getOrElse(0) { if (night) Color.BLACK else Color.WHITE }
         f.c1 = palette.getOrElse(1) { 0xFF92D9CE.toInt() }
         f.c2 = palette.getOrElse(2) { 0xFFC2A2E2.toInt() }
-        val real = realSeconds.takeIf { it.isFinite() }
-        f.now = real ?: 0f
-        f.dt = if (real != null && !lastReal.isNaN()) (real - lastReal).coerceIn(0f, 0.1f) else 0f
-        lastReal = real ?: Float.NaN
-        if (touch != null && real != null && !still && settings.parallax) {
-            touch.advance(real)
-            touch.fill(f, real)
-        } else {
-            f.clearTouch()
-        }
-        // Damped dragging drives every scene; independent tap pulses still handle
-        // launcher commands and overlapping gestures.
-        if (!still && settings.parallax && interaction != null) {
-            f.offsetX = safeOffset(f.offsetX + safeOffset(interaction.offsetX))
-            f.offsetY = safeOffset(f.offsetY + safeOffset(interaction.offsetY))
-            if (touch == null) {
-                f.dragX = finiteUnit(interaction.x) * 1000f
-                f.dragY = finiteUnit(interaction.y) * h
-                f.drag = finiteUnit(interaction.strength)
-                val progress = finiteUnit(interaction.rippleProgress)
-                if (progress < 1f) {
-                    f.pulses = 1
-                    f.pulseX[0] = f.dragX
-                    f.pulseY[0] = f.dragY
-                    f.pulseR[0] = progress * 1150f
-                    f.pulseA[0] = (1f - progress) * (1f - progress)
-                }
-            } else {
-                f.drag = finiteUnit(interaction.strength)
-            }
-        }
         kit.prepare(f)
 
         val saved = canvas.save()
@@ -140,12 +115,11 @@ class WallpaperRenderer {
         ground(canvas, f)
 
         val artworkSave = canvas.save()
-        val zoom = 1f + (1f - awake) * 0.055f +
-            if (!still && settings.parallax && interaction != null) finiteUnit(interaction.strength) * 0.018f else 0f
+        val zoom = 1f + (1f - awake) * 0.055f
         canvas.scale(zoom, zoom, 500f, h * 0.5f)
         when (preset.kind) {
             WallpaperKind.ORBIT -> orbit.draw(canvas, f, preset.id)
-            WallpaperKind.AURORA -> aurora.draw(canvas, f, preset.id)
+            WallpaperKind.AURORA -> aurora.draw(canvas, f, preset.id == "aurora-solstice")
             WallpaperKind.ASCII -> ascii.draw(canvas, f, preset.id == "ascii-terminal")
             WallpaperKind.GRADIENT -> gradient.draw(canvas, f, preset.id == "gradient-tide")
             WallpaperKind.GLASS -> glass.draw(canvas, f, preset.id == "glass-orbit")
@@ -213,21 +187,22 @@ class WallpaperRenderer {
         loadImage(settings.imagePath)
         val bitmap = importedBitmap
         if (bitmap == null) {
-            gradient.draw(canvas, f)
+            gradient.draw(canvas, f, false)
             return
         }
         val motion = if (settings.reducedMotion) 0f else f.amount
         val h = f.h
         // Reserve overscan in both axes, including landscape and foldables,
         // for the combined image drift and surface parallax.
-        val margin = 128f + motion * 96f + if (settings.parallax) 70f else 0f
-        val scale = max((1000f + margin) / bitmap.width, (h + margin) / bitmap.height)
+        val travelX = 32f * motion + if (settings.parallax && !settings.reducedMotion) 38f else 0f
+        val travelY = 38f * motion + if (settings.parallax && !settings.reducedMotion) 28f else 0f
+        val scale = max((1000f + 2f * travelX) / bitmap.width, (h + 2f * travelY) / bitmap.height)
         val bw = bitmap.width * scale
         val bh = bitmap.height * scale
         val driftX = sin(f.t * 0.4f) * 32f * motion + f.shiftX(1f)
         val driftY = cos(f.t * 0.31f) * 38f * motion + f.shiftY(1f)
-        val left = (1000f - bw) * 0.5f + driftX
-        val top = (h - bh) * 0.5f + driftY
+        val left = cropOrigin(1000f, bw, settings.imageFocusX, travelX) + driftX
+        val top = cropOrigin(h, bh, settings.imageFocusY, travelY) + driftY
         rect.set(left, top, left + bw, top + bh)
         paint.shader = null
         paint.alpha = 255
@@ -235,7 +210,13 @@ class WallpaperRenderer {
         // Independent foreground motes create depth without pretending a flat image
         // has been segmented into separate objects.
         motes(canvas, f, 36)
-        ripples(canvas, f, kit)
+    }
+
+    /** Center the subject while reserving enough photo on both sides for the full camera path. */
+    private fun cropOrigin(view: Float, image: Float, focus: Float, travel: Float): Float {
+        val coordinate = if (focus.isFinite()) focus.coerceIn(0f, 1f) else 0.5f
+        val farEdge = (view - image + travel).coerceAtMost(-travel)
+        return (view * 0.5f - image * coordinate).coerceIn(farEdge, -travel)
     }
 
     private fun motes(canvas: Canvas, f: Frame, count: Int) {
@@ -245,9 +226,9 @@ class WallpaperRenderer {
             val y0 = fraction(i * 31 + 503) * (f.h + 100f) - 50f
             val x = x0 + sin(f.t * 0.33f + i * 0.83f) * 48f * f.amount + f.shiftX(1.6f)
             val y = ((y0 + 70f - f.t * 14f * f.amount) % (f.h + 140f) + f.h + 140f) % (f.h + 140f) - 70f +
-                cos(f.t * 0.27f + i * 1.37f) * 45f * f.amount
+                cos(f.t * 0.27f + i * 1.37f) * 45f * f.amount + f.shiftY(1.6f)
             paint.color = mix(f.c1, Color.WHITE, fraction(i + 200))
-            paint.alpha = ((75f + fraction(i + 430) * 140f) * 0.35f + f.wave(x, y) * 120f).toInt().coerceIn(0, 255)
+            paint.alpha = ((75f + fraction(i + 430) * 140f) * 0.35f).toInt()
             canvas.drawCircle(x, y, 0.8f + fraction(i + 810) * 2.4f, paint)
         }
         paint.alpha = 255
@@ -308,6 +289,7 @@ class WallpaperRenderer {
         noise = null
         noiseShader = null
         halftone.release()
+        orbit.release()
         aurora.release()
         ascii.release()
         gradient.release()
@@ -317,7 +299,6 @@ class WallpaperRenderer {
         veilBottom = null
         veilKey = 0
         groundShader = null
-        lastReal = Float.NaN
     }
 
     private fun finiteUnit(value: Float): Float = if (value.isFinite()) value.coerceIn(0f, 1f) else 0f

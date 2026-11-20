@@ -10,9 +10,7 @@ import dev.sush.phosphor.render.RenderKit.Companion.fraction
 import dev.sush.phosphor.render.RenderKit.Companion.mix
 import dev.sush.phosphor.render.RenderKit.Companion.smooth
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.exp
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -22,9 +20,7 @@ import kotlin.math.sqrt
  * accretion disc around a dark eye, above the white-hot limb of a planet.
  *
  * Filaments sit at three focus depths: crisp ones on the focal plane, wide soft ones behind
- * and in front, so the field reads like a photograph with shallow depth of field. Every
- * vertex goes through [deform], where taps push the field outward, a held finger gathers it
- * into a knot, and a swipe parts it into a channel that streams along the finger's path.
+ * and in front, so parallax separates each set of filaments.
  *
  * The eye and the brightest coils sit in the gap between the second and third icon rows;
  * the limb sits between the last icon row and the dock.
@@ -32,8 +28,7 @@ import kotlin.math.sqrt
 internal class AbstractHorizon(private val k: RenderKit) {
     // Groups: 0 crisp (focal plane), 1 soft and far, 2 very soft and near, 3 copper accents.
     private val perGroup = intArrayOf(100, 46, 18, 10)
-    private val groupOf = IntArray(perGroup.sum())
-    private val total = groupOf.size
+    private val total = perGroup.sum()
 
     // Per-filament shape, fixed at construction (all hash-derived, so deterministic).
     private val r0 = FloatArray(total)
@@ -45,29 +40,15 @@ internal class AbstractHorizon(private val k: RenderKit) {
 
     // Segment batches, one array per stretch of a filament (outer fall, middle, inner coil).
     private val lines = Array(RANGES) { FloatArray(total * PER_RANGE * 4) }
-    private val start = IntArray(GROUPS * RANGES)
-    private val end = IntArray(GROUPS * RANGES)
-    private val hot = FloatArray(6000)
-    private val hotter = FloatArray(4000)
-    private var hotCount = 0
-    private var hotterCount = 0
     private val px = FloatArray(SEG + 1)
     private val py = FloatArray(SEG + 1)
-    private val pg = FloatArray(SEG + 1)
 
     private val motes = Array(3) { FloatArray(MOTES * 2) }
     private val moteCount = IntArray(3)
     private val stars = Array(3) { FloatArray(LANE_DOTS * 2) }
     private val starCount = IntArray(3)
-    private val wake = FloatArray(TouchField.TRAIL * 4)
-
-    // Unit tangent of the finger's wake at each trail point.
-    private val wakeTx = FloatArray(TouchField.TRAIL)
-    private val wakeTy = FloatArray(TouchField.TRAIL)
-
     private var ox = 0f
     private var oy = 0f
-    private var og = 0f
     private var eyeX = 0f
     private var eyeY = 0f
     private var tilt = 0f
@@ -78,7 +59,6 @@ internal class AbstractHorizon(private val k: RenderKit) {
         for (g in 1 until GROUPS) firstOf[g] = firstOf[g - 1] + perGroup[g - 1]
         var i = 0
         for (g in 0 until GROUPS) for (j in 0 until perGroup[g]) {
-            groupOf[i] = g
             val s = g * 997 + j * 131 + 17
             val u = fraction(s + 1)
             // Larger orbits fall from higher up and further left: the funnel's outer wall.
@@ -98,11 +78,9 @@ internal class AbstractHorizon(private val k: RenderKit) {
         val h = f.h
         val night = f.night
         val reveal = smooth(f.reveal)
-        eyeX = 620f
+        eyeX = 575f + sin(f.t * 0.21f) * 33f * f.amount
         eyeY = h * 0.553f
-        tilt = -0.07f + sin(f.t * 0.07f) * 0.03f * f.amount
-        prepareWake(f)
-
+        tilt = -0.12f + sin(f.t * 0.19f) * 0.07f * f.amount
         // Deep-space light: cold behind the funnel wall, a faint warm breath above the limb.
         val mode = k.modeFor(f)
         k.glow(canvas, k.glowA, 240f + f.shiftX(0.2f), h * 0.3f, 620f, h * 0.36f, if (night) 34 else 40, mode)
@@ -119,12 +97,11 @@ internal class AbstractHorizon(private val k: RenderKit) {
         eye(canvas, f, reveal)
         filaments(canvas, f, reveal, 2)
         limb(canvas, f, reveal)
-        touch(canvas, f)
     }
 
     // region Field
 
-    /** Position along filament [i] at [s] (0 = top of the fall, 1 = innermost coil), into ox/oy/og. */
+    /** Position along filament [i] at [s] (0 = top of the fall, 1 = innermost coil), into ox/oy. */
     private fun point(f: Frame, i: Int, s: Float, depth: Float) =
         point(f, i, s, depth, r0[i], rIn[i], lift[i], spread[i], turns[i], phase[i])
 
@@ -141,76 +118,10 @@ internal class AbstractHorizon(private val k: RenderKit) {
         val dy = sin(theta) * r * SQUASH
         val ct = cos(tilt); val st = sin(tilt)
         val u2 = u * u
-        var x = eyeX + dx * ct - dy * st - spread * u2
-        var y = eyeY + dx * st + dy * ct - f.h * lift * (1f + sin(f.t * 0.19f + i) * 0.04f * f.amount) * u2 * u2
-        x += f.shiftX(depth) + f.flowX * 0.006f * depth
-        y += f.shiftY(depth) + f.flowY * 0.004f * depth
-        deform(f, x, y)
-    }
-
-    /** Touch response for one point: pulses push outward, a hold gathers, a wake parts. */
-    private fun deform(f: Frame, x: Float, y: Float) {
-        var px = x
-        var py = y
-        var g = 0f
-        if (!f.busy) { ox = px; oy = py; og = 0f; return }
-        for (i in 0 until f.pulses) {
-            val dx = px - f.pulseX[i]; val dy = py - f.pulseY[i]
-            val d = sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
-            val q = (d - f.pulseR[i]) / 120f
-            if (q > -3f && q < 3f) {
-                // Charged bursts (pulseA > 1) snap the field outward much harder.
-                val a = f.pulseA[i]
-                val w = exp(-q * q) * a * (1f + (a - 1f).coerceAtLeast(0f) * 1.6f)
-                px += dx / d * w * 52f; py += dy / d * w * 52f
-                g += w * 0.9f
-            }
-        }
-        if (f.drag > 0.001f) {
-            val r = 150f + f.charge * 70f
-            val dx = px - f.dragX; val dy = py - f.dragY
-            val inf = exp(-(dx * dx + dy * dy) / (r * r)) * f.drag
-            if (inf > 0.002f) {
-                // Gather toward the finger and swirl: a knot of light that tightens with charge.
-                val pull = inf * (0.12f + f.charge * 0.72f)
-                val a = inf * (0.2f + f.charge * 2.6f)
-                val c = cos(a); val s = sin(a)
-                px = f.dragX + (dx * c - dy * s) * (1f - pull)
-                py = f.dragY + (dx * s + dy * c) * (1f - pull)
-                g += inf * (0.25f + f.charge * 1.2f)
-            }
-        }
-        if (f.trail > 1) {
-            val r2 = 80f * 80f
-            var j = 0
-            while (j < f.trail) {
-                val dx = px - f.trailX[j]; val dy = py - f.trailY[j]
-                val d2 = dx * dx + dy * dy
-                if (d2 < r2 * 6f) {
-                    val w = exp(-d2 / r2) * f.trailA[j]
-                    // Part to either side of the path (smoothly, so nothing tears) and stream along it.
-                    val nx = -wakeTy[j]; val ny = wakeTx[j]
-                    val perp = dx * nx + dy * ny
-                    val side = (1f - exp(-abs(perp) / 18f)) * (if (perp >= 0f) 1f else -1f)
-                    px += nx * side * w * 46f + wakeTx[j] * w * 20f
-                    py += ny * side * w * 46f + wakeTy[j] * w * 20f
-                    g += w * 0.6f
-                }
-                j += 2
-            }
-        }
-        ox = px; oy = py; og = g
-    }
-
-    private fun prepareWake(f: Frame) {
-        for (j in 0 until f.trail) {
-            val a = (j - 1).coerceAtLeast(0)
-            val b = (j + 1).coerceAtMost(f.trail - 1)
-            val dx = f.trailX[b] - f.trailX[a]
-            val dy = f.trailY[b] - f.trailY[a]
-            val d = sqrt(dx * dx + dy * dy).coerceAtLeast(0.001f)
-            wakeTx[j] = dx / d; wakeTy[j] = dy / d
-        }
+        val x = eyeX + dx * ct - dy * st - spread * u2
+        val y = eyeY + dx * st + dy * ct - f.h * lift * (1f + sin(f.t * 0.19f + i) * 0.04f * f.amount) * u2 * u2
+        ox = x + f.shiftX(depth)
+        oy = y + f.shiftY(depth)
     }
 
     private fun filaments(canvas: Canvas, f: Frame, reveal: Float, group: Int) {
@@ -220,12 +131,11 @@ internal class AbstractHorizon(private val k: RenderKit) {
         var c0 = 0; var c1 = 0; var c2 = 0
         // The field grows outward from the eye as the wallpaper wakes.
         val from = ((1f - reveal) * SEG).toInt()
-        val collectHot = f.busy && group != 2
         for (n in 0 until count) {
             val i = first + n
             for (step in 0..SEG) {
                 point(f, i, step / SEG.toFloat(), depth)
-                px[step] = ox; py[step] = oy; pg[step] = og
+                px[step] = ox; py[step] = oy
             }
             for (step in from until SEG) {
                 val range = (step / PER_RANGE).coerceAtMost(RANGES - 1)
@@ -233,18 +143,7 @@ internal class AbstractHorizon(private val k: RenderKit) {
                 val at = when (range) { 0 -> c0; 1 -> c1; else -> c2 } * 4
                 arr[at] = px[step]; arr[at + 1] = py[step]; arr[at + 2] = px[step + 1]; arr[at + 3] = py[step + 1]
                 when (range) { 0 -> c0++; 1 -> c1++; else -> c2++ }
-                if (collectHot) {
-                    val g = (pg[step] + pg[step + 1]) * 0.5f
-                    if (g > 0.5f && hotterCount + 4 <= hotter.size) {
-                        hotter[hotterCount] = px[step]; hotter[hotterCount + 1] = py[step]
-                        hotter[hotterCount + 2] = px[step + 1]; hotter[hotterCount + 3] = py[step + 1]
-                        hotterCount += 4
-                    } else if (g > 0.3f && hotCount + 4 <= hot.size) {
-                        hot[hotCount] = px[step]; hot[hotCount + 1] = py[step]
-                        hot[hotCount + 2] = px[step + 1]; hot[hotCount + 3] = py[step + 1]
-                        hotCount += 4
-                    }
-                }
+
             }
         }
         val s = k.stroke
@@ -355,7 +254,7 @@ internal class AbstractHorizon(private val k: RenderKit) {
             val x = eyeX + dx * ct - dy * st + f.shiftX(0.6f)
             val y = eyeY + dx * st + dy * ct + f.shiftY(0.6f)
             if (x < -10f || x > 1010f) continue
-            deform(f, x, y)
+            ox = x; oy = y
             val bucket = (fraction(seed + 3) * 2.99f).toInt()
             val at = starCount[bucket] * 2
             if (at + 1 >= stars[bucket].size) continue
@@ -415,7 +314,7 @@ internal class AbstractHorizon(private val k: RenderKit) {
     private fun eye(canvas: Canvas, f: Frame, reveal: Float) {
         val x = eyeX + f.shiftX(1f)
         val y = eyeY + f.shiftY(1f)
-        val r = 44f * (0.6f + reveal * 0.4f)
+        val r = 86f * (0.6f + reveal * 0.4f)
         val p = k.fill
         val s = k.stroke
         val deg = tilt * 180f / PI.toFloat()
@@ -514,58 +413,6 @@ internal class AbstractHorizon(private val k: RenderKit) {
     }
 
     // endregion
-
-    /** The swipe's bright wake, the knot gathered under a held finger, and burst rings. */
-    private fun touch(canvas: Canvas, f: Frame) {
-        val s = k.stroke
-        val night = f.night
-        if (hotCount > 0 || hotterCount > 0) {
-            s.strokeCap = Paint.Cap.BUTT
-            k.additive(s, night)
-            s.color = if (night) mix(f.c1, Color.WHITE, 0.7f) else mix(f.c1, Color.BLACK, 0.2f)
-            s.strokeWidth = 1.2f; s.alpha = if (night) 46 else 40
-            if (hotCount > 0) canvas.drawLines(hot, 0, hotCount, s)
-            s.color = if (night) Color.WHITE else f.c2
-            s.strokeWidth = 1.4f; s.alpha = if (night) 110 else 80
-            if (hotterCount > 0) canvas.drawLines(hotter, 0, hotterCount, s)
-            s.strokeCap = Paint.Cap.ROUND
-            hotCount = 0; hotterCount = 0
-        }
-        if (f.trail > 1) {
-            // Streaks along the path, freshest brightest.
-            var n = 0
-            for (j in 1 until f.trail) {
-                wake[n] = f.trailX[j - 1]; wake[n + 1] = f.trailY[j - 1]; wake[n + 2] = f.trailX[j]; wake[n + 3] = f.trailY[j]
-                n += 4
-            }
-            k.additive(s, night)
-            val fresh = f.trailA[f.trail - 1]
-            s.color = if (night) f.c1 else f.c1
-            s.strokeWidth = 16f; s.alpha = ((if (night) 30 else 26) * fresh).toInt()
-            canvas.drawLines(wake, 0, n, s)
-            s.color = if (night) Color.WHITE else f.c2
-            s.strokeWidth = 1.6f; s.alpha = ((if (night) 150 else 140) * fresh).toInt()
-            canvas.drawLines(wake, 0, n, s)
-        }
-        if (f.drag > 0.01f) {
-            val mode = if (night) RenderKit.Mode.ADD else RenderKit.Mode.INK
-            val c = f.charge
-            k.glow(canvas, k.glowA, f.dragX, f.dragY, 150f + c * 120f, 150f + c * 120f, ((26 + c * 70) * f.drag).toInt(), mode)
-            k.glow(canvas, if (night) k.glowWhite else k.glowB, f.dragX, f.dragY, 18f + c * 46f, 18f + c * 46f, ((60 + c * 190) * f.drag).toInt(), mode)
-        }
-        for (i in 0 until f.pulses) {
-            val a = f.pulseA[i]
-            if (a < 0.02f) continue
-            val r = f.pulseR[i]
-            k.additive(s, night)
-            s.strokeWidth = 2.4f + (a - 1f).coerceAtLeast(0f) * 4f
-            s.color = f.c1; s.alpha = (a.coerceAtMost(1f) * 110).toInt(); canvas.drawCircle(f.pulseX[i], f.pulseY[i], r + 5f, s)
-            s.color = f.c2; s.alpha = (a.coerceAtMost(1f) * 110).toInt(); canvas.drawCircle(f.pulseX[i], f.pulseY[i], r - 5f, s)
-            s.color = if (night) Color.WHITE else mix(f.c1, Color.BLACK, 0.3f)
-            s.strokeWidth = 1.2f; s.alpha = (a.coerceAtMost(1f) * 120).toInt(); canvas.drawCircle(f.pulseX[i], f.pulseY[i], r, s)
-        }
-        k.reset(s)
-    }
 
     private companion object {
         const val GROUPS = 4

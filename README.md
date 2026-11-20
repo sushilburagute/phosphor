@@ -8,11 +8,11 @@ Phosphor draws its wallpapers on your phone: long-exposure orbits, aurora curtai
 
 ## What you can do
 
-- Choose from **15 procedural presets across seven collections**, or import your own image for gentle drift, ripples, and floating light.
+- Choose from **15 procedural presets across seven collections**, or frame an imported photo and give it gentle drift and floating light.
 - Tune speed, intensity, frame rate, and how far the artwork fades into its background. Check the result in a live preview with an optional home-screen overlay.
-- Interact with taps, drags, and launcher swipes. Responses settle even when ambient speed is zero; launcher support varies.
+- Watch the scenes move on their own. Enable parallax to shift foreground and background layers as you scroll between home screens on supported launchers.
 - Use day, night, or automatic appearance, wake reveals, lock/unlock animation, or still mode.
-- Save favorites and export a **1080 × 2400 PNG** in the selected treatment. Wallpapers, artwork previews, and exports have no branding.
+- Save favorites, keep tuned looks with their settings and photo framing, and export a **1080 × 2400 PNG** in the selected treatment.
 - Keep rendering bounded: animation stops while hidden or screen-off, the visible lock screen is capped at 15 fps, and battery policies reduce motion at low charge.
 
 No account, ads, analytics, network permission, broad photo-library permission, or cloud backup. Images are imported through Android's document picker and copied to private app storage. The optional creator link opens in your browser.

@@ -8,8 +8,6 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
 import kotlin.math.ceil
-import kotlin.math.exp
-import kotlin.math.sqrt
 
 /**
  * Gradient and glass motion rates are written for this pace of [Frame.t]: a field of light
@@ -19,8 +17,7 @@ internal const val GRADIENT_PACE = 0.4f
 
 /**
  * A low-resolution colour field computed on the CPU and stretched over the canvas with bilinear
- * filtering. Real domain warping, smearing and lensing need per-point maths that radial glows
- * can't express; at ~48 columns this costs well under a millisecond and one small texture upload.
+ * filtering. The grid carries the domain-warped colour and the coverage used for silk and glass.
  *
  * Each cell also stores a 0..1 [cover] (how much colour is there), which the halftone screen
  * turns into dot size, and which scenes can [sample] for cheap lookups (caustics, fibres).
@@ -49,16 +46,6 @@ internal class GradientField {
     // Output registers for [Source.shade]; avoids allocating a colour per point.
     var r = 0f; var g = 0f; var b = 0f; var cover = 0f
 
-    // Touch displacement registers, filled by [displace].
-    var dx = 0f; private set
-    var dy = 0f; private set
-    /** Gaussian crest strength of every tap wavefront at the last displaced point. */
-    var crest = 0f; private set
-    /** Freshest nearby wake at the last displaced point, 0..1. */
-    var wake = 0f; private set
-    private val wakeX = FloatArray(TouchField.TRAIL)
-    private val wakeY = FloatArray(TouchField.TRAIL)
-
     /** Size the field for this frame: [density] columns at full detail. */
     fun ensure(f: Frame, density: Int) {
         val n = (density * f.detail).toInt().coerceAtLeast(16)
@@ -82,7 +69,6 @@ internal class GradientField {
 
     /** Evaluate [source] at every cell centre and upload both bitmaps. */
     fun fill(f: Frame, source: Source) {
-        prepareWake(f)
         var index = 0
         for (j in 0 until rows) {
             val y = j * cell
@@ -139,72 +125,6 @@ internal class GradientField {
         paint.shader = shader ?: return
         canvas.drawRect(left, top, right, bottom, paint)
         paint.shader = null
-    }
-
-    /** Unit direction of the wake at each trail point, so smears follow the swipe. */
-    private fun prepareWake(f: Frame) {
-        for (i in 0 until f.trail) {
-            val a = (i - 1).coerceAtLeast(0)
-            val b = (i + 1).coerceAtMost(f.trail - 1)
-            val ex = f.trailX[b] - f.trailX[a]
-            val ey = f.trailY[b] - f.trailY[a]
-            val d = sqrt(ex * ex + ey * ey)
-            if (d < 0.01f) { wakeX[i] = 0f; wakeY[i] = 0f } else { wakeX[i] = ex / d; wakeY[i] = ey / d }
-        }
-    }
-
-    /**
-     * How far the material at ([x], [y]) has been pushed, as a sampling offset ([dx], [dy]):
-     * sample the field at (x + dx, y + dy).
-     * - [smear]: the wake drags colour along the swipe, like ink stirred in water. It relaxes
-     *   back as the wake fades.
-     * - [lens]: a charged finger magnifies what is under it, as if a lens were focusing there.
-     * - [ripple]: tap wavefronts refract the field (a derivative-of-gaussian push).
-     */
-    fun displace(f: Frame, x: Float, y: Float, smear: Float, lens: Float, ripple: Float) {
-        var ox = 0f
-        var oy = 0f
-        var wakeAt = 0f
-        if (f.trail > 1 && smear > 0f) {
-            val radius = 130f
-            val r2 = radius * radius
-            var sx = 0f; var sy = 0f; var sw = 0f; var best = 0f
-            for (i in 0 until f.trail) {
-                val ex = x - f.trailX[i]
-                val ey = y - f.trailY[i]
-                val d2 = ex * ex + ey * ey
-                if (d2 > r2 * 6f) continue
-                val w = exp(-d2 / r2)
-                val a = f.trailA[i]
-                sx += wakeX[i] * w * a; sy += wakeY[i] * w * a; sw += w
-                if (w * a > best) best = w * a
-            }
-            wakeAt = best
-            if (sw > 0f) {
-                val n = smear / sw.coerceAtLeast(1f)
-                ox -= sx * n; oy -= sy * n
-            }
-        }
-        if (lens > 0f && f.drag > 0.001f && f.charge > 0f) {
-            val ex = x - f.dragX
-            val ey = y - f.dragY
-            val k = exp(-(ex * ex + ey * ey) / (230f * 230f)) * f.charge * f.drag * lens
-            ox -= ex * k; oy -= ey * k
-        }
-        var wave = 0f
-        if (f.pulses > 0) {
-            for (i in 0 until f.pulses) {
-                val ex = x - f.pulseX[i]
-                val ey = y - f.pulseY[i]
-                val d = sqrt(ex * ex + ey * ey).coerceAtLeast(1f)
-                val q = (d - f.pulseR[i]) / 90f
-                if (q < -3f || q > 3f) continue
-                val g = exp(-q * q) * f.pulseA[i]
-                wave += g
-                if (ripple > 0f) { val push = q * g * ripple / d; ox += ex * push; oy += ey * push }
-            }
-        }
-        dx = ox; dy = oy; crest = wave; wake = wakeAt
     }
 
     fun release() {

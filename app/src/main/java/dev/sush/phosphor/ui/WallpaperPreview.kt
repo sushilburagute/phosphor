@@ -14,7 +14,6 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
-import android.view.MotionEvent
 import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -31,9 +30,6 @@ import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.platform.WallpaperBatteryState
 import dev.sush.phosphor.platform.WallpaperPowerPolicy
-import dev.sush.phosphor.render.TouchField
-import dev.sush.phosphor.render.WallpaperInteraction
-import dev.sush.phosphor.render.WallpaperMotion
 import dev.sush.phosphor.render.WallpaperRenderer
 import dev.sush.phosphor.render.WallpaperFrameScheduler
 
@@ -60,15 +56,13 @@ fun WallpaperPreview(
 
 internal open class PreviewView(context: Context) : View(context) {
     private val renderer = WallpaperRenderer()
-    private val motion = WallpaperMotion()
-    private val touch = TouchField()
-    private val idleInteraction = WallpaperInteraction()
     private val power = context.getSystemService(PowerManager::class.java)
     private var screenInteractive = power.isInteractive
     private var systemSaver = power.isPowerSaveMode
     private var preset: WallpaperPreset? = null
     private var settings = WallpaperSettings()
     private var stillSettings = settings.copy(reducedMotion = true)
+    private var playingSettings = settings.copy(speed = 1f)
     private var playing = false
     private var cacheStill = false
     private var stillFrame: Bitmap? = null
@@ -79,15 +73,15 @@ internal open class PreviewView(context: Context) : View(context) {
     private var revealStart = -1L
     private var lastFrame = 0L
     private var battery = WallpaperBatteryState()
+    private var profile = resolvePowerProfile()
     private var observing = false
     private val handler = Handler(Looper.getMainLooper())
     private val frames = WallpaperFrameScheduler(handler, invalidateOnVsync = true) { invalidate() }
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == Intent.ACTION_BATTERY_CHANGED) {
-                val previous = powerProfile()
                 battery = WallpaperPowerPolicy.fromIntent(intent)
-                if (previous == powerProfile()) return
+                if (profile == resolvePowerProfile()) return
             } else {
                 refreshDeviceState()
                 if (intent?.action == Intent.ACTION_SCREEN_OFF) screenInteractive = false
@@ -114,13 +108,15 @@ internal open class PreviewView(context: Context) : View(context) {
             wakeFrame()
         }
         this.preset = preset
-        if (this.settings != settings) stillSettings = settings.copy(reducedMotion = true)
+        if (this.settings != settings) {
+            stillSettings = settings.copy(reducedMotion = true)
+            playingSettings = settings.copy(speed = 1f)
+        }
         this.settings = settings
         if (this.playing != playing) lastFrame = 0L
         this.playing = playing
         this.cacheStill = cacheStill
         if (changed) stillFrame = null
-        if (!playing || settings.reducedMotion || !settings.parallax) { motion.reset(); touch.clear() }
         updateObservers()
         if (changed) wakeFrame()
     }
@@ -143,53 +139,29 @@ internal open class PreviewView(context: Context) : View(context) {
             canvas.drawBitmap(cached, 0f, 0f, null)
             return
         }
-        val profile = powerProfile()
         val animate = playing && !reduced && profile.motionScale > 0f && canRender() && screenInteractive
         val now = SystemClock.uptimeMillis()
         val dt = if (animate && lastFrame != 0L) ((now - lastFrame).coerceIn(0L, 100L) / 1000f) else 0f
         lastFrame = if (animate) now else 0L
         if (animate && settings.speed > 0f) elapsed += dt * settings.speed * profile.motionScale
-        if (!animate) { motion.reset(); touch.clear() }
-        val interaction = if (animate) motion.advance(dt) else idleInteraction
         val reveal = if (revealStart < 0 || !animate || profile.energySaving) 1f else
             ((now - revealStart) / 1500f).coerceIn(0f, 1f).also { if (it >= 1f) revealStart = -1L }
         renderer.draw(
             canvas, width, height, if (playing) elapsed else 12f, art,
-            if (reduced) stillSettings else if (playing) settings.copy(speed = 1f) else settings,
-            night = night, touch = if (animate) touch else null, realSeconds = now / 1000f,
-            reveal = reveal, interaction = interaction,
+            if (reduced) stillSettings else if (playing) playingSettings else settings,
+            night = night, reveal = reveal,
         )
-        if (animate && (settings.speed > 0f || motion.isActive || touch.isActive(now / 1000f) || reveal < 1f)) {
+        if (animate && (settings.speed > 0f || reveal < 1f)) {
             frames.request(profile.fps)
         }
     }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        val profile = powerProfile()
-        if (!playing || !canRender() || !screenInteractive || !settings.parallax || settings.reducedMotion || !ValueAnimator.areAnimatorsEnabled() || profile.motionScale == 0f) return false
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                parent?.requestDisallowInterceptTouchEvent(true)
-                touch.press(event.x / width.coerceAtLeast(1), event.y / height.coerceAtLeast(1))
-                touch.tap(event.x / width.coerceAtLeast(1), event.y / height.coerceAtLeast(1), SystemClock.uptimeMillis() / 1000f, 0.8f)
-            }
-            MotionEvent.ACTION_MOVE -> touch.move(event.x / width.coerceAtLeast(1), event.y / height.coerceAtLeast(1))
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                // Only a real lift releases a held charge; a cancelled gesture just lets go.
-                touch.release(if (event.actionMasked == MotionEvent.ACTION_UP) SystemClock.uptimeMillis() / 1000f else Float.NaN)
-                parent?.requestDisallowInterceptTouchEvent(false)
-            }
-        }
-        motion.onTouch(event.actionMasked, event.x / width.coerceAtLeast(1), event.y / height.coerceAtLeast(1))
-        frames.request(profile.fps)
-        if (event.actionMasked == MotionEvent.ACTION_UP) performClick()
-        return true
-    }
-
     private fun wakeFrame() {
+        profile = resolvePowerProfile()
+        if (profile.energySaving || !settings.wakeReveal || !screenInteractive) revealStart = -1L
         lastFrame = 0L
         frames.stop()
-        if (canRender() && screenInteractive) frames.request(powerProfile().fps)
+        if (canRender() && screenInteractive) frames.request(profile.fps)
     }
 
     private fun canRender(): Boolean = isAttachedToWindow && windowVisibility == VISIBLE && isShown
@@ -199,7 +171,7 @@ internal open class PreviewView(context: Context) : View(context) {
         systemSaver = power.isPowerSaveMode
     }
 
-    private fun powerProfile() = WallpaperPowerPolicy.resolve(settings, systemSaver, battery.percent, battery.charging)
+    private fun resolvePowerProfile() = WallpaperPowerPolicy.resolve(settings, systemSaver, battery.percent, battery.charging)
 
     private fun updateObservers() {
         val shouldObserve = playing && canRender()
@@ -230,8 +202,6 @@ internal open class PreviewView(context: Context) : View(context) {
         super.onVisibilityAggregated(isVisible)
         if (preset == null) return
         updateObservers()
-        motion.reset()
-        touch.clear()
         wakeFrame()
     }
 
@@ -242,8 +212,6 @@ internal open class PreviewView(context: Context) : View(context) {
         wakeFrame()
     }
 
-    override fun performClick(): Boolean { super.performClick(); return true }
-
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         stillFrame = null
@@ -253,8 +221,6 @@ internal open class PreviewView(context: Context) : View(context) {
         playing = false
         frames.stop()
         updateObservers()
-        motion.reset()
-        touch.clear()
         stillFrame = null
         renderer.release()
     }
@@ -267,8 +233,6 @@ internal open class PreviewView(context: Context) : View(context) {
         }
         frames.stop()
         lastFrame = 0L
-        motion.reset()
-        touch.clear()
         stillFrame = null
         renderer.release()
         super.onDetachedFromWindow()

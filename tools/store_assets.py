@@ -35,10 +35,9 @@ def feature_graphic():
     art = Image.open(os.path.join(PREVIEWS, "orbit-exposure-night.png")).convert("RGB")
     w, h = art.size
     # A wide band through the horizon: the trails, the line, the figure.
-    band = art.crop((0, int(h * 0.55) - 520, w, int(h * 0.55) + 0))
-    band = band.resize((1024, int(1024 * band.size[1] / band.size[0])), Image.LANCZOS)
-    top = max(0, (band.size[1] - 500) // 2)
-    canvas = band.crop((0, top, 1024, top + 500))
+    band_height = round(w * 500 / 1024)
+    top = round(h * 0.55 - band_height * 0.60)
+    canvas = art.crop((0, top, w, top + band_height)).resize((1024, 500), Image.LANCZOS)
     # Darken the left third so the wordmark reads.
     shade = Image.new("L", (1024, 500))
     d = ImageDraw.Draw(shade)

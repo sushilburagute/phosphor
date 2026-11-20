@@ -16,7 +16,7 @@ Paths below are relative to [`app/src/main/java/dev/sush/phosphor/`](../app/src/
 | Screens | `ui/Gallery.kt`, `ui/Editor.kt`, and `ui/SettingsScreen.kt` provide browsing, editing, and app preferences. |
 | Preview | [`ui/WallpaperPreview.kt`](../app/src/main/java/dev/sush/phosphor/ui/WallpaperPreview.kt) hosts animated Canvas previews and cached gallery stills. |
 | Artwork | [`render/WallpaperRenderer.kt`](../app/src/main/java/dev/sush/phosphor/render/WallpaperRenderer.kt) resolves settings and dispatches to scene functions. `RenderKit.kt` supplies shared drawing helpers and frame inputs. |
-| Interaction | `render/TouchField.kt`, `render/WallpaperMotion.kt`, and `platform/WallpaperReveal.kt` model touch, motion, and lock/unlock treatments. |
+| Motion | The renderer combines elapsed scene time and launcher offsets. `platform/WallpaperReveal.kt` tracks lock/unlock transitions. |
 | Platform | [`platform/PhosphorWallpaperService.kt`](../app/src/main/java/dev/sush/phosphor/platform/PhosphorWallpaperService.kt) owns Android engines, surfaces, wallpaper colors, and lifecycle handling. |
 | Persistence | [`platform/SettingsStore.kt`](../app/src/main/java/dev/sush/phosphor/platform/SettingsStore.kt) stores active and preview settings independently. |
 | Files | [`ui/ImageFiles.kt`](../app/src/main/java/dev/sush/phosphor/ui/ImageFiles.kt) imports bounded private images, cleans obsolete imports, and exports PNGs. |
@@ -30,19 +30,19 @@ Other useful locations are [`app/src/test/`](../app/src/test) for JVM tests, [`a
 
 The normal apply flow is:
 
-1. Selecting a preset creates a draft based on the active settings. Editor changes are saved under the `preview` key in the `phosphor` preferences.
+1. Selecting a catalog preset creates a draft based on the active settings. Selecting a saved look restores its snapshot. Editor changes are saved under the `preview` key in the `phosphor` preferences. The gallery's day/night preview is separate from applied appearance.
 2. The app preview and an Android engine with `isPreview == true` read the draft. Active engines read the `active` key.
 3. **Set live wallpaper** saves the draft and opens Android's direct preview, with a general live-wallpaper chooser fallback.
 4. On API 36, the engine's `onApplyWallpaper` commits the draft. The app also commits a successful direct picker result; a picker without a reliable result leaves a manual confirmation path.
 5. A settings listener reloads the appropriate snapshot and refreshes rendering/colors. Canceling without confirmation leaves active settings intact.
 
-`SettingsStore` serializes JSON, bounds numeric values, supplies defaults, and migrates older wake/unlock preferences. Keep this behavior compatible when adding fields. UI-only theme, dynamic-color preference, favorite IDs, and the most recent imported path live separately in `phosphor_ui` preferences.
+`SettingsStore` encodes and decodes settings, including bounded image focus coordinates. `ui/SavedLooks.kt` uses the same codec for named snapshots and migrates legacy favorite IDs on first load. Saved looks, app theme, dynamic color, and the latest import live in `phosphor_ui`.
 
 ## Shared rendering and ownership
 
-`WallpaperRenderer.draw` takes a Canvas, dimensions, time, a preset, and settings, along with appearance and interaction inputs. Scenes build procedural artwork from these inputs. Imported images use the image rendering path.
+`WallpaperRenderer.draw` takes a Canvas, dimensions, time, a preset, settings, launcher offsets, and reveal progress. Scenes build procedural artwork from these inputs. The image renderer positions the selected source point within a crop that reserves space for movement.
 
-Each live wallpaper engine owns its renderer and touch/motion state. The system preview can coexist with the applied wallpaper; sharing mutable renderer resources across those engines can cause stale state or premature recycling.
+Each live wallpaper engine owns its renderer, elapsed phase, and launcher offsets. The system preview and applied wallpaper can render independently.
 
 The editor uses an animated view. Gallery tiles cache a still bitmap, invalidating when content, treatment, or dimensions change, so scrolling does not continually replay procedural drawing. Exports create a temporary renderer and bitmap and release both after writing. Rendering uses a hardware Canvas when available, with a software fallback.
 
@@ -52,8 +52,9 @@ The editor uses an animated view. Gallery tiles cache a still bitmap, invalidati
 
 - Surface readiness, engine visibility, display interactivity, and keyguard state are separate inputs.
 - Hidden, non-interactive, and destroyed surfaces stop continuous scheduling. A final stationary screen-off frame may be drawn if a visible surface is available.
-- Still mode, disabled system animations, and critical low battery suppress motion. Finite touch responses at zero ambient speed settle before scheduling stops.
+- Still mode, disabled system animations, and critical low battery suppress motion. At zero speed, an enabled launcher offset can request a frame when a page moves.
 - Power/keyguard state refreshes through broadcasts and visibility changes. Battery changes request work only when the effective policy changes.
+- `LiveRenderQuality` measures draw and post time for visible, continuously animated service frames. Repeated budget misses reduce scene density. Sustained spare capacity restores detail one step at a time. Gallery tiles, editor previews and still exports use their normal resolution-based detail.
 - Preview views cancel callbacks and unregister observers when no longer visible. Engine destruction removes listeners, observers, broadcasts, callbacks, and renderer resources.
 
 `PowerPolicy.kt` also contains the `Appearance.isNight` resolver and a separate frame-budget helper. For changes to current live/editor scheduling, start with the actual `WallpaperPowerPolicy` call sites.
@@ -62,6 +63,6 @@ The editor uses an animated view. Gallery tiles cache a still bitmap, invalidati
 
 The service caches `WallpaperColors` from a representative render. Artwork, image, intensity, dimming, or appearance changes invalidate it; animation frames do not continually change the phone's palette. The OS and launcher choose how to consume those colors and hints. See [Android compatibility](ANDROID_COMPATIBILITY.md).
 
-Imports are sampled to bound image dimensions, corrected for EXIF orientation, and copied as PNGs into private `files/wallpapers/`. Cleanup retains paths referenced by the current import, active settings, or draft. Exports go only to the destination selected through the document picker.
+Imports are sampled to bound image dimensions, corrected for EXIF orientation, and copied as PNGs into private `files/wallpapers/`. Cleanup retains paths referenced by the current import, applied wallpaper, draft, or any saved look. Exports go to the destination selected through the document picker.
 
 The [manifest](../app/src/main/AndroidManifest.xml) declares live wallpaper support and the service's `BIND_WALLPAPER` protection, with no network or broad media permission. Backup is disabled. The bundled font has its own [license](../app/src/main/assets/licenses/bricolage-grotesque-OFL.txt); reference images are not app resources.

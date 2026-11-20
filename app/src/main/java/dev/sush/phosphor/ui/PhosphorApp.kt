@@ -31,6 +31,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -59,8 +60,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.sush.phosphor.R
 import dev.sush.phosphor.model.WallpaperCatalog
-import dev.sush.phosphor.model.WallpaperKind
-import dev.sush.phosphor.model.WallpaperPreset
+import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.platform.SettingsStore
 import dev.sush.phosphor.platform.WallpaperActions
 import dev.sush.phosphor.platform.isNight
@@ -69,6 +69,7 @@ import dev.sush.phosphor.ui.theme.PhosphorTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 private enum class Page(val label: String, val icon: Int) {
     Explore("Explore", R.drawable.ic_explore),
@@ -88,7 +89,7 @@ fun PhosphorApp() {
     val systemNight = isSystemInDarkTheme()
     val dark = when (theme) { "Dark" -> true; "Light" -> false; else -> systemNight }
     // The gallery's day/night switch starts on whatever the wallpaper would show right now.
-    var galleryNight by rememberSaveable { mutableStateOf(systemNight) }
+    var galleryMood by rememberSaveable { mutableStateOf<Boolean?>(null) }
     SideEffect {
         (context as? Activity)?.window?.let { window ->
             WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -98,11 +99,19 @@ fun PhosphorApp() {
         }
     }
     var page by rememberSaveable { mutableStateOf(Page.Explore) }
-    var category by rememberSaveable { mutableStateOf("All") }
-    var favorites by remember { mutableStateOf(prefs.getStringSet("favorites", emptySet())!!.toSet()) }
+    var exploreCategory by rememberSaveable { mutableStateOf("All") }
+    var savedCategory by rememberSaveable { mutableStateOf("All") }
+    val library = remember { SavedLooks(prefs) }
+    var looks by remember { mutableStateOf(library.load(store.load())) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var editedLookId by rememberSaveable { mutableStateOf<String?>(null) }
+    var previewNightOverride by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    var savingLook by rememberSaveable { mutableStateOf(false) }
+    var lookName by rememberSaveable { mutableStateOf("") }
+    var removeId by rememberSaveable { mutableStateOf<String?>(null) }
     var draft by remember { mutableStateOf(store.loadPreview()) }
     var active by remember { mutableStateOf(store.load()) }
+    val galleryNight = galleryMood ?: active.appearance.isNight(systemNight)
     var live by remember { mutableStateOf(isPhosphorLive(context)) }
     var importedPath by remember { mutableStateOf(prefs.getString("image_path", null)) }
     var busy by remember { mutableStateOf(false) }
@@ -112,26 +121,42 @@ fun PhosphorApp() {
     val snackbar = remember { SnackbarHostState() }
 
     fun message(text: String) { scope.launch { snackbar.showSnackbar(text) } }
-    fun edit(preset: WallpaperPreset) {
-        draft = active.copy(presetId = preset.id, imagePath = if (preset.kind == WallpaperKind.IMAGE) importedPath else null)
+    fun edit(entry: GalleryWallpaper, previewNight: Boolean) {
+        draft = entry.settings
         store.savePreview(draft)
-        selectedId = preset.id
+        selectedId = entry.preset.id
+        editedLookId = entry.look?.id
+        previewNightOverride = previewNight
         uncertainApply = false
     }
-    fun favorite(id: String) {
-        favorites = if (id in favorites) favorites - id else favorites + id
-        prefs.edit().putStringSet("favorites", favorites).apply()
+
+    fun saveLook(id: String?, name: String, settings: WallpaperSettings): String {
+        val look = SavedLook(id ?: UUID.randomUUID().toString(), name.trim(), settings)
+        looks = library.save(look, active)
+        return look.id
     }
+    fun favorite(entry: GalleryWallpaper) {
+        val existing = entry.look ?: looks.firstOrNull { it.settings == entry.settings }
+        if (existing != null) removeId = existing.id
+        else saveLook(null, entry.title, entry.settings)
+    }
+    fun keptImages() = library.retainedImagePaths(store.load(), store.loadPreview(), prefs.getString("image_path", null))
 
     DisposableEffect(store) {
         val listener: () -> Unit = { active = store.load() }
-        store.addListener(listener)
+        store.addListener(listener, preview = false)
         onDispose { store.removeListener(listener) }
     }
     // Returning from the system picker or settings: re-check which wallpaper is live.
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) live = isPhosphorLive(context) }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                live = isPhosphorLive(context)
+                looks = library.load(store.load())
+                importedPath = prefs.getString("image_path", null)
+            }
+        }
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
@@ -156,11 +181,9 @@ fun PhosphorApp() {
                 val path = withContext(Dispatchers.IO) { importImage(context, uri) }
                 importedPath = path
                 prefs.edit().putString("image_path", path).apply()
-                draft = active.copy(presetId = "image-custom", imagePath = path)
-                store.savePreview(draft)
-                selectedId = "image-custom"
-                uncertainApply = false
-                val keep = setOfNotNull(path, store.load().imagePath, store.loadPreview().imagePath)
+                val preset = WallpaperCatalog.find("image-custom")
+                edit(GalleryWallpaper(preset, active.forPreset(preset, path), null), galleryNight)
+                val keep = keptImages()
                 withContext(Dispatchers.IO) { cleanOldImports(context, keep) }
             } catch (_: Exception) { message("This image couldn’t be opened. Choose a JPEG, PNG or WebP file.") }
             catch (_: OutOfMemoryError) { message("This image is too large to open. Try a smaller one.") }
@@ -170,7 +193,7 @@ fun PhosphorApp() {
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
         if (uri != null) {
             val snapshot = draft
-            val night = snapshot.appearance.isNight(systemNight)
+            val night = previewNightOverride ?: snapshot.appearance.isNight(systemNight)
             scope.launch {
                 busy = true
                 try {
@@ -232,9 +255,16 @@ fun PhosphorApp() {
                                 val shown = WallpaperCatalog.presets.firstOrNull { it.id == target }
                                 when {
                                     shown != null -> Editor(
-                                        shown, draft, shown.id in favorites, uncertainApply, systemNight,
+                                        shown, draft, uncertainApply,
+                                        night = previewNightOverride ?: draft.appearance.isNight(systemNight),
+                                        appliedNight = draft.appearance.isNight(systemNight),
+                                        title = looks.firstOrNull { it.id == editedLookId }?.name ?: shown.name,
                                         onBack = { selectedId = null; uncertainApply = false },
-                                        onFavorite = { favorite(shown.id) },
+                                        onSaveLook = {
+                                            lookName = looks.firstOrNull { it.id == editedLookId }?.name ?: shown.name
+                                            savingLook = true
+                                        },
+                                        onUseAppliedAppearance = { previewNightOverride = null },
                                         onChange = { draft = it; store.savePreview(it) },
                                         onApply = {
                                             store.savePreview(draft)
@@ -260,16 +290,19 @@ fun PhosphorApp() {
                                     }
                                     else -> {
                                         val saved = target == Page.Saved.name
-                                        val available = WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE || importedPath != null }
-                                        val displayed = available.filter { (!saved || it.id in favorites) && (category == "All" || it.kind.label() == category) }
+                                        val category = if (saved) savedCategory else exploreCategory
+                                        val available = remember(saved, looks, active, importedPath) {
+                                            galleryWallpapers(saved, looks, active, importedPath)
+                                        }
+                                        val displayed = available.filter { category == "All" || it.preset.kind.label() == category }
                                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                                             Gallery(
-                                                saved, category, displayed, favorites, active, importedPath,
-                                                liveId = if (live) active.presetId else null,
-                                                night = galleryNight, onNight = { galleryNight = it },
-                                                onCategory = { category = it }, onSelect = ::edit, onFavorite = ::favorite,
+                                                saved, category, displayed, looks,
+                                                liveSettings = active.takeIf { live },
+                                                night = galleryNight, onNight = { galleryMood = it },
+                                                onCategory = { if (saved) savedCategory = it else exploreCategory = it }, onSelect = ::edit, onFavorite = ::favorite,
                                                 onImport = { importLauncher.launch(arrayOf("image/*")) },
-                                                onExplore = { page = Page.Explore; category = "All" },
+                                                onExplore = { page = Page.Explore; exploreCategory = "All" },
                                             )
                                         }
                                     }
@@ -279,6 +312,49 @@ fun PhosphorApp() {
                     }
                 }
             }
+        }
+        if (savingLook) {
+            fun finishSave(id: String?) {
+                editedLookId = saveLook(id, lookName, draft)
+                savingLook = false
+                message("Look saved")
+            }
+            AlertDialog(
+                onDismissRequest = { savingLook = false },
+                title = { Text(if (editedLookId == null) "Save this look" else "Update saved look") },
+                text = {
+                    OutlinedTextField(
+                        value = lookName, onValueChange = { lookName = it }, singleLine = true,
+                        label = { Text("Look name") },
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { finishSave(editedLookId) }, enabled = lookName.isNotBlank()) { Text("Save") }
+                },
+                dismissButton = {
+                    Row {
+                        if (editedLookId != null) TextButton(onClick = { finishSave(null) }, enabled = lookName.isNotBlank()) { Text("Save a copy") }
+                        TextButton(onClick = { savingLook = false }) { Text("Cancel") }
+                    }
+                },
+            )
+        }
+        looks.firstOrNull { it.id == removeId }?.let { look ->
+            AlertDialog(
+                onDismissRequest = { removeId = null },
+                title = { Text("Remove “${look.name}” from Saved?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        looks = library.remove(look.id, active)
+                        removeId = null
+                        val path = look.settings.imagePath
+                        if (path != null && path !in keptImages()) {
+                            scope.launch(Dispatchers.IO) { deletePrivateImport(context, path) }
+                        }
+                    }) { Text("Remove") }
+                },
+                dismissButton = { TextButton(onClick = { removeId = null }) { Text("Keep") } },
+            )
         }
         if (busy) Dialog(onDismissRequest = {}, properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)) {
             Surface(shape = MaterialTheme.shapes.large) {

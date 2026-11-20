@@ -2,7 +2,6 @@ package dev.sush.phosphor.platform
 
 import dev.sush.phosphor.model.Appearance
 import dev.sush.phosphor.model.WallpaperSettings
-import dev.sush.phosphor.render.TouchField
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -47,29 +46,5 @@ class PowerPolicyTest {
         assertFalse(Appearance.AUTO.isNight(systemNight = false))
         assertTrue(Appearance.NIGHT.isNight(systemNight = false))
         assertFalse(Appearance.DAY.isNight(systemNight = true))
-    }
-
-    @Test
-    fun duplicateLauncherTapsAreMergedAndPulsesExpire() {
-        val touch = TouchField()
-        touch.tap(0.5f, 0.5f, 1f)
-        touch.tap(0.51f, 0.5f, 1.1f)  // the same gesture reported twice
-        val frame = dev.sush.phosphor.render.Frame().apply { h = 2000f }
-        touch.fill(frame, 1.2f)
-        assertEquals(1, frame.pulses)
-        assertTrue(touch.isActive(1.2f))
-        assertFalse(touch.isActive(1f + TouchField.LIFE + 0.01f))
-    }
-
-    @Test
-    fun releasedDragSettlesToRest() {
-        val touch = TouchField()
-        touch.press(0.2f, 0.3f)
-        repeat(30) { touch.advance(it * 0.016f) }
-        assertTrue(touch.drag > 0.9f)
-        touch.release()
-        repeat(400) { touch.advance(0.5f + it * 0.016f) }
-        assertEquals(0f, touch.drag)
-        assertFalse(touch.isActive(20f))
     }
 }

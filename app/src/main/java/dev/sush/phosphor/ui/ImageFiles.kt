@@ -12,6 +12,7 @@ import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.render.WallpaperRenderer
 import java.io.File
 import java.io.IOException
+import java.util.UUID
 
 /** Decode a bounded, private copy so a revoked document permission cannot break the wallpaper. */
 internal fun importImage(context: Context, uri: Uri): String {
@@ -23,7 +24,7 @@ internal fun importImage(context: Context, uri: Uri): String {
     val decoded = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample }) } ?: throw IOException("Cannot decode image")
     var bitmap = decoded
     val directory = File(context.filesDir, "wallpapers").apply { mkdirs() }
-    val target = File(directory, "import-${System.currentTimeMillis()}.png")
+    val target = File(directory, "import-${UUID.randomUUID()}.png")
     var saved = false
     try {
         val orientation = try {
@@ -54,10 +55,15 @@ internal fun importImage(context: Context, uri: Uri): String {
 
 internal fun cleanOldImports(context: Context, keep: Set<String>) {
     val directory = File(context.filesDir, "wallpapers")
-    val root = directory.canonicalFile
-    directory.listFiles()?.filter { it.name.startsWith("import-") && it.extension == "png" }?.forEach { file ->
-        if (file.canonicalFile.parentFile == root && file.absolutePath !in keep) file.delete()
+    directory.listFiles()?.forEach { file ->
+        if (file.absolutePath !in keep) deletePrivateImport(context, file.absolutePath)
     }
+}
+
+internal fun deletePrivateImport(context: Context, path: String) {
+    val file = File(path)
+    val root = File(context.filesDir, "wallpapers").canonicalFile
+    if (file.canonicalFile.parentFile == root && file.name.startsWith("import-") && file.extension == "png") file.delete()
 }
 
 /** Export a still in the same treatment (day or night) the person is looking at. */

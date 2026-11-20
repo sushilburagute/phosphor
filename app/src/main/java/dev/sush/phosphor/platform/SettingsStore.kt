@@ -21,10 +21,18 @@ class SettingsStore(context: Context) {
 
     fun commitPreview() = save(loadPreview())
 
-    fun addListener(listener: () -> Unit) {
+    fun addListener(listener: () -> Unit) = addListener(listener, preview = null)
+
+    /** A preview follows the active wallpaper until the first draft is stored. Null observes both keys. */
+    fun addListener(listener: () -> Unit, preview: Boolean?) {
         if (listeners.containsKey(listener)) return
         val adapter = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "active" || key == "preview") listener()
+            val relevant = when (key) {
+                "active" -> preview != true || !preferences.contains("preview")
+                "preview" -> preview != false
+                else -> false
+            }
+            if (relevant) listener()
         }
         listeners[listener] = adapter
         preferences.registerOnSharedPreferenceChangeListener(adapter)
@@ -35,30 +43,40 @@ class SettingsStore(context: Context) {
     }
 
     private fun read(key: String): WallpaperSettings {
-        val defaults = WallpaperSettings()
+        val raw = preferences.getString(key, null) ?: return WallpaperSettings()
         return try {
-            val json = JSONObject(preferences.getString(key, null) ?: return defaults)
-            defaults.copy(
+            decode(JSONObject(raw))
+        } catch (_: org.json.JSONException) {
+            WallpaperSettings()
+        }
+    }
+
+    private fun write(key: String, settings: WallpaperSettings) {
+        preferences.edit().putString(key, encode(settings).toString()).apply()
+    }
+
+    companion object {
+        fun decode(json: JSONObject): WallpaperSettings {
+            val defaults = WallpaperSettings()
+            return defaults.copy(
                 presetId = json.optString("presetId", defaults.presetId),
-                speed = number(json, "speed", defaults.speed, 0f, 1f),
-                intensity = number(json, "intensity", defaults.intensity, 0f, 1f),
+                speed = number(json, "speed", defaults.speed),
+                intensity = number(json, "intensity", defaults.intensity),
                 parallax = json.optBoolean("parallax", defaults.parallax),
                 fps = json.optInt("fps", defaults.fps).coerceIn(15, 60),
-                darken = number(json, "darken", defaults.darken, 0f, 1f),
+                darken = number(json, "darken", defaults.darken),
                 imagePath = json.optString("imagePath").takeIf { it.isNotBlank() && it != "null" },
+                imageFocusX = number(json, "imageFocusX", defaults.imageFocusX),
+                imageFocusY = number(json, "imageFocusY", defaults.imageFocusY),
                 reducedMotion = json.optBoolean("reducedMotion", defaults.reducedMotion),
                 appearance = Appearance.entries.firstOrNull { it.name == json.optString("appearance") } ?: defaults.appearance,
                 wakeReveal = json.optBoolean("wakeReveal", json.optBoolean("unlockAnimation", defaults.wakeReveal)),
                 lowBatteryMode = json.optBoolean("lowBatteryMode", defaults.lowBatteryMode),
                 unlockAnimation = json.optBoolean("unlockAnimation", json.optBoolean("wakeReveal", defaults.unlockAnimation)),
             )
-        } catch (_: org.json.JSONException) {
-            defaults
         }
-    }
 
-    private fun write(key: String, settings: WallpaperSettings) {
-        val json = JSONObject().apply {
+        fun encode(settings: WallpaperSettings): JSONObject = JSONObject().apply {
             put("presetId", settings.presetId)
             put("speed", bounded(settings.speed, 0.5f))
             put("intensity", bounded(settings.intensity, 0.6f))
@@ -66,20 +84,19 @@ class SettingsStore(context: Context) {
             put("fps", settings.fps.coerceIn(15, 60))
             put("darken", bounded(settings.darken, 0f))
             put("imagePath", settings.imagePath ?: JSONObject.NULL)
+            put("imageFocusX", bounded(settings.imageFocusX, 0.5f))
+            put("imageFocusY", bounded(settings.imageFocusY, 0.5f))
             put("reducedMotion", settings.reducedMotion)
             put("appearance", settings.appearance.name)
             put("wakeReveal", settings.wakeReveal)
             put("lowBatteryMode", settings.lowBatteryMode)
             put("unlockAnimation", settings.unlockAnimation)
         }
-        preferences.edit().putString(key, json.toString()).apply()
-    }
 
-    private fun bounded(value: Float, fallback: Float): Float =
-        if (value.isFinite()) value.coerceIn(0f, 1f) else fallback
+        private fun bounded(value: Float, fallback: Float): Float =
+            if (value.isFinite()) value.coerceIn(0f, 1f) else fallback
 
-    private fun number(json: JSONObject, key: String, fallback: Float, min: Float, max: Float): Float {
-        val value = json.optDouble(key, fallback.toDouble()).toFloat()
-        return if (value.isFinite()) value.coerceIn(min, max) else fallback
+        private fun number(json: JSONObject, key: String, fallback: Float): Float =
+            bounded(json.optDouble(key, fallback.toDouble()).toFloat(), fallback)
     }
 }

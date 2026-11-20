@@ -18,12 +18,12 @@ Editing saves a draft independently of the active wallpaper. Opening and dismiss
 
 ## Battery and rendering
 
-- Continuous rendering stops when the engine is hidden, its surface is destroyed, or the display is non-interactive. A visible lock-screen wallpaper is capped at 15 fps, including while charging; touch and scroll requests share that frame budget.
+- Continuous rendering stops when the engine is hidden, its surface is destroyed, or the display is non-interactive. A visible lock-screen wallpaper is capped at 15 fps, including while charging. Launcher offsets share that frame budget.
 - System Battery Saver caps animation at 15 frames per second and reduces motion. Automatic low battery mode does the same at 20% or below while unplugged, and holds a still frame at 5% or below. The automatic behavior can be disabled per wallpaper; system Battery Saver is always honored.
-- Still mode and Android's disabled-animation preference draw a stationary frame and disable animated touch/launcher parallax and unlock effects.
-- When the display becomes non-interactive, the engine draws a dimmed stationary frame if still visible. Availability of live content on an always-on display remains an OEM decision.
-- Interaction uses launcher offsets and touch events, with eased movement and localized light/ripple responses. It does not run an accelerometer or other sensor; some launchers provide no offset or touch events.
-- A visible lock-screen wallpaper settles into a dimmer, closer composition on wake and reveals its normal appearance on unlock. Screen-off draws a final locked appearance when a surface is available, then stops. Android may hide the wallpaper or turn the display off before any shutdown animation can be shown; no private keyguard APIs or overlays are used.
+- Still mode and Android's disabled-animation preference hold the artwork stationary, including its parallax layers and unlock effects.
+- When the display becomes non-interactive, the engine stops scheduling frames. A system-requested surface redraw can still show a dimmed stationary scene. Always-on-display behavior depends on the device.
+- Launcher parallax uses the page offsets Android supplies. Ambient depth also works on single-page home screens. Neither uses motion sensors.
+- A visible lock-screen wallpaper settles into a dimmer, closer composition on wake and reveals its normal appearance on unlock. Android controls when the surface is visible during these transitions.
 - Each picker/home-screen engine owns its renderer and resources. Rendering does not require network access, a foreground service, or media/storage permissions.
 
 ## Device validation checklist
@@ -47,11 +47,11 @@ Run this checklist on a physical Pixel and a physical Samsung device before clai
 | Enable reduced motion | One stationary frame; touch/scroll does not animate |
 | Disable system animator duration scale while visible | Artwork becomes still without leaving an animation loop running; enabling animations resumes selected motion |
 | Lock, wake, and unlock; repeat with still mode and unlock effects disabled | Visible lock/wake/unlock treatment follows the setting; hidden or non-interactive engines stop scheduling frames |
-| Touch/drag/release with ambient speed zero | A finite eased response plays and settles; the wallpaper does not retain a continuous idle animation loop |
+| At zero speed, tap empty space, drag an icon, then change launcher pages | Touches leave the scene still. An offset-aware launcher shifts depth on a page change with parallax enabled. Frames stop again when the page settles. |
 | Rotate / fold / unfold / change resolution | Surface fills viewport; no stale bitmap size or crash |
 | Use large text and wide windows | Settings wrap and remain reachable; wide layouts use navigation rail and editor panes |
 | Preview while existing live wallpaper runs | Engines render independently without shared resource recycling |
-| Import large portrait and landscape photos | Bounded decoding, correct center crop, motion stays within image edges |
+| Import large portrait and landscape photos and move the framing target toward each corner | Preview, live wallpaper and export keep the selected subject in view within the crop limits. Motion stays inside the photo edges. |
 | Reboot; kill app process | Applied configuration and private imported image persist |
 | Export still image | Saved image matches selected artwork without a watermark |
 | Observe 10-minute run / Android Studio profiler | No sustained growth; record actual CPU, frame timing, and thermal behavior |

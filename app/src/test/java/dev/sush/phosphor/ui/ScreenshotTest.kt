@@ -28,10 +28,10 @@ import java.io.FileOutputStream
 class ScreenshotTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
-    @Test @Config(sdk = [35], qualifiers = "w400dp-h880dp-notnight-xhdpi")
+    @Test @Config(sdk = [35], qualifiers = "w400dp-h800dp-notnight-xhdpi")
     fun day() = capture("day")
 
-    @Test @Config(sdk = [35], qualifiers = "w400dp-h880dp-night-xhdpi")
+    @Test @Config(sdk = [35], qualifiers = "w400dp-h800dp-night-xhdpi")
     fun night() = capture("night")
 
     /** The adaptive launcher icon, rendered from its vector layers: preview and Play icon. */
@@ -71,8 +71,10 @@ class ScreenshotTest {
         compose.waitForIdle()
         save("editor-$mood")
         compose.onNode(androidx.compose.ui.test.hasContentDescription("Show home screen preview")).performClick()
+        compose.onNodeWithText("Expand preview").performClick()
         compose.mainClock.advanceTimeBy(800)
         save("editor-home-$mood")
+        compose.onNodeWithText("Back to tuning").performClick()
         compose.onNode(androidx.compose.ui.test.hasContentDescription("Back to wallpapers")).performClick()
         compose.mainClock.advanceTimeBy(800)
         compose.onNodeWithText("Settings").performClick()

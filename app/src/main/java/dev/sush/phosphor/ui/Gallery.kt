@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.sush.phosphor.R
+import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
@@ -66,20 +67,41 @@ fun WallpaperKind.label(): String = when (this) {
 /** Phone-shaped plates: wallpapers are shown at the proportions they will be used at. */
 const val PLATE_RATIO = 0.5f
 
+internal data class GalleryWallpaper(
+    val preset: WallpaperPreset,
+    val settings: WallpaperSettings,
+    val look: SavedLook?,
+) {
+    val title: String get() = look?.name ?: preset.name
+}
+
+private val featured = listOf("orbit-exposure", "ascii-signal", "glass-orbit")
+
+internal fun galleryWallpapers(
+    saved: Boolean, looks: List<SavedLook>, active: WallpaperSettings, imagePath: String?,
+): List<GalleryWallpaper> {
+    if (saved) return looks.mapNotNull { look ->
+        val preset = WallpaperCatalog.presets.firstOrNull { it.id == look.settings.presetId } ?: return@mapNotNull null
+        GalleryWallpaper(preset, look.settings, look)
+    }
+    return WallpaperCatalog.presets
+        .filter { it.kind != WallpaperKind.IMAGE || imagePath != null }
+        .sortedBy { featured.indexOf(it.id).let { rank -> if (rank < 0) featured.size else rank } }
+        .map { preset -> GalleryWallpaper(preset, active.forPreset(preset, imagePath), null) }
+}
+
 @Composable
-fun Gallery(
+internal fun Gallery(
     saved: Boolean,
     category: String,
-    wallpapers: List<WallpaperPreset>,
-    favorites: Set<String>,
-    active: WallpaperSettings,
-    imagePath: String?,
-    liveId: String?,
+    wallpapers: List<GalleryWallpaper>,
+    looks: List<SavedLook>,
+    liveSettings: WallpaperSettings?,
     night: Boolean,
     onNight: (Boolean) -> Unit,
     onCategory: (String) -> Unit,
-    onSelect: (WallpaperPreset) -> Unit,
-    onFavorite: (String) -> Unit,
+    onSelect: (GalleryWallpaper, Boolean) -> Unit,
+    onFavorite: (GalleryWallpaper) -> Unit,
     onImport: () -> Unit,
     onExplore: () -> Unit,
 ) {
@@ -96,7 +118,7 @@ fun Gallery(
                     MoodSwitch(night, onNight)
                 }
                 Text(
-                    if (saved) "The wallpapers you’ve kept. They follow the same day and night switch."
+                    if (saved) "Your saved wallpapers and their settings."
                     else "Wallpapers drawn live on your phone. At night they glow; by day they print in ink.",
                     style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(end = 24.dp),
@@ -119,38 +141,49 @@ fun Gallery(
         if (wallpapers.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
             Column(Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Glyph(if (saved) R.drawable.ic_saved else R.drawable.ic_import, null, Modifier.size(32.dp), MaterialTheme.colorScheme.primary)
-                Text(if (saved) "Nothing saved yet" else "Start with your own image", style = MaterialTheme.typography.headlineSmall)
+                val filtered = saved && looks.isNotEmpty() && category != "All"
+                Text(when {
+                    filtered -> "No saved looks in this collection"
+                    saved -> "Nothing saved yet"
+                    else -> "Start with your own image"
+                }, style = MaterialTheme.typography.headlineSmall)
                 Text(
-                    if (saved) "Tap the heart on any wallpaper to keep it here." else "Choose a photo or artwork and Phosphor adds gentle motion and light.",
+                    when {
+                        filtered -> "Your other saved looks are in All."
+                        saved -> "Use the heart on a wallpaper or save a look from the editor."
+                        else -> "Choose a photo or artwork and Phosphor adds gentle motion and light."
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium,
                 )
-                TextButton(onClick = if (saved) onExplore else onImport) { Text(if (saved) "Browse wallpapers" else "Choose an image") }
+                TextButton(onClick = when {
+                    filtered -> { { onCategory("All") } }
+                    saved -> onExplore
+                    else -> onImport
+                }) { Text(if (filtered) "Show all saved" else if (saved) "Browse wallpapers" else "Choose an image") }
             }
         }
-        items(wallpapers, key = { it.id }) { preset ->
-            val isActive = liveId == preset.id
+        items(wallpapers, key = { it.look?.id ?: it.preset.id }) { entry ->
+            val preset = entry.preset
+            val isActive = liveSettings == entry.settings
             Column {
                 Box(
                     Modifier.fillMaxWidth().aspectRatio(PLATE_RATIO).clip(MaterialTheme.shapes.extraLarge)
-                        .clickable(role = Role.Button, onClickLabel = "Open ${preset.name}") { onSelect(preset) },
+                        .clickable(role = Role.Button, onClickLabel = "Open ${entry.title}") { onSelect(entry, night) },
                 ) {
-                    Crossfade(night, animationSpec = tween(if (active.reducedMotion) 0 else Motion.MOOD), label = "plate") { lit ->
-                        WallpaperPreview(
-                            preset, active.copy(presetId = preset.id, imagePath = if (preset.kind == WallpaperKind.IMAGE) imagePath else null),
-                            Modifier.fillMaxSize(), night = lit,
-                        )
+                    Crossfade(night, animationSpec = tween(if (entry.settings.reducedMotion) 0 else Motion.MOOD), label = "plate") { lit ->
+                        WallpaperPreview(preset, entry.settings, Modifier.fillMaxSize(), night = lit)
                     }
                     Surface(Modifier.align(Alignment.TopEnd).padding(8.dp), shape = CircleShape, color = Color.Black.copy(alpha = .6f)) {
-                        val on = preset.id in favorites
-                        IconButton(onClick = { onFavorite(preset.id) }, modifier = Modifier.semantics { contentDescription = if (on) "Remove ${preset.name} from saved" else "Save ${preset.name}" }) {
+                        val on = entry.look != null || looks.any { it.settings == entry.settings }
+                        IconButton(onClick = { onFavorite(entry) }, modifier = Modifier.semantics { contentDescription = if (on) "Remove ${entry.title} from saved" else "Save ${entry.title}" }) {
                             Glyph(if (on) R.drawable.ic_saved_filled else R.drawable.ic_saved, null, tint = Color.White)
                         }
                     }
                 }
                 Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(preset.name, style = MaterialTheme.typography.titleMedium)
-                        Text(if (isActive) "On your phone" else preset.kind.label(), style = MaterialTheme.typography.bodySmall,
+                        Text(entry.title, style = MaterialTheme.typography.titleMedium)
+                        Text(if (isActive) "On your phone" else if (entry.title != preset.name) preset.name else preset.kind.label(), style = MaterialTheme.typography.bodySmall,
                             color = if (isActive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Swatches(preset.palette(night), 14.dp)

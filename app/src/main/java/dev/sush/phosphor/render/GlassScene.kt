@@ -21,23 +21,18 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Glass in front of light. The light is a [GradientField] (soft lamps, bands, and the finger's
- * wake as a streak of light); the glass redraws it per facet:
+ * A drifting lamp and diagonal light bands form a [GradientField]. Each glass facet
+ * resamples that field at its own scale, offset and dispersion.
  *
  * - **Fluted glass**: every rib squeezes, shifts and shears a wider slice of the light, once
  *   per colour channel at slightly different strengths, so rib edges split into red and blue
  *   like real dispersion. Each rib also focuses a bright caustic line and catches a specular lip.
  * - **Soft refraction**: ball lenses flip and magnify the light (again per channel, so their
  *   rims fringe spectrally), cast a soft shadow and a caustic focus spot on the backdrop.
- *
- * A swipe drags the lamp and leaves a refraction scar; holding focuses the light (the nearest
- * lens burns a point); release blooms it out across the glass.
  */
 internal class GlassScene(private val k: RenderKit) : GradientField.Source {
     private val field = GradientField()
     private val screen = GradientScreen()
-    private val lensSpring = Spring(LENSES)
-    private var grabbed = -1
     private var flute: Shader? = null
     private var rim: Shader? = null
     private var holo: Shader? = null
@@ -55,7 +50,6 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
         }
     }
     private val plain = Paint(Paint.FILTER_BITMAP_FLAG)
-    private val lines = FloatArray(LENSES * 4)
 
     // Palette as 0..1 channels.
     private val ground = FloatArray(3)
@@ -91,12 +85,11 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
     fun draw(canvas: Canvas, f: Frame, lenses: Boolean) {
         lensMode = lenses
         prepare(f)
-        // The lamp drifts on its own; a held finger carries it.
+        val t = f.t * GRADIENT_PACE
         val a = f.amount
-        val baseX = if (lenses) 560f + sin(f.t * GRADIENT_PACE * 0.41f) * 240f * a else 640f + sin(f.t * GRADIENT_PACE * 0.5f) * 280f * a
-        val baseY = f.h * (if (lenses) 0.46f else 0.5f) + cos(f.t * GRADIENT_PACE * 0.37f) * f.h * 0.12f * a
-        lampX = baseX + (f.dragX - baseX) * f.drag
-        lampY = baseY + (f.dragY - baseY) * f.drag
+        lampX = if (lenses) 560f + sin(t * 0.41f) * 240f * a else 640f + sin(t * 0.5f) * 280f * a
+        lampX += f.shiftX(0.45f)
+        lampY = f.h * (if (lenses) 0.46f else 0.5f) + cos(t * 0.37f) * f.h * 0.12f * a + f.shiftY(0.45f)
         field.ensure(f, 40)
         field.fill(f, this)
         if (lenses) lenses(canvas, f) else fluted(canvas, f)
@@ -105,19 +98,15 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
     // region Light behind the glass
 
     override fun shade(f: Frame, x: Float, y: Float, out: GradientField) {
-        // A token smear so the field reports the wake; the light is not dragged, it is drawn.
-        out.displace(f, x, y, smear = 1f, lens = 0f, ripple = 26f)
-        val sx = x + out.dx + f.shiftX(0.4f)
-        val sy = y + out.dy + f.shiftY(0.3f)
+        val sx = x - f.shiftX(0.3f)
+        val sy = y - f.shiftY(0.3f)
         val v = y / f.h
         val t = f.t * GRADIENT_PACE
         val base = if (f.night) 0.14f + 0.22f * smooth((v - 0.1f) / 0.32f) - 0.2f * smooth((v - 0.84f) / 0.08f)
             else 0.45f + 0.3f * smooth((v - 0.1f) / 0.4f)
-        // The lamp tightens and brightens as a held finger gathers charge.
-        val focus = 1f - 0.55f * f.charge * f.drag
-        val ex = (sx - lampX) / (360f * focus)
-        val ey = (sy - lampY) / (520f * focus)
-        val lamp = exp(-(ex * ex + ey * ey)) * (1f + f.charge * f.drag * 0.5f)
+        val ex = (x - lampX) / 360f
+        val ey = (y - lampY) / 520f
+        val lamp = exp(-(ex * ex + ey * ey))
         var w1: Float
         var w2: Float
         var hot: Float
@@ -140,9 +129,6 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
             w2 = violet * base
             hot = lamp * lamp * lamp * base * 0.5f
         }
-        // The finger's wake: a ribbon of light, which the glass then refracts.
-        w1 += out.wake * 0.45f + out.crest * 0.2f
-        hot += out.wake * 0.35f + out.crest * 0.25f
         val reveal = smooth(f.reveal * 1.3f)
         w1 = (w1 * reveal).coerceIn(0f, 1f); w2 = (w2 * reveal).coerceIn(0f, 1f); hot = (hot * reveal).coerceIn(0f, 1f)
         if (f.night) {
@@ -189,39 +175,29 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
         val s = k.stroke
         val glassShift = f.shiftX(1.2f)
         // Flutes narrow from left to right, as in a pane photographed at an angle.
-        var x = -14f + glassShift % 1f
+        var x = -72f + glassShift
         var index = 0
-        val flowX = (f.flowX / 2500f).coerceIn(-1f, 1f)
         while (x < 1014f) {
             val width = 24f + 104f * (1f - (x / 1000f).coerceIn(0f, 1f)).pow(2f)
             val cx = x + width / 2f
-            // Where the finger passed, the rib was "scratched": it splits and drags the light.
-            var scar = 0f
-            for (i in 0 until f.trail) {
-                val d = (cx - f.trailX[i]) / (width * 0.5f + 30f)
-                val v = exp(-d * d) * f.trailA[i]
-                if (v > scar) scar = v
-            }
-            val wave = f.waveX(cx, 90f)
-            val near = f.dragInfluence(cx, f.dragY, 200f)
-            val shift = (cx - 500f) * 0.2f + sin(index * 1.7f) * 40f + sin(t * 0.31f + index * 0.43f) * 40f * a -
-                flowX * 70f * (scar + near) + wave * 30f * sin(index * 2.3f)
-            val shear = 0.22f * sin(index * 0.9f + t * 0.17f) + scar * 0.25f * flowX
-            val scale = 0.27f - wave * 0.05f + near * f.charge * 0.1f
-            val spread = 0.035f + scar * 0.12f + wave * 0.05f + near * f.charge * 0.06f
+            // Each flute sweeps a slightly different slice of the lamp as it passes behind the pane.
+            val sweep = sin(t * 0.66f + index * 0.43f) * a
+            val shift = (cx - 500f) * 0.2f + sin(index * 1.7f) * 40f + sweep * 40f
+            val shear = 0.18f * sin(index * 0.9f + t * 0.38f)
+            val scale = 0.29f + sweep * 0.055f
+            val spread = 0.045f + sweep * 0.012f
             val saved = canvas.save()
             canvas.clipRect(x, 0f, x + width + 0.5f, h)
             refract(canvas, f, cx, h * 0.5f, scale, 1f, shift, shear, spread)
 
             // Caustic: the rib focuses a narrow band of light into a bright thread.
             val focusX = x + width * (0.58f + 0.22f * sin(index * 1.3f + t * 0.23f) * 0.5f + 0.12f * ((lampX - cx) / 1000f).coerceIn(-1f, 1f))
-            val boost = 1f + f.charge * near * 2.5f + scar * 1.5f + wave
             val cs = canvas.save()
             canvas.clipRect(focusX - 2.2f, 0f, focusX + 2.2f, h)
             canvas.translate(focusX, 0f)
             canvas.scale(0.06f, 1f)
             canvas.translate(-(focusX + shift * 1.4f), 0f)
-            plain.alpha = (min255(if (f.night) 150f * boost else 110f * boost))
+            plain.alpha = if (f.night) 135 else 110
             k.blend(plain, if (f.night) RenderKit.Mode.ADD else RenderKit.Mode.SCREEN)
             field.drawClamped(canvas, plain, focusX + shift * 1.4f - 600f, -10f, focusX + shift * 1.4f + 600f, h + 10f)
             k.normal(plain)
@@ -239,7 +215,7 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
 
             k.luminous(s, f.night)
             s.color = Color.WHITE
-            s.alpha = min255((if (f.night) 34f else 120f) + field.sample(cx, lampY) * 70f + scar * 80f)
+            s.alpha = min255((if (f.night) 34f else 120f) + field.sample(cx, lampY) * 70f)
             s.strokeWidth = 1.3f
             canvas.drawLine(x + width * 0.88f, -10f, x + width * 0.88f, h + 10f, s)
             k.normal(s)
@@ -248,7 +224,6 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
         }
         k.reset(p)
         k.reset(s)
-        focusBurn(canvas, f)
     }
 
     // endregion
@@ -257,54 +232,23 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
 
     private fun lenses(canvas: Canvas, f: Frame) {
         val h = f.h
-        val t = f.t * GRADIENT_PACE
+        val t = f.t
         val a = f.amount
         // The backdrop: soft light printed through a halftone, so the lenses have detail to bend.
         k.reset(plain)
         field.draw(canvas, f, plain)
         printScreen(canvas, f)
 
-        // The lens nearest a new touch follows the finger until released.
-        if (f.drag > 0.5f && grabbed < 0) {
-            var best = Float.MAX_VALUE
-            for (i in 0 until LENSES) {
-                val d = sqrt((f.dragX - lensX(i, t, a)).pow(2) + (f.dragY - lensY(i, t, a, h)).pow(2)) - RADII[i]
-                if (d < best) { best = d; grabbed = i }
-            }
-        }
-        if (f.drag < 0.2f) grabbed = -1
-        for (i in 0 until LENSES) {
-            val tx = if (i == grabbed) (f.dragX - lensX(i, t, a)) * 0.85f else 0f
-            val ty = if (i == grabbed) (f.dragY - lensY(i, t, a, h)) * 0.85f else 0f
-            lensSpring.step(i, tx, ty, f.dt, 30f, 8f)
-        }
-        if (!f.busy && f.dt == 0f) lensSpring.reset()
-
-        // The finger's glide nudges lenses it passes, like bubbles in a current.
-        var nearest = -1
-        var nearestD = Float.MAX_VALUE
-        for (i in 0 until LENSES) {
-            val x0 = lensX(i, t, a) + lensSpring.x[i] + f.shiftX(0.5f + i * 0.25f)
-            val y0 = lensY(i, t, a, h) + lensSpring.y[i]
-            val push = exp(-((x0 - f.dragX).pow(2) + (y0 - f.dragY).pow(2)) / (420f * 420f))
-            val x = x0 + f.flowX * 0.05f * push
-            val y = y0 + f.flowY * 0.05f * push
-            lines[i * 4] = x; lines[i * 4 + 1] = y
-            val d = sqrt((x - f.dragX).pow(2) + (y - f.dragY).pow(2))
-            if (d < nearestD) { nearestD = d; nearest = i }
-        }
-        for (i in 0 until LENSES) {
-            val focus = if (i == nearest) f.charge * f.drag else 0f
-            val wobble = f.wave(lines[i * 4], lines[i * 4 + 1], 160f)
-            val r = RADII[i] * (1f + wobble * 0.06f * sin(f.now * 18f))
-            lens(canvas, f, lines[i * 4], lines[i * 4 + 1], r, focus, wobble)
-        }
+        // Back-to-front paths at different depths reveal the reversed print inside each passing lens.
+        lens(canvas, f, 720f + cos(t * 0.39f) * 104f * a + f.shiftX(0.65f),
+            h * 0.40f + sin(t * 0.35f) * 65f * a + f.shiftY(0.65f), 170f)
+        lens(canvas, f, 290f + sin(t * 0.49f) * 120f * a + f.shiftX(1.25f),
+            h * 0.50f + cos(t * 0.43f) * 112f * a + f.shiftY(1.25f), 292f)
+        lens(canvas, f, 680f + sin(t * 0.58f + 1.7f) * 112f * a + f.shiftX(1.7f),
+            h * 0.72f + cos(t * 0.50f) * 60f * a + f.shiftY(1.7f), 82f)
     }
 
-    private fun lensX(i: Int, t: Float, a: Float) = BASE_X[i] + sin(t * (0.31f + i * 0.07f) + i * 1.9f) * (40f + i * 9f) * a
-    private fun lensY(i: Int, t: Float, a: Float, h: Float) = BASE_Y[i] * h + cos(t * (0.27f + i * 0.05f) + i * 0.7f) * (55f + i * 6f) * a
-
-    private fun lens(canvas: Canvas, f: Frame, x: Float, y: Float, r: Float, focus: Float, wobble: Float) {
+    private fun lens(canvas: Canvas, f: Frame, x: Float, y: Float, r: Float) {
         val night = f.night
         val mode = if (night) RenderKit.Mode.ADD else RenderKit.Mode.INK
         // Light arrives from the lamp; the shadow falls away from it, the caustic beyond it.
@@ -316,10 +260,10 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
         val sy = y + uy * r * 0.32f + r * 0.18f
         shadow(canvas, f, sx, sy, r)
         val light = field.sample(x, y)
-        val spot = r * (0.26f - 0.2f * focus)
+        val spot = r * (0.27f - 0.08f * light)
         val cx = x + ux * r * 0.55f
         val cy = y + uy * r * 0.55f + r * 0.12f
-        val power = (0.35f + light) * (1f + focus * 2.5f + wobble)
+        val power = 0.35f + light
         k.glow(canvas, k.glowA, cx, cy, spot * 2.6f, spot * 2.2f, min255(70f * power), mode)
         k.glow(canvas, if (night) k.glowWhite else k.glowB, cx, cy, spot, spot * 0.85f, min255(150f * power), mode)
 
@@ -327,10 +271,9 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
         clip.reset()
         clip.addCircle(x, y, r, Path.Direction.CW)
         canvas.clipPath(clip)
-        // Inside, the world is flipped and magnified, as through a ball lens; focusing a lens
-        // pulls the magnification up and the dispersion out toward the rim.
-        val m = 1.4f + focus * 0.9f + wobble * 0.2f
-        refract(canvas, f, x, y, -m, -m, 0f, 0f, 0.05f + focus * 0.05f)
+        // Fresnel reflections and a magnified, inverted image distinguish a lens from a flat disc.
+        val m = 1.4f + light * 0.24f
+        refract(canvas, f, x, y, -m, -m, 0f, 0f, 0.05f)
         val flipped = canvas.save()
         canvas.translate(x, y)
         canvas.scale(-m, -m)
@@ -390,35 +333,12 @@ internal class GlassScene(private val k: RenderKit) : GradientField.Source {
 
     // endregion
 
-    /** Holding gathers the light behind the glass into a burning point under the finger. */
-    private fun focusBurn(canvas: Canvas, f: Frame) {
-        val mode = if (f.night) RenderKit.Mode.ADD else RenderKit.Mode.INK
-        val c = f.charge * f.drag
-        if (c > 0f) {
-            val r = 160f - 120f * c
-            k.glow(canvas, k.glowA, f.dragX, f.dragY, r * 1.6f, r * 2.6f, min255(c * 140f), mode)
-            k.glow(canvas, if (f.night) k.glowWhite else k.glowB, f.dragX, f.dragY, r * 0.35f, r * 1.4f, min255(c * 220f), mode)
-        }
-        for (i in 0 until f.pulses) {
-            val bloom = (f.pulseA[i] - 0.4f).coerceAtLeast(0f)
-            if (bloom <= 0f) continue
-            val r = 100f + f.pulseR[i] * 0.4f
-            k.glow(canvas, k.glowA, f.pulseX[i], f.pulseY[i], r * 0.7f, r * 1.6f, min255(bloom * 120f), mode)
-        }
-    }
-
     private fun min255(v: Float) = v.toInt().coerceIn(0, 255)
 
     fun release() {
-        lensSpring.reset(); grabbed = -1; flute = null; rim = null; holo = null; key = 0
+        flute = null; rim = null; holo = null; key = 0
         field.release()
         screen.release()
     }
 
-    private companion object {
-        const val LENSES = 5
-        val BASE_X = floatArrayOf(290f, 730f, 200f, 820f, 520f)
-        val BASE_Y = floatArrayOf(0.31f, 0.55f, 0.76f, 0.2f, 0.8f)
-        val RADII = floatArrayOf(230f, 300f, 150f, 90f, 70f)
-    }
 }

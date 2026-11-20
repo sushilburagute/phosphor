@@ -12,7 +12,6 @@ import dev.sush.phosphor.render.RenderKit.Companion.smooth
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -98,8 +97,6 @@ internal class AuroraScene(private val k: RenderKit) {
     private var hemCount = 0
     private val hotLines = FloatArray(MAX_RAYS * 4)
     private var hotCount = 0
-    private val wake = Array(3) { FloatArray(TouchField.TRAIL * 4 * 4) }
-    private val wakeCounts = IntArray(3)
     private val stopY = FloatArray(BODY_STOPS + 8)
     private val hueTmp = FloatArray(1)
     private val bodyHue = FloatArray(1)
@@ -109,7 +106,22 @@ internal class AuroraScene(private val k: RenderKit) {
     val binHem = Array(3) { FloatArray(BINS) }
 
     private var key = 0L
-    private var solstice = false
+    private var rayFront: Shader? = null
+    private var rayBack: Shader? = null
+    private var pillarKey = 0L
+
+    private fun preparePillars(f: Frame) {
+        val next = f.c1.toLong() * 31 + f.c2 + if (f.night) 1 else 2
+        if (next == pillarKey && rayFront != null) return
+        pillarKey = next
+        // The foot of each sun pillar is at y = 0 and its tip is at y = -1.
+        rayFront = LinearGradient(0f, 0f, 0f, -1f,
+            intArrayOf(alpha(mix(f.c1, Color.WHITE, if (f.night) 0.35f else 0f), 255), alpha(f.c1, 190), alpha(mix(f.c1, f.c2, 0.6f), 80), alpha(f.c2, 0)),
+            floatArrayOf(0f, 0.08f, 0.45f, 1f), Shader.TileMode.CLAMP)
+        rayBack = LinearGradient(0f, 0f, 0f, -1f,
+            intArrayOf(alpha(f.c2, 200), alpha(f.c2, 110), alpha(f.c2, 0)),
+            floatArrayOf(0f, 0.3f, 1f), Shader.TileMode.CLAMP)
+    }
 
     private fun prepare(f: Frame) {
         val next = ((f.c0.toLong() * 31 + f.c1) * 31 + f.c2) * 31 + f.h.toLong() + if (f.night) 1 else 2
@@ -155,7 +167,7 @@ internal class AuroraScene(private val k: RenderKit) {
         val cur = curtains[c]
         val hot = hotLength(cur, hem)
         val d = hem - y
-        return when {
+        val opacity = when {
             d < -0.018f -> { hueOut[0] = 1.6f; 0f }
             d < -0.006f -> { hueOut[0] = 1.6f; 0.45f * (d + 0.018f) / 0.012f }
             d < 0f -> { val u = (d + 0.006f) / 0.006f; hueOut[0] = 1.6f - 2.6f * u; 0.45f + 0.55f * u }
@@ -169,6 +181,9 @@ internal class AuroraScene(private val k: RenderKit) {
             }
             else -> bodyAt(cur, y, hueOut)
         }
+        // Feather the body of the curtain where bright rays overlap a launcher label row.
+        val rowDistance = minOf(abs(y - 0.3725f), abs(y - 0.4925f), abs(y - 0.6125f))
+        return opacity * (0.60f + 0.40f * smooth((rowDistance - 0.0125f) / 0.018f))
     }
 
     private fun bodyAt(c: Curtain, y: Float, hueOut: FloatArray): Float {
@@ -190,25 +205,63 @@ internal class AuroraScene(private val k: RenderKit) {
         else -> mix(mix(f.c1, f.c2, 0.6f), FRINGE, (h - 1f) * if (f.night) 0.8f else 0.4f)
     }
 
-    /**
-     * [variant] is the preset id. Without one, a warm palette (red leading green) is read as
-     * Solstice's twilight composition.
-     */
-    fun draw(canvas: Canvas, f: Frame, variant: String? = null) {
-        prepare(f)
-        k.prepare(f)
-        solstice = if (variant != null) variant == "aurora-solstice" else Color.red(f.c1) > Color.green(f.c1)
-        for (b in bins) b.fill(0f)
-        for (b in binHem) b.fill(f.h)
-
-        land.sky(canvas, f, solstice)
+    fun draw(canvas: Canvas, f: Frame, solstice: Boolean) {
+        val sunX = 610f + sin(f.t * 0.17f) * 72f * f.amount + f.shiftX(0.45f)
+        land.sky(canvas, f, solstice, sunX)
         if (f.night) land.stars(canvas, f)
-        for (i in curtains.indices) curtain(canvas, f, i)
-        if (!f.night) land.halftone(canvas, f, this)
-        land.ridges(canvas, f, solstice)
-        if (solstice) land.snow(canvas, f, this) else land.lake(canvas, f, this)
-        wakeLight(canvas, f)
-        substorm(canvas, f)
+        if (solstice) {
+            preparePillars(f)
+            sunPillars(canvas, f, sunX)
+            land.ridges(canvas, f, true)
+            land.snow(canvas, f, sunX)
+        } else {
+            prepare(f)
+            for (b in bins) b.fill(0f)
+            for (b in binHem) b.fill(f.h)
+            for (i in curtains.indices) curtain(canvas, f, i)
+            if (!f.night) land.halftone(canvas, f, this)
+            land.ridges(canvas, f, false)
+            land.lake(canvas, f, this)
+        }
+    }
+
+    /** Narrow shafts fan outward from a low solar disc. Their angles and lengths drift independently. */
+    private fun sunPillars(canvas: Canvas, f: Frame, x: Float) {
+        val h = f.h
+        val reveal = smooth(f.reveal)
+        val horizon = h * 0.68f + f.shiftY(0.4f)
+        k.glow(canvas, k.glowB, x, horizon, 510f, h * 0.26f, (105 * reveal).toInt(), k.modeFor(f))
+        val p = k.fill
+        val count = (72 * (0.5f + 0.5f * f.detail)).toInt()
+        for (i in 0 until count) {
+            val u = i / (count - 1f)
+            val phase = fraction(i * 43 + 3) * 6.28f
+            val opening = sin(f.t * 0.25f + phase) * 5f * f.amount
+            val angle = -54f + u * 88f + opening
+            val length = h * (0.18f + fraction(i * 31 + 7) * 0.33f +
+                cos(f.t * 0.41f + phase) * 0.035f * f.amount) * reveal
+            val saved = canvas.save()
+            canvas.translate(x + (u - 0.5f) * 100f, horizon)
+            canvas.rotate(angle)
+            canvas.scale(4f + fraction(i * 17 + 1) * 12f, length.coerceAtLeast(1f))
+            p.shader = if (i % 4 == 1) rayBack else rayFront
+            k.luminous(p, f.night)
+            p.alpha = (55f + 28f * sin(f.t * 0.55f + phase)).toInt()
+            k.path.reset()
+            k.path.moveTo(-0.3f, 0f)
+            k.path.lineTo(-1.1f, -1f)
+            k.path.lineTo(1.1f, -1f)
+            k.path.lineTo(0.3f, 0f)
+            k.path.close()
+            canvas.drawPath(k.path, p)
+            canvas.restoreToCount(saved)
+        }
+        k.reset(p)
+        p.color = mix(f.c2, if (f.night) Color.WHITE else f.c1, 0.25f)
+        p.alpha = (195 * reveal).toInt()
+        val sunY = horizon - 55f + sin(f.t * 0.19f) * 24f * f.amount
+        canvas.drawCircle(x, sunY, 74f, p)
+        k.reset(p)
     }
 
     private fun curtain(canvas: Canvas, f: Frame, index: Int) {
@@ -220,10 +273,9 @@ internal class AuroraScene(private val k: RenderKit) {
         val shift = f.shiftX(c.depth)
         val mid = (c.lo + c.hi) * 0.5f * h
         val half = (c.hi - c.lo) * 0.5f * h
-        // Rays converge on a vanishing point overhead; Solstice looks straight up into a corona.
+        // The overhead vanishing point leans the far rays toward the near curtain.
         val vx = 500f + f.shiftX(0.2f)
-        val vy = if (solstice) -h * (0.16f + 0.22f * (1f - c.depth)) else -h * (1.3f + (1f - c.depth))
-        val charge = f.charge * f.drag
+        val vy = -h * (1.3f + (1f - c.depth))
         var rays = 0
         hazeCounts.fill(0)
         val nominal = 1300f / n
@@ -231,7 +283,6 @@ internal class AuroraScene(private val k: RenderKit) {
         val binsOut = bins[index]
         val hemOut = binHem[index]
         val levelScale = LEVELS / (0.75f + 0.25f * f.amount)
-        val pulseY = avgPulseY(f)
         hemCount = 0
         hotCount = 0
 
@@ -245,32 +296,10 @@ internal class AuroraScene(private val k: RenderKit) {
             val a2 = u * 0.43f + t * c.speed * 0.37f + c.phase * 1.7f
             val a3 = u * 2.7f - t * c.speed * 1.9f + c.phase * 0.3f
             val fold = c.fold * (0.45f + 0.55f * (0.5f + 0.5f * sin(s * 2.3f + t * 0.06f + c.phase * 2f)))
-            var x = s * 1300f - 150f + fold * sin(a1) + c.fold * 0.5f * sin(a2) + fold * 0.12f * sin(a3) +
+            val x = s * 1300f - 150f + fold * sin(a1) + c.fold * 0.5f * sin(a2) + fold * 0.12f * sin(a3) +
                 40f * sin(t * 0.05f + c.phase) + shift
             val near = (0.62f * cos(a1) + 0.26f * cos(a2 * 1.3f + 0.5f) + 0.12f * cos(a3)).coerceIn(-1f, 1f)
             val y = mid - near * half + (fraction(j * 19 + index) - 0.5f) * 5f
-
-            // Fingers: a swipe combs the fabric along its direction; a hold gathers the folds.
-            var lean = 0f
-            var wakeLight = 0f
-            if (f.trail > 0 || f.flowX != 0f) {
-                wakeLight = f.trailInfluence(x, y - h * c.reach * 0.2f, 150f + 90f * c.depth)
-                val push = (f.flowX * 0.035f).coerceIn(-240f, 240f) * wakeLight * c.depth
-                x += push
-                lean -= push * 0.8f
-            }
-            var gather = 0f
-            if (f.drag > 0.001f) {
-                val dx = (x - f.dragX) / 300f
-                val dy = (y - f.dragY) / (h * 0.28f)
-                gather = exp(-dx * dx - dy * dy) * f.drag
-                x += (f.dragX - x) * gather * (0.1f + 0.5f * charge)
-            }
-            // Pulses kick the curtain: a brightening that runs along it, rays shooting upward.
-            var flare = 0f
-            if (f.pulses > 0) {
-                flare = f.waveX(x, 90f) * exp(-((y - pulseY) / (h * 0.35f)).let { it * it }) + f.wave(x, y, 170f) * 0.6f
-            }
 
             // Each ray brightens and dims on its own slow clock; patches pulse along the curtain.
             val clock = t * (0.6f + fraction(j * 7 + index) * 0.9f) + fraction(j * 13 + index * 5) * 9f
@@ -285,22 +314,14 @@ internal class AuroraScene(private val k: RenderKit) {
             val spacing = if (prevX.isNaN()) nominal else abs(x - prevX)
             prevX = x
             val crowd = (spacing / nominal).coerceIn(0.2f, 1.6f).let { sqrt(it) }
-            var bright = c.strength * (0.35f + 0.65f * flick) * patch * (0.75f + 0.25f * near) * (0.3f + 0.7f * envelope) * crowd
-            bright += flare * 0.9f + wakeLight * 0.7f + gather * charge * 0.6f
+            val bright = c.strength * (0.35f + 0.65f * flick) * patch * (0.75f + 0.25f * near) * (0.3f + 0.7f * envelope) * crowd
 
             // Reveal ignites the curtain from its middle outward, rays growing from the hem.
             if (reveal < 1f && abs(s - 0.5f) * 1.6f > reveal * 1.25f) continue
             hemX[hemCount] = x; hemY[hemCount] = y; hemB[hemCount] = bright; hemCount++
             val reach = h * c.reach * (0.62f + 0.38f * fraction(j * 3 + index * 11)) * (0.75f + 0.25f * patch) *
-                (0.7f + 0.3f * near) * (0.6f + 0.4f * envelope) * (1f + flare * 0.55f + gather * charge * 0.4f) * reveal
+                (0.7f + 0.3f * near) * (0.6f + 0.4f * envelope) * reveal
 
-            // Lean toward the vanishing point; a charged finger pulls the rays into its own corona.
-            var px = vx; var py = vy
-            if (charge > 0.01f && gather > 0.01f) {
-                val g = gather * charge
-                px += (f.dragX - px) * g
-                py += (minOf(f.dragY - h * 0.2f, y - 260f) - py) * g
-            }
             val level = (bright * levelScale).toInt()
             if (level <= 0) continue
             // Quantize to a hem class and a length class: their gradient carries the ray's fade.
@@ -308,8 +329,8 @@ internal class AuroraScene(private val k: RenderKit) {
             val ratio = reach / (h * c.reach)
             val len = if (ratio < 0.62f) 0 else if (ratio < 0.87f) 1 else 2
             val top = (c.hemOf(cls) - c.reach * LENGTH[len] * (if (ratio > 1f) ratio else 1f)) * h
-            val slope = (px - x) / (y - py)
-            val topX = x + slope * (y - top) + lean
+            val slope = (vx - x) / (y - vy)
+            val topX = x + slope * (y - top)
             val o = rays * 4
             rayGeom[o] = x; rayGeom[o + 1] = y + h * 0.018f; rayGeom[o + 2] = topX; rayGeom[o + 3] = top
             rayBucket[rays] = ((cls * LENGTHS + len) * LEVELS + (level - 1).coerceAtMost(LEVELS - 1)).toByte()
@@ -320,13 +341,13 @@ internal class AuroraScene(private val k: RenderKit) {
                 val ho = hazeCounts[hz]
                 val hazeTop = (c.hemOf(CLASSES / 2) - c.reach) * h
                 haze[hz][ho] = x; haze[hz][ho + 1] = y - h * 0.004f
-                haze[hz][ho + 2] = x + slope * (y - hazeTop) + lean; haze[hz][ho + 3] = hazeTop
+                haze[hz][ho + 2] = x + slope * (y - hazeTop); haze[hz][ho + 3] = hazeTop
                 hazeCounts[hz] = ho + 4
             }
-            // Past full brightness the lower ray burns white: flares, wakes and substorms.
+            // The brightest folds burn white at their lower edge.
             if (bright > 1.05f && hotCount + 4 <= hotLines.size) {
                 hotLines[hotCount] = x; hotLines[hotCount + 1] = y
-                hotLines[hotCount + 2] = x + slope * reach * 0.35f + lean * 0.35f; hotLines[hotCount + 3] = y - reach * 0.35f
+                hotLines[hotCount + 2] = x + slope * reach * 0.35f; hotLines[hotCount + 3] = y - reach * 0.35f
                 hotCount += 4
             }
             val bin = (x / BIN_W).toInt()
@@ -403,101 +424,11 @@ internal class AuroraScene(private val k: RenderKit) {
         k.reset(s)
     }
 
-    /**
-     * A swipe through the sky leaves a fresh ribbon of rays hanging from the finger's path:
-     * a white-hot base, the curtain's body color, then its high color fading out.
-     */
-    private fun wakeLight(canvas: Canvas, f: Frame) {
-        if (f.trail < 2) return
-        val lean = (f.flowX * -0.02f).coerceIn(-90f, 90f)
-        val p = k.stroke
-        p.strokeCap = Paint.Cap.BUTT
-        k.additive(p, f.night)
-        for (band in 0 until 3) {
-            val from = BAND_FROM[band]
-            val to = BAND_FROM[band + 1]
-            wakeCounts.fill(0)
-            for (i in 1 until f.trail) {
-                for (sub in 0 until 4) {
-                    val u = sub / 4f
-                    val x = f.trailX[i - 1] + (f.trailX[i] - f.trailX[i - 1]) * u
-                    val y = f.trailY[i - 1] + (f.trailY[i] - f.trailY[i - 1]) * u
-                    val a = f.trailA[i - 1] + (f.trailA[i] - f.trailA[i - 1]) * u
-                    val seed = i * 4 + sub
-                    val len = (60f + fraction(seed * 7 + 1) * 150f) * (0.35f + 0.65f * a)
-                    val jx = (fraction(seed * 7 + 2) - 0.5f) * 10f
-                    val b = (a * 3f).toInt().coerceIn(0, 2)
-                    val arr = wake[b]
-                    val o = wakeCounts[b]
-                    if (o + 4 > arr.size) continue
-                    arr[o] = x + jx + lean * a * from; arr[o + 1] = y + 4f - (len + 4f) * from
-                    arr[o + 2] = x + jx + lean * a * to; arr[o + 3] = y + 4f - (len + 4f) * to
-                    wakeCounts[b] = o + 4
-                }
-            }
-            for (b in 0 until 3) {
-                if (wakeCounts[b] == 0) continue
-                p.color = hue(f, BAND_HUE[band])
-                p.alpha = ((if (f.night) 70 + b * 60 else 55 + b * 45) * BAND_ALPHA[band]).toInt()
-                p.strokeWidth = 2f
-                canvas.drawLines(wake[b], 0, wakeCounts[b], p)
-                p.alpha /= 4
-                p.strokeWidth = 11f
-                canvas.drawLines(wake[b], 0, wakeCounts[b], p)
-            }
-        }
-        p.strokeCap = Paint.Cap.ROUND
-        k.reset(p)
-        // The finger itself glows where it parts the curtain.
-        if (f.drag > 0.01f) {
-            val speed = (f.flowSpeed / 2500f).coerceAtMost(1f)
-            k.glow(canvas, k.glowA, f.dragX, f.dragY, 120f + 80f * speed, 90f + 60f * speed, (f.drag * speed * 90f).toInt(), k.modeFor(f))
-        }
-    }
-
-    /** Holding still builds a substorm at the finger: a knot of light that brightens and widens. */
-    private fun substorm(canvas: Canvas, f: Frame) {
-        val charge = f.charge * f.drag
-        if (charge > 0.01f) {
-            val flicker = 0.85f + 0.15f * sin(f.now * 23f)
-            val mode = k.modeFor(f)
-            k.glow(canvas, k.glowA, f.dragX, f.dragY, 120f + 260f * charge, 160f + 380f * charge, (charge * 110f * flicker).toInt(), mode)
-            k.glow(canvas, k.glowB, f.dragX, f.dragY - 160f * charge, 220f + 200f * charge, 300f + 300f * charge, (charge * 70f).toInt(), mode)
-            if (f.night) k.glow(canvas, k.glowWhite, f.dragX, f.dragY, 24f + 40f * charge, 30f + 60f * charge, (charge * 130f * flicker).toInt(), RenderKit.Mode.ADD)
-        }
-        // A charged release opens a brief corona at the burst.
-        for (i in 0 until f.pulses) {
-            val a = f.pulseA[i]
-            if (a < 0.9f) continue
-            val r = f.pulseR[i]
-            val s = k.stroke
-            k.additive(s, f.night)
-            s.color = hue(f, -0.5f)
-            s.strokeCap = Paint.Cap.BUTT
-            val rays = 40
-            for (q in 0 until rays) {
-                val ang = q * (2f * PI.toFloat() / rays) + fraction(q * 5 + i) * 0.1f
-                val inner = r * 0.35f
-                val outer = r * (0.6f + 0.4f * fraction(q * 11 + 3))
-                s.alpha = ((a - 0.9f) * 160f * (0.4f + 0.6f * fraction(q * 3 + 1))).toInt().coerceIn(0, 255)
-                s.strokeWidth = 2f + 3f * fraction(q * 17 + 2)
-                canvas.drawLine(f.pulseX[i] + cos(ang) * inner, f.pulseY[i] + sin(ang) * inner,
-                    f.pulseX[i] + cos(ang) * outer, f.pulseY[i] + sin(ang) * outer, s)
-            }
-            s.strokeCap = Paint.Cap.ROUND
-            k.reset(s)
-        }
-    }
-
-    private fun avgPulseY(f: Frame): Float {
-        var sum = 0f
-        var weight = 0f
-        for (i in 0 until f.pulses) { sum += f.pulseY[i] * f.pulseA[i]; weight += f.pulseA[i] }
-        return if (weight > 0f) sum / weight else f.h * 0.5f
-    }
-
     fun release() {
         for (c in curtains) c.shaders.fill(null)
+        rayFront = null
+        rayBack = null
+        pillarKey = 0
         key = 0
         land.release()
     }
@@ -518,8 +449,5 @@ internal class AuroraScene(private val k: RenderKit) {
         private val FRINGE = Color.rgb(255, 70, 170)
         private val LEVEL_NIGHT = intArrayOf(60, 100, 150, 210)
         private val LEVEL_DAY = intArrayOf(45, 75, 105, 135)
-        private val BAND_FROM = floatArrayOf(0f, 0.25f, 0.6f, 1f)
-        private val BAND_HUE = floatArrayOf(-0.9f, 0.1f, 0.9f)
-        private val BAND_ALPHA = floatArrayOf(1f, 0.75f, 0.4f)
     }
 }

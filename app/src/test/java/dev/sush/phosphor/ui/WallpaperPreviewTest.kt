@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.os.BatteryManager
 import android.os.Looper
 import android.os.PowerManager
+import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import dev.sush.phosphor.model.WallpaperCatalog
@@ -25,6 +26,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
 import org.robolectric.util.ReflectionHelpers
 import java.time.Duration
@@ -114,6 +116,48 @@ class WallpaperPreviewTest {
     }
 
     @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun criticalBatteryHoldsTheLastVisibleFrameIncludingItsCameraPosition() = withPreview { view, _ ->
+        view.update(WallpaperCatalog.find("gradient-tide"), WallpaperSettings(speed = 1f), true)
+        battery(view, 80)
+        draw(view)
+        idle()
+        val moving = capture(view)
+        try {
+            battery(view, 5)
+            val frozen = capture(view)
+            try {
+                assertTrue("The camera or ambient phase jumped on entering critical battery", moving.sameAs(frozen))
+                view.invalidations = 0
+                idle()
+                assertEquals(0, view.invalidations)
+            } finally {
+                frozen.recycle()
+            }
+        } finally {
+            moving.recycle()
+        }
+    }
+
+    @Test
+    fun touchingAnIdleArtworkLeavesTheGestureForItsParentAndSchedulesNoFrame() = withPreview { view, _ ->
+        view.update(WallpaperCatalog.presets.first(), WallpaperSettings(speed = 0f), true)
+        idle()
+        draw(view)
+        view.invalidations = 0
+        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP)) {
+            val event = MotionEvent.obtain(0, 10, action, 50f, 60f, 0)
+            try {
+                assertFalse(view.dispatchTouchEvent(event))
+            } finally {
+                event.recycle()
+            }
+        }
+        idle()
+        assertEquals(0, view.invalidations)
+    }
+
+    @Test
     fun pausedAndStillPreviewsDoNotScheduleAnotherFrame() = withPreview { view, _ ->
         for ((settings, playing) in listOf(WallpaperSettings() to false, WallpaperSettings(reducedMotion = true) to true)) {
             view.update(WallpaperCatalog.presets.first(), settings, playing)
@@ -161,10 +205,11 @@ class WallpaperPreviewTest {
         }
     }
 
-    private fun draw(view: PreviewView) {
+    private fun draw(view: PreviewView) = capture(view).recycle()
+
+    private fun capture(view: PreviewView): Bitmap {
         view.layout(0, 0, 180, 360)
-        val bitmap = Bitmap.createBitmap(180, 360, Bitmap.Config.ARGB_8888)
-        try { view.draw(Canvas(bitmap)) } finally { bitmap.recycle() }
+        return Bitmap.createBitmap(180, 360, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
     }
 
     private fun hasBatteryReceiver(view: View): Boolean =

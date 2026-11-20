@@ -22,8 +22,8 @@ Tests run on the JVM through JUnit and Robolectric, including native Skia graphi
 
 | Check | Main coverage |
 | --- | --- |
-| `render/WallpaperRendererTest` | Scene output, both treatments, time changes, touch at zero speed, still mode, imported images, reveal effects, resource reuse, and label contrast. |
-| Motion and scheduler tests | Touch settling, frame deadlines, coalescing, cancellation, resume, and frame caps. |
+| `render/WallpaperRendererTest` | Scene output, both treatments, ambient movement, launcher offsets, still mode, photo framing, reveal effects, resource reuse, and label contrast. |
+| Scheduler tests | Frame deadlines, coalescing, cancellation, resume, and frame caps. |
 | Platform tests | Battery and power policies, lock/reveal behavior, settings round trips, and draft/active separation. |
 | UI/file tests | Shared attribution and version, private image handling, PNG export, preview lifecycle, and gallery cache invalidation. |
 
@@ -70,7 +70,7 @@ try {
 
 The environment variable opts in to expensive rendering. `--rerun-tasks` prevents Gradle's up-to-date checks from skipping a run after changing only the environment. Artwork previews are 1080 × 2340 in both treatments. App screenshots include gallery, editor (with and without the home-screen overlay), and settings in light and dark, plus launcher icon renders. They are JVM renders, not device captures.
 
-For a smaller artwork review, set `PHOSPHOR_PREVIEW_ONLY` to a preset ID prefix. `PHOSPHOR_PREVIEW_TAP=1` adds a sample touch interaction. Clear both variables before generating a complete set of distribution assets.
+For a smaller artwork review, set `PHOSPHOR_PREVIEW_ONLY` to a preset ID prefix. Use `PHOSPHOR_PREVIEW_TIMES` for a comma-separated list of timestamps in seconds. Clear both variables before generating the distribution assets.
 
 Inspect these outputs for readability, cropping, motion composition, and branding placement when changing artwork or UI. Run the standard unfiltered checks afterward if you previously ran a filtered test selection.
 
@@ -103,5 +103,7 @@ The builder does not clear stale files and can skip missing screenshot inputs. C
 ## Manual checks and recording results
 
 JVM tests do not establish manufacturer picker behavior, actual launcher colors, hardware frame timing, energy use, or lock/always-on-display behavior. Use the [physical-device checklist](ANDROID_COMPATIBILITY.md#device-validation-checklist) for platform changes and releases.
+
+To profile Long exposure, use the same release build settings, appearance, resolution, brightness and launcher on both runs. Warm up the visible wallpaper for 30 seconds, then capture at least 20 seconds while stationary and another interval while changing pages. Compare median and 95th-percentile frame intervals on Phosphor's RenderThread in Perfetto. Record whether the GPU is physical or emulated and whether adaptive detail was enabled. [Android system tracing](https://developer.android.com/topic/performance/tracing/on-device)
 
 Record the date, exact commit, toolchain, commands, pass/fail/skip counts, lint findings, and device/firmware/launcher when reporting validation. Keep observed results in [VALIDATION.md](VALIDATION.md) separate from repeatable instructions here. Existing historical results do not verify a new commit. Frame caps alone are not a measured battery-life improvement.

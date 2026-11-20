@@ -45,11 +45,11 @@ Radius follows hierarchy: phone-shaped plates 30 dp (they mimic a device), large
 | Quick / Calm | 160 / 320 ms | Exits, toggles / entrances |
 | Mood | 520 ms | The day/night crossfade, the app's one orchestrated moment |
 
-The wallpapers' own motion is described under Interaction below. The app respects Android's animator scale and the wallpaper's Still mode.
+The wallpapers' ambient movement and launcher parallax are described below. The app respects Android's animator scale and the wallpaper's Still mode.
 
 ## Icons
 
-Twenty-four-dp vector glyphs in `res/drawable/ic_*.xml`: 1.75 stroke, round caps and joins, tinted at the call site. They are drawn from the brand's two motifs, the orbit and the horizon: Explore is an orbit around a grain of light; Auto is a disc split by its horizon; Wake is a sun rising over a horizon line; Touch is a tap sending out rings.
+The 24 dp vector glyphs in `res/drawable/ic_*.xml` use rounded caps and joins and take their tint from the control. Explore is an orbit around a grain of light, Auto is a disc split by its horizon, and Wake is a sun rising above a line.
 
 The launcher icon is an adaptive icon: a grain of light inside a tilted orbit over an ember horizon, on a night-sky gradient with faint long-exposure arcs. A clip path cuts a gap in the grain where the orbit's front arc passes, so the themed (monochrome) icon reads as a ringed world rather than an eye. The native splash screen uses a dedicated copy of the mark on Sky, without an icon plate. On Android 12+ the orbit settles through 12 degrees and the horizon draws in over 520 ms; earlier versions show the complete static mark. The first app frame starts a 160 ms exit fade, without waiting for the icon animation. The exit is immediate when Android animations are disabled or either the active wallpaper or editor draft uses Still mode. The system controls the launch icon animation before app preferences are available.
 
@@ -64,13 +64,13 @@ The artwork keeps labels readable by composition, not by dimming everything:
 - A soft veil of ground color sits behind the status bar, clock and dock (`WallpaperRenderer.LEGIBILITY_TOP/BOTTOM`).
 - "Calm the artwork" fades toward the ground: darker at night, paler by day.
 
-`WallpaperRendererTest.launcherLabelsStayReadableInBothMoods` enforces this. At full on-device detail, for every preset, in both treatments, at three moments, it scores each of 16 label slots, the clock zone and the dock zone by the share of pixels where a label would reach WCAG 4.5:1. Clock and dock need 90%; label slots average 85% with none below 45%. Add new presets only if this test passes.
+`WallpaperRendererTest.launcherLabelsStayReadableInBothMoods` scores 16 label slots, the clock and the dock for every procedural preset, in both treatments at three moments. The score is the share of pixels where a label reaches 4.5:1 contrast. Clock and dock require 90% coverage. Label slots require an 85% average and a 45% minimum per slot. Northern veil and Low tide have a 60% minimum per slot.
 
-## Interaction
+## Ambient motion and parallax
 
-Every scene responds to touch through a shared `TouchField`: taps send a decelerating wavefront, drags pull the scene, and both settle on their own. Touch runs on real time, so it answers even when motion speed is zero, and frames stop once it settles. Launchers' tap and icon-drop commands produce pulses too. Each scene answers in its own way: orbits bend and their center follows your finger; aurora curtains flare and fold; glyphs scramble; gradients stir; a lamp moves behind fluted glass; lenses can be dragged; filaments part; contours bow around a press.
+Motion belongs to the subject. Solstice fans amber rays over a low horizon. Northern veil reflects three layers of jade curtains in a mountain lake. Signal bloom carries glyphs along a diagonal beam. Daybreak lights halftone clouds from below. Low tide carries fine silk fibres across broad turquoise swells. Basalt keeps its relief shallow so labels remain clear.
 
-Wake reveal: on screen-on the artwork rises from its ground over 1.5 seconds. Trails lengthen, rays grow, and glyphs decode into place. On unlock, a bloom rises from the bottom edge. Parallax uses depth layers: stars move least, foreground figures and floors move most.
+Near and distant layers shift by different amounts during the ambient camera drift and on launcher page changes. Direct wallpaper touches have no visual effect. Wake reveals the artwork over 1.5 seconds. Lock and unlock have their own transition setting.
 
 ## Store assets
 
