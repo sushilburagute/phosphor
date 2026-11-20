@@ -6,12 +6,12 @@ This file preserves results reported for earlier commits and branches. Counts, w
 
 ## Gallery scrolling
 
-On 2026-11-20, two debug builds of the 14-preset catalog ran on the same Android 16 emulator at 1080 × 2400 with host RTX 4060 graphics and ART speed compilation. Each run opened Explore in a fresh process, waited three seconds, reset `dumpsys gfxinfo`, then swiped five times down the gallery and five times back. Each swipe lasted 350 ms. Values are medians of three runs per build.
+On 2026-11-21, two debug builds of the 17-preset catalog ran on the same Android 16 emulator at 1080 × 2400 with host RTX 4060 graphics and ART speed compilation. Each run opened Explore in a fresh process, waited three seconds, reset `dumpsys gfxinfo`, then swiped five times down the gallery and five times back. Each swipe lasted 350 ms. Values are medians of three runs per build.
 
 | Explore gallery | Janky frames | 95th-percentile frame time |
 | --- | ---: | ---: |
-| Baseline (`15b8062`) | 35.1% | 250 ms |
-| Background thumbnails with a shared cache | 3.7% | 30 ms |
+| Baseline (`58d21b3`) | 17.2% | 133 ms |
+| Background thumbnails with a shared cache (`860c7f7`) | 4.1% | 30 ms |
 
 ## Echo trace playback visualization
 

@@ -37,6 +37,13 @@ def screenshots():
         ("glass-prism-night", PREVIEWS), ("ascii-signal-night", PREVIEWS),
         ("gallery-night", SCREENS), ("gallery-light", SCREENS), ("editor-home-night", SCREENS),
     ]
+    editor = os.path.join(SCREENS, "editor-light.png")
+    if os.path.exists(editor):
+        docs_screens = os.path.join(ROOT, "docs", "screenshots")
+        os.makedirs(docs_screens, exist_ok=True)
+        with Image.open(editor) as image:
+            image.convert("RGB").save(os.path.join(docs_screens, "editor.jpg"), quality=90, subsampling=0, optimize=True)
+
     for index, (name, folder) in enumerate(picks, 1):
         path = os.path.join(folder, name + ".png")
         if not os.path.exists(path):
