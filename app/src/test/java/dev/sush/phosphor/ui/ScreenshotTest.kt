@@ -7,6 +7,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import android.graphics.Canvas
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onNodeWithText
 import org.junit.Assume.assumeTrue
@@ -65,6 +66,11 @@ class ScreenshotTest {
         assumeTrue(System.getenv("PHOSPHOR_PREVIEWS") == "1")
         compose.setContent { PhosphorApp() }
         compose.waitForIdle()
+        compose.waitUntil(10_000) {
+            listOf("orbit-exposure", "ascii-signal", "glass-prism", "orbit-threshold").all { id ->
+                compose.onAllNodesWithTag("thumbnail-$id", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        }
         save("gallery-$mood")
         compose.onNode(SemanticsMatcher("opens Long exposure") { it.config.getOrNull(SemanticsActions.OnClick)?.label == "Open Long exposure" }).performClick()
         compose.mainClock.advanceTimeBy(800)

@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Paint
 import android.os.BatteryManager
 import android.os.Looper
 import android.os.PowerManager
@@ -17,8 +16,6 @@ import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotSame
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,35 +32,6 @@ import java.time.Duration
 @Config(sdk = [35])
 @LooperMode(LooperMode.Mode.PAUSED)
 class WallpaperPreviewTest {
-    @Test
-    fun galleryDrawsReuseABitmapUntilTheArtworkOrSizeChanges() = withPreview { view, _ ->
-        val canvas = BitmapRecordingCanvas()
-        val preset = WallpaperCatalog.presets.first()
-        view.update(preset, WallpaperSettings(), false, cacheStill = true)
-        view.layout(0, 0, 180, 360)
-        view.draw(canvas)
-        val first = checkNotNull(canvas.drawnBitmap)
-        view.draw(canvas)
-        assertSame(first, canvas.drawnBitmap)
-
-        view.update(preset, WallpaperSettings(darken = 0.8f), false, cacheStill = true)
-        view.draw(canvas)
-        val changed = checkNotNull(canvas.drawnBitmap)
-        assertNotSame(first, changed)
-        assertFalse(first.isRecycled)
-
-        view.update(WallpaperCatalog.find("ascii-signal"), WallpaperSettings(darken = 0.8f), false, cacheStill = true)
-        view.draw(canvas)
-        val differentPreset = checkNotNull(canvas.drawnBitmap)
-        assertNotSame(changed, differentPreset)
-
-        view.layout(0, 0, 360, 180)
-        view.draw(canvas)
-        assertNotSame(differentPreset, canvas.drawnBitmap)
-        assertEquals(360, canvas.drawnBitmap!!.width)
-        assertEquals(180, canvas.drawnBitmap!!.height)
-    }
-
     @Test
     fun hidingAnAncestorStopsPendingFramesAndObserversAndShowingItResumes() = withPreview { view, parent ->
         draw(view)
@@ -233,14 +201,6 @@ class WallpaperPreviewTest {
         override fun invalidate() {
             invalidations++
             super.invalidate()
-        }
-    }
-
-    private class BitmapRecordingCanvas : Canvas() {
-        var drawnBitmap: Bitmap? = null
-
-        override fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?) {
-            this.drawnBitmap = bitmap
         }
     }
 }

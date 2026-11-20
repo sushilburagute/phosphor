@@ -29,7 +29,7 @@ See [Compose animation APIs](https://developer.android.com/develop/ui/compose/an
 - Cap visible lock-screen motion at 15 fps, including while charging. Restore the selected rate on unlock. Coalesce launcher scroll events with animation requests.
 - Refresh power and keyguard state on broadcasts and visibility changes, rather than querying system services during each frame. Battery broadcasts only redraw when the effective power policy changes. Hidden editor previews unregister their observers and cancel frame callbacks using [aggregated View visibility](https://developer.android.com/reference/android/view/View#onVisibilityAggregated(boolean)).
 - Reuse renderer scratch geometry and stable shaders. Orbit caches seeded trail coefficients and culls invisible arcs. ASCII traces reuse their crest buffer, and background gradients stay cached until their palette or size changes.
-- Cache gallery artwork as one bitmap per visible tile. Invalidate it when content or size changes to avoid repeated procedural drawing while browsing. Release temporary renderer resources after drawing the still and leave bitmap lifetime to Android while display lists may still reference it.
+- Render gallery stills off the UI thread. Share a byte-limited cache across tiles so scrolling back can reuse a frame. Leave bitmap lifetime to Android while display lists may reference it.
 
 Sources: [battery monitoring](https://developer.android.com/training/monitoring-device-state/battery-monitoring), [PowerManager](https://developer.android.com/reference/android/os/PowerManager), [KeyguardManager](https://developer.android.com/reference/android/app/KeyguardManager), and [WallpaperService.Engine](https://developer.android.com/reference/android/service/wallpaper/WallpaperService.Engine).
 

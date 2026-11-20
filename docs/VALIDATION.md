@@ -4,6 +4,15 @@
 
 This file preserves results reported for earlier commits and branches. Counts, warnings, APK sizes, and screenshots describe those builds, not necessarily the current checkout. Re-run the [standard checks](TESTING.md#standard-checks) to validate a new change; do not infer physical-device coverage from JVM tests or earlier emulator checks.
 
+## Gallery scrolling
+
+On 2026-11-21, two debug builds of the 17-preset catalog ran on the same Android 16 emulator at 1080 × 2400 with host RTX 4060 graphics and ART speed compilation. Each run opened Explore in a fresh process, waited three seconds, reset `dumpsys gfxinfo`, then swiped five times down the gallery and five times back. Each swipe lasted 350 ms. Values are medians of three runs per build.
+
+| Explore gallery | Janky frames | 95th-percentile frame time |
+| --- | ---: | ---: |
+| Baseline (`58d21b3`) | 17.2% | 133 ms |
+| Background thumbnails with a shared cache (`860c7f7`) | 4.1% | 30 ms |
+
 ## Echo trace playback visualization
 
 On 2026-11-20, an Android 16 emulator showed the audio permission prompt when **React to music** was enabled in the editor. The preview reported waiting during silence and following playback when a separate Android player played a PCM file. With Echo trace applied to the home screen, a 130 Hz tone raised the left side of the waterfall and a 3.2 kHz tone raised the right side. AudioFlinger showed one output-mix visualizer while the wallpaper was visible and zero after Android Settings covered it. Physical phones and Bluetooth routes still need verification.

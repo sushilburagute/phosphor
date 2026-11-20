@@ -14,7 +14,7 @@ Paths below are relative to [`app/src/main/java/dev/sush/phosphor/`](../app/src/
 | Models | [`model/WallpaperModels.kt`](../app/src/main/java/dev/sush/phosphor/model/WallpaperModels.kt) defines settings, scene families, and the dark preset catalog. |
 | App flow | [`ui/PhosphorApp.kt`](../app/src/main/java/dev/sush/phosphor/ui/PhosphorApp.kt) coordinates navigation, favorites, drafts, and document/system picker results. |
 | Screens | `ui/Gallery.kt`, `ui/Editor.kt`, and `ui/SettingsScreen.kt` provide browsing, editing, and app preferences. |
-| Preview | [`ui/WallpaperPreview.kt`](../app/src/main/java/dev/sush/phosphor/ui/WallpaperPreview.kt) hosts animated Canvas previews and cached gallery stills. |
+| Preview | [`ui/WallpaperPreview.kt`](../app/src/main/java/dev/sush/phosphor/ui/WallpaperPreview.kt) hosts the editor preview. [GalleryThumbnail.kt](../app/src/main/java/dev/sush/phosphor/ui/GalleryThumbnail.kt) loads stills for Explore and Saved. |
 | Artwork | [`render/WallpaperRenderer.kt`](../app/src/main/java/dev/sush/phosphor/render/WallpaperRenderer.kt) resolves settings and dispatches to scene functions. `RenderKit.kt` supplies shared drawing helpers and frame inputs. |
 | Motion | The renderer combines elapsed scene time and launcher offsets. `platform/WallpaperReveal.kt` tracks lock/unlock transitions. |
 | Platform | [`platform/PhosphorWallpaperService.kt`](../app/src/main/java/dev/sush/phosphor/platform/PhosphorWallpaperService.kt) owns Android engines, surfaces, wallpaper colors, and lifecycle handling. |
@@ -28,13 +28,15 @@ Other useful locations are [`app/src/test/`](../app/src/test) for JVM tests, [`a
 
 `WallpaperSettings` is an immutable snapshot. `WallpaperCatalog` resolves stable preset IDs; unknown IDs fall back to the first preset. Existing IDs must remain stable or be migrated because settings and favorites persist them.
 
-The normal apply flow is:
+```mermaid
+flowchart LR
+    Explore["Preset or saved look"] --> Draft["Editor draft"]
+    Draft -->|Set live wallpaper| Picker["Android picker"]
+    Picker -->|Apply| Active["Active wallpaper"]
+    Picker -->|Cancel| Draft
+```
 
-1. Selecting a catalog preset creates a draft based on the active settings. Selecting a saved look restores its snapshot. Editor changes are saved under the `preview` key in the `phosphor` preferences.
-2. The app preview and an Android engine with `isPreview == true` read the draft. Active engines read the `active` key.
-3. **Set live wallpaper** saves the draft and opens Android's direct preview, with a general live-wallpaper chooser fallback.
-4. On API 36, the engine's `onApplyWallpaper` commits the draft. The app also commits a successful direct picker result; a picker without a reliable result leaves a manual confirmation path.
-5. A settings listener reloads the appropriate snapshot and refreshes rendering/colors. Canceling without confirmation leaves active settings intact.
+Android’s preview engine reads the draft. The applied engine listens to active settings. On API 36, `onApplyWallpaper` commits the draft. A successful direct picker result also commits it. Pickers with an ambiguous result leave a **Save wallpaper settings** action in the editor.
 
 `SettingsStore` encodes and decodes settings, including bounded image focus coordinates. Active and draft settings with a retired preset ID render Long exposure with the existing tuning. `platform/SavedLooks.kt` uses the same codec for named snapshots and migrates legacy favorite IDs on first load. Saved looks retain their original preset IDs, and the gallery skips looks whose artwork is unavailable. Saved looks, app theme, dynamic color, and the latest import live in `phosphor_ui`. `LookRotation` resolves saved look IDs into local calendar intervals. A visible, interactive live engine schedules a callback for the next boundary and writes the selected snapshot and interval stamp together. Preview engines only read the draft.
 
@@ -44,7 +46,7 @@ The normal apply flow is:
 
 Each live wallpaper engine owns its renderer, elapsed phase, and launcher offsets. The system preview and applied wallpaper can render independently.
 
-The editor uses an animated view. Gallery tiles cache a still bitmap, invalidating when content, treatment, or dimensions change, so scrolling does not continually replay procedural drawing. Exports create a temporary renderer and bitmap and release both after writing. Rendering uses a hardware Canvas when available, with a software fallback.
+The editor draws live frames in a View. Gallery tiles share a byte-limited bitmap cache keyed by preset, settings, and thumbnail size. A single background worker renders cache misses. Exports draw at full size with a temporary renderer.
 
 ## Scheduling, power, and cleanup
 
