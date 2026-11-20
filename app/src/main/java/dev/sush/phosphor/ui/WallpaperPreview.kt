@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.database.ContentObserver
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Build
 import android.os.Handler
@@ -43,6 +42,10 @@ fun WallpaperPreview(
     preset: WallpaperPreset, settings: WallpaperSettings, modifier: Modifier = Modifier,
     animate: Boolean = false, replayReveal: Int = 0,
 ) {
+    if (!animate) {
+        GalleryThumbnail(preset, settings, modifier)
+        return
+    }
     val owner = LocalLifecycleOwner.current
     var resumed by remember(owner) { mutableStateOf(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
     DisposableEffect(owner) {
@@ -53,13 +56,13 @@ fun WallpaperPreview(
     AndroidView(
         factory = { PreviewView(it) },
         modifier = modifier,
-        update = { it.update(preset, settings, animate && resumed, replayReveal, cacheStill = !animate) },
+        update = { it.update(preset, settings, resumed, replayReveal) },
         onRelease = { it.dispose() },
     )
 }
 
 internal open class PreviewView(context: Context) : View(context) {
-    private val renderer = WallpaperRenderer()
+    private val renderer = WallpaperRenderer(cacheOrbitBands = true)
     private val power = context.getSystemService(PowerManager::class.java)
     private var screenInteractive = power.isInteractive
     private var systemSaver = power.isPowerSaveMode
@@ -68,9 +71,6 @@ internal open class PreviewView(context: Context) : View(context) {
     private var stillSettings = settings.copy(reducedMotion = true)
     private var playingSettings = settings.copy(speed = 1f)
     private var playing = false
-    private var cacheStill = false
-    private var stillFrame: Bitmap? = null
-    private var stillFrameReduced = false
     private var elapsed = 0f
     private var revealToken = 0
     private var revealStart = -1L
@@ -103,8 +103,8 @@ internal open class PreviewView(context: Context) : View(context) {
 
     init { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
 
-    fun update(preset: WallpaperPreset, settings: WallpaperSettings, playing: Boolean, reveal: Int = 0, cacheStill: Boolean = false) {
-        val changed = this.preset != preset || this.settings != settings || this.playing != playing || this.cacheStill != cacheStill
+    fun update(preset: WallpaperPreset, settings: WallpaperSettings, playing: Boolean, reveal: Int = 0) {
+        val changed = this.preset != preset || this.settings != settings || this.playing != playing
         if (this.preset != preset) elapsed = 0f
         if (reveal != revealToken) {
             revealToken = reveal
@@ -121,8 +121,6 @@ internal open class PreviewView(context: Context) : View(context) {
         this.settings = settings
         if (this.playing != playing) lastFrame = 0L
         this.playing = playing
-        this.cacheStill = cacheStill
-        if (changed) stillFrame = null
         updateObservers()
         if (changed) wakeFrame()
     }
@@ -133,18 +131,6 @@ internal open class PreviewView(context: Context) : View(context) {
         val art = preset ?: return
         if (width <= 0 || height <= 0) return
         val reduced = settings.reducedMotion || !ValueAnimator.areAnimatorsEnabled()
-        if (cacheStill) {
-            // Gallery frames are reused as bitmaps instead of replaying complex GPU paths.
-            // Android may retain old bitmaps in recorded display lists, so do not recycle them.
-            val cached = stillFrame?.takeIf { stillFrameReduced == reduced } ?: Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
-                renderer.draw(Canvas(it), width, height, 12f, art, if (reduced) stillSettings else settings)
-                stillFrame = it
-                stillFrameReduced = reduced
-                renderer.release()
-            }
-            canvas.drawBitmap(cached, 0f, 0f, null)
-            return
-        }
         val animate = playing && !reduced && profile.motionScale > 0f && canRender() && screenInteractive
         val now = SystemClock.uptimeMillis()
         val dt = if (animate && lastFrame != 0L) ((now - lastFrame).coerceIn(0L, 100L) / 1000f) else 0f
@@ -231,18 +217,12 @@ internal open class PreviewView(context: Context) : View(context) {
         wakeFrame()
     }
 
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        stillFrame = null
-    }
-
     fun dispose() {
         music.stop()
         tilt.stop()
         playing = false
         frames.stop()
         updateObservers()
-        stillFrame = null
         renderer.release()
     }
 
@@ -256,7 +236,6 @@ internal open class PreviewView(context: Context) : View(context) {
         }
         frames.stop()
         lastFrame = 0L
-        stillFrame = null
         renderer.release()
         super.onDetachedFromWindow()
     }
