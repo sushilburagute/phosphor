@@ -1,6 +1,6 @@
 # Phosphor
 
-An offline live wallpaper studio for Android. Choose from 17 animated designs, or give one of your photos a gentle drift.
+An offline live wallpaper studio for Android. Choose from 18 animated designs, or give one of your photos a gentle drift. Each wallpaper has an editable three-color palette.
 
 | Browse the collection | Tune the wallpaper | Preview behind icons |
 | :---: | :---: | :---: |

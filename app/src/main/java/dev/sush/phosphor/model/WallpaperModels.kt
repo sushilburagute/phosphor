@@ -17,6 +17,7 @@ enum class ScenePalette(val label: String, val colors: List<Int>? = null) {
     ORIGINAL("Original"),
     LAGOON("Lagoon", listOf(0xFF041419.toInt(), 0xFF62CFBB.toInt(), 0xFF739FF4.toInt())),
     EMBER("Ember", listOf(0xFF160A13.toInt(), 0xFFF29B62.toInt(), 0xFFD96BA6.toInt())),
+    CUSTOM("Custom"),
 }
 
 data class WallpaperSettings(
@@ -37,7 +38,13 @@ data class WallpaperSettings(
     val composition: Float = 0.5f,
     val palette: ScenePalette = ScenePalette.ORIGINAL,
     val musicReactive: Boolean = false,
-)
+    val customColors: List<Int> = WallpaperCatalog.find(presetId).colors,
+) {
+    fun resolvedColors(preset: WallpaperPreset): List<Int> = when (palette) {
+        ScenePalette.CUSTOM -> customColors.takeIf { it.size == 3 } ?: preset.colors
+        else -> palette.colors ?: preset.colors
+    }
+}
 
 /** Stable IDs are persisted by the app and used by the live wallpaper service. */
 object WallpaperCatalog {
@@ -128,6 +135,11 @@ object WallpaperCatalog {
         WallpaperPreset(
             "texture-satin", "Fold depth", "Folded satin", "Soft ridges of mulberry silk catch light along their folded edges.",
             WallpaperKind.TEXTURE, listOf(0xFF100A16.toInt(), 0xFFC383AD.toInt(), 0xFFEDA875.toInt()),
+        ),
+        WallpaperPreset(
+            "texture-pixel-weave", "Pixel spacing", "Pixel weave",
+            "Two folded bands of square pixels catch the light. A few glints slip from one cell to the next.",
+            WallpaperKind.TEXTURE, listOf(0xFF030405.toInt(), 0xFF92979C.toInt(), 0xFFE6E6E1.toInt()),
         ),
         WallpaperPreset(
             "image-custom", "Floating lights", "Your own frame", "Bring a photo to life with gentle drift and floating light.",

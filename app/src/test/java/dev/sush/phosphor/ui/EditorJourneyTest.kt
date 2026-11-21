@@ -10,6 +10,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import dev.sush.phosphor.model.ScenePalette
+import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.platform.RotationMode
 import dev.sush.phosphor.platform.SavedLook
@@ -30,6 +32,30 @@ class EditorJourneyTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
     private fun open(title: String) = compose.onNode(hasText(title) and hasClickAction()).performClick()
+
+    @Test
+    fun savedPhotoRestoresItsCustomPaletteAfterComparingBuiltIns() {
+        val preset = WallpaperCatalog.find("image-custom")
+        val store = SettingsStore(compose.activity)
+        val custom = listOf(0xFF172B31.toInt(), 0xFFAABB11.toInt(), 0xFFFEDC70.toInt())
+        val original = WallpaperSettings(presetId = preset.id, palette = ScenePalette.CUSTOM,
+            customColors = custom, reducedMotion = true)
+        val library = SavedLooks(compose.activity.getSharedPreferences("phosphor_ui", Context.MODE_PRIVATE))
+        library.save(SavedLook("photo", "Photo colors", original), store.load())
+        compose.setContent { PhosphorApp() }
+        open("Saved")
+        open("Photo colors")
+        compose.onNodeWithText("Shadows").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Highlights").performScrollTo().assertIsDisplayed()
+        compose.onNode(hasText("Floating lights") and hasClickAction()).performScrollTo().assertIsDisplayed()
+        assertEquals(original, store.loadPreview())
+        compose.onNodeWithText("Lagoon").performScrollTo().performClick()
+        assertEquals(ScenePalette.LAGOON.colors, store.loadPreview().resolvedColors(preset))
+        compose.onNodeWithText("Original").performScrollTo().performClick()
+        assertEquals(preset.colors, store.loadPreview().resolvedColors(preset))
+        compose.onNodeWithText("Custom").performScrollTo().performClick()
+        assertEquals(custom, store.loadPreview().resolvedColors(preset))
+    }
 
     @Test
     fun rotationCanBeConfiguredAndDisabledFromSaved() {

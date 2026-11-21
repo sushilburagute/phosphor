@@ -47,7 +47,8 @@ class SettingsStoreTest {
         val draft = WallpaperSettings(
             presetId = "image-custom", speed = 0.2f, intensity = 0.4f, parallax = false,
             fps = 24, darken = 0.25f, imagePath = "/private/photo.png", imageFocusX = 0.15f, imageFocusY = 0.72f, reducedMotion = true,
-            wakeReveal = false, lowBatteryMode = false, unlockAnimation = false, tiltParallax = true, composition = 0.81f, palette = ScenePalette.LAGOON,
+            wakeReveal = false, lowBatteryMode = false, unlockAnimation = false, tiltParallax = true, composition = 0.81f,
+            palette = ScenePalette.CUSTOM, customColors = listOf(0xFF112233.toInt(), 0xFF77AA99.toInt(), 0xFFCC8800.toInt()),
         )
         store.savePreview(draft)
         store.commitPreview()
@@ -145,6 +146,18 @@ class SettingsStoreTest {
         val settings = SettingsStore.decode(org.json.JSONObject("""{"palette":"retired","composition":100}"""))
         assertEquals(ScenePalette.ORIGINAL, settings.palette)
         assertEquals(1f, settings.composition)
+    }
+
+    @Test
+    fun malformedOrMissingCustomColorsUseTheOriginalColorsForThatArtwork() {
+        val preset = WallpaperCatalog.find("glass-prism")
+        val record = org.json.JSONObject().put("presetId", preset.id).put("palette", "CUSTOM")
+        for (stored in listOf(null, "[]", "[-1,-1]", "[-1,-1,-1,-1]", "[-1,0,-1]", "[-1,\"red\",-1]")) {
+            if (stored != null) record.put("customColors", org.json.JSONArray(stored))
+            val settings = SettingsStore.decode(record)
+            assertEquals(preset.colors, settings.customColors)
+            assertEquals(preset.colors, settings.resolvedColors(preset))
+        }
     }
 
     @Test

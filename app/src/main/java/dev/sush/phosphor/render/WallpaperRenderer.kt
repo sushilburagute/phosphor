@@ -5,11 +5,13 @@ import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
+import dev.sush.phosphor.model.ScenePalette
 import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
 import dev.sush.phosphor.model.WallpaperSettings
@@ -50,6 +52,9 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
     private var noiseShader: Shader? = null
     private var importedBitmap: Bitmap? = null
     private var importedPath: String? = null
+    private var photoFilter: ColorMatrixColorFilter? = null
+    private var photoShadow = 0
+    private var photoHighlight = 0
     private var veilKey = 0L
     private var veilTop: Shader? = null
     private var veilBottom: Shader? = null
@@ -106,7 +111,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
             f.offsetX = 0f
             f.offsetY = 0f
         }
-        val palette = settings.palette.colors ?: preset.colors
+        val palette = settings.resolvedColors(preset)
         f.c0 = palette.getOrElse(0) { Color.BLACK }
         f.c1 = palette.getOrElse(1) { 0xFF92D9CE.toInt() }
         f.c2 = palette.getOrElse(2) { 0xFFC2A2E2.toInt() }
@@ -133,13 +138,13 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
             WallpaperKind.GRADIENT -> gradient.draw(canvas, f, preset.id == "gradient-tide")
             WallpaperKind.GLASS -> if (preset.id == "glass-spectrum") drawSpectrum(canvas, f, kit) else glass.draw(canvas, f, lenses = false)
             WallpaperKind.ABSTRACT -> abstract.draw(canvas, f, preset.id == "abstract-orbit")
-            WallpaperKind.TEXTURE -> texture.draw(canvas, f, basalt = preset.id != "texture-satin")
+            WallpaperKind.TEXTURE -> texture.draw(canvas, f, preset.id)
             WallpaperKind.IMAGE -> drawImage(canvas, f, settings)
         }
         canvas.restoreToCount(artworkSave)
 
         veil(canvas, f, preset.kind == WallpaperKind.IMAGE)
-        if (preset.kind != WallpaperKind.IMAGE) {
+        if (preset.kind != WallpaperKind.IMAGE && preset.id != "texture-pixel-weave") {
             drawNoise(canvas, h, 15, preset.kind == WallpaperKind.TEXTURE)
         }
         // "Calm" darkens the artwork to give launcher labels more contrast.
@@ -214,10 +219,34 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         rect.set(left, top, left + bw, top + bh)
         paint.shader = null
         paint.alpha = 255
+        val tinted = settings.palette != ScenePalette.ORIGINAL
+        paint.colorFilter = if (tinted) photoDuotone(f.c0, f.c1) else null
         canvas.drawBitmap(bitmap, null, rect, paint)
+        paint.colorFilter = null
         // Independent foreground motes create depth without pretending a flat image
         // has been segmented into separate objects.
-        motes(canvas, f, (36f + 72f * f.composition).toInt())
+        motes(canvas, f, (36f + 72f * f.composition).toInt(), if (tinted) f.c2 else f.c1)
+    }
+
+    /** Map source luminance to the selected shadow/highlight pair without allocating a second photo. */
+    private fun photoDuotone(shadow: Int, highlight: Int): ColorMatrixColorFilter {
+        photoFilter?.let { if (shadow == photoShadow && highlight == photoHighlight) return it }
+        val matrix = FloatArray(20)
+        for (channel in 0..2) {
+            val shift = 16 - 8 * channel
+            val low = (shadow ushr shift) and 255
+            val high = (highlight ushr shift) and 255
+            val scale = (high - low) / 255f
+            val row = channel * 5
+            matrix[row] = 0.2126f * scale
+            matrix[row + 1] = 0.7152f * scale
+            matrix[row + 2] = 0.0722f * scale
+            matrix[row + 4] = low.toFloat()
+        }
+        matrix[18] = 1f
+        photoShadow = shadow
+        photoHighlight = highlight
+        return ColorMatrixColorFilter(matrix).also { photoFilter = it }
     }
 
     /** Center the subject while reserving enough photo on both sides for the full camera path. */
@@ -227,7 +256,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         return (view * 0.5f - image * coordinate).coerceIn(farEdge, -travel)
     }
 
-    private fun motes(canvas: Canvas, f: Frame, count: Int) {
+    private fun motes(canvas: Canvas, f: Frame, count: Int, color: Int) {
         paint.shader = null
         for (i in 0 until count) {
             val x0 = fraction(i * 17 + 101) * 1100f - 50f
@@ -235,7 +264,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
             val x = x0 + sin(f.t * 0.33f + i * 0.83f) * 48f * f.amount + f.shiftX(1.6f)
             val y = ((y0 + 70f - f.t * 14f * f.amount) % (f.h + 140f) + f.h + 140f) % (f.h + 140f) - 70f +
                 cos(f.t * 0.27f + i * 1.37f) * 45f * f.amount + f.shiftY(1.6f)
-            paint.color = mix(f.c1, Color.WHITE, fraction(i + 200))
+            paint.color = mix(color, Color.WHITE, fraction(i + 200))
             paint.alpha = ((75f + fraction(i + 430) * 140f) * 0.35f).toInt()
             canvas.drawCircle(x, y, 0.8f + fraction(i + 810) * 2.4f, paint)
         }
@@ -295,6 +324,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         importedBitmap?.recycle()
         importedBitmap = null
         importedPath = null
+        photoFilter = null
         noise?.recycle()
         noise = null
         noiseShader = null

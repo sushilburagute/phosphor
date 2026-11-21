@@ -24,7 +24,11 @@ Phosphor keeps a private copy of each imported photo. Clearing app storage or un
 
 ## Tune a scene
 
-Use the scene slider to change the composition, such as the ring angle in Ringfall or the rib spacing in Fluted glass. Under **Color palette**, choose the original colors, Lagoon, or Ember.
+Use the scene slider to change the composition, such as the ring angle in Ringfall or the rib spacing in Fluted glass. In **Textures → Pixel weave**, adjust **Pixel spacing** to make the curved bands of flickering squares finer or coarser.
+
+Under **Color palette**, tap **Background**, **First accent**, or **Second accent** to edit the current colors. Choose a color with the RGB sliders or enter a six-digit hex value, then tap **Use color**. Switch between **Original**, **Lagoon**, **Ember**, and **Custom** to compare. Use **Save look** to keep a color combination.
+
+Imported photos have controls for **Shadows**, **Highlights**, and **Floating lights**. **Original** shows the photo in its natural colors.
 
 For **ASCII → Echo trace**, enable **Motion → React to music** and grant audio permission. Play music to see bass on the left and treble on the right. Android supplies playback frequencies. Silence, gallery thumbnails, and still exports use the ambient design.
 

@@ -4,6 +4,7 @@ import dev.sush.phosphor.platform.SavedLooks
 import dev.sush.phosphor.platform.SavedLook
 import dev.sush.phosphor.platform.forPreset
 import android.content.Context
+import dev.sush.phosphor.model.ScenePalette
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
 import org.junit.Assert.assertEquals
@@ -39,10 +40,11 @@ class SavedLooksTest {
     @Test
     fun multipleNamedPhotosRetainTheirOwnCropAndTuningAcrossReload() {
         val photo = WallpaperSettings(presetId = "image-custom", imagePath = "/private/first.png",
-            imageFocusX = 0.2f, imageFocusY = 0.8f)
+            imageFocusX = 0.2f, imageFocusY = 0.8f, palette = ScenePalette.CUSTOM,
+            customColors = listOf(0xFF100020.toInt(), 0xFF00FF88.toInt(), 0xFFF9A1BE.toInt()))
         val looks = listOf(
             SavedLook("a", "Left bank", photo),
-            SavedLook("b", "Right bank", photo.copy(imageFocusX = 0.9f, speed = 0.1f)),
+            SavedLook("b", "Right bank", photo.copy(imageFocusX = 0.9f, speed = 0.1f, customColors = photo.customColors.reversed())),
             SavedLook("c", "Dusk", photo.copy(imagePath = "/private/second.png", darken = 0.4f)),
         )
         preferences.edit().clear().commit()

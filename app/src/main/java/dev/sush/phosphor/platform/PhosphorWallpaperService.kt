@@ -23,6 +23,7 @@ import android.util.Log
 import android.view.SurfaceHolder
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
+import dev.sush.phosphor.model.ScenePalette
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
 import dev.sush.phosphor.render.LiveRenderQuality
@@ -166,7 +167,8 @@ class PhosphorWallpaperService : WallpaperService() {
             val paletteChanged = settings.presetId != next.presetId || settings.imagePath != next.imagePath ||
                 settings.imageFocusX != next.imageFocusX || settings.imageFocusY != next.imageFocusY ||
                 settings.darken != next.darken || settings.intensity != next.intensity ||
-                settings.composition != next.composition || settings.palette != next.palette
+                settings.composition != next.composition || settings.palette != next.palette ||
+                settings.customColors != next.customColors
             if (settings.presetId != next.presetId || settings.imagePath != next.imagePath) resetQuality()
             settings = next
             if (paletteChanged) invalidateColors()
@@ -395,10 +397,9 @@ class PhosphorWallpaperService : WallpaperService() {
             }
         }
 
-        /** Ask for light labels and a dark theme while keeping the measured palette. */
+        /** Custom colors can have a bright background. Let Android judge their label contrast. */
         private fun withHints(measured: WallpaperColors): WallpaperColors {
-            // Before API 31 the hinted constructor is private, so rely on bitmap analysis.
-            if (Build.VERSION.SDK_INT < 31) return measured
+            if (Build.VERSION.SDK_INT < 31 || settings.palette == ScenePalette.CUSTOM) return measured
             return hinted(measured)
         }
 
