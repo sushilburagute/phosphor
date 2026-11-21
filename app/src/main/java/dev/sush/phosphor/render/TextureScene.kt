@@ -4,7 +4,7 @@ import android.graphics.Canvas
 
 internal class TextureScene(k: RenderKit, halftone: Halftone) {
     private val silk = TextureSilk(k, halftone)
-    private val basalt = TextureBasalt(k)
+    private val basalt = TextureBasalt()
     private val pixels = TexturePixelWeave()
 
     fun draw(canvas: Canvas, f: Frame, id: String) {
@@ -14,4 +14,6 @@ internal class TextureScene(k: RenderKit, halftone: Halftone) {
             else -> basalt.draw(canvas, f)
         }
     }
+
+    fun release() = basalt.release()
 }

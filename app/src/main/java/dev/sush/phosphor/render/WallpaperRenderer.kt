@@ -155,7 +155,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
 
         veil(canvas, f, preset.kind == WallpaperKind.IMAGE)
         if (preset.kind != WallpaperKind.IMAGE && preset.id != "texture-pixel-weave") {
-            drawNoise(canvas, h, 15, preset.kind == WallpaperKind.TEXTURE)
+            drawNoise(canvas, h, 15, heavy = preset.id == "texture-satin")
         }
         if (useTones) canvas.restoreToCount(toneSave)
         // "Calm" darkens the artwork to give launcher labels more contrast.
@@ -341,6 +341,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         noise = null
         noiseShader = null
         halftone.release()
+        texture.release()
         orbit.release()
         aurora.release()
         ascii.release()

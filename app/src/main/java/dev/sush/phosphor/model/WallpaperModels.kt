@@ -153,7 +153,7 @@ object WallpaperCatalog {
             listOf(0xFF12060F.toInt(), 0xFFF33C3E.toInt(), 0xFFFF92BD.toInt()),
         ),
         WallpaperPreset(
-            "texture-basalt", "Light direction", "Basalt", "Raking light catches mineral seams along the stepped walls of a basalt canyon.",
+            "texture-basalt", "Light direction", "Basalt", "Raking light catches fractured basalt columns on either side of a deep cleft.",
             WallpaperKind.TEXTURE,
             listOf(0xFF080C15.toInt(), 0xFF6D88B9.toInt(), 0xFFCD9679.toInt()),
         ),

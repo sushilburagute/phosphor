@@ -106,22 +106,7 @@ internal class AuroraScene(private val k: RenderKit) {
     val binHem = Array(3) { FloatArray(BINS) }
 
     private var key = 0L
-    private var rayFront: Shader? = null
-    private var rayBack: Shader? = null
-    private var pillarKey = 0L
-
-    private fun preparePillars(f: Frame) {
-        val next = f.c1.toLong() * 31 + f.c2 + if (f.night) 1 else 2
-        if (next == pillarKey && rayFront != null) return
-        pillarKey = next
-        // The foot of each sun pillar is at y = 0 and its tip is at y = -1.
-        rayFront = LinearGradient(0f, 0f, 0f, -1f,
-            intArrayOf(alpha(mix(f.c1, Color.WHITE, if (f.night) 0.35f else 0f), 255), alpha(f.c1, 190), alpha(mix(f.c1, f.c2, 0.6f), 80), alpha(f.c2, 0)),
-            floatArrayOf(0f, 0.08f, 0.45f, 1f), Shader.TileMode.CLAMP)
-        rayBack = LinearGradient(0f, 0f, 0f, -1f,
-            intArrayOf(alpha(f.c2, 200), alpha(f.c2, 110), alpha(f.c2, 0)),
-            floatArrayOf(0f, 0.3f, 1f), Shader.TileMode.CLAMP)
-    }
+    private val sunlight = SolsticeLight(k)
 
     private fun prepare(f: Frame) {
         val next = ((f.c0.toLong() * 31 + f.c1) * 31 + f.c2) * 31 + f.h.toLong() + if (f.night) 1 else 2
@@ -210,8 +195,7 @@ internal class AuroraScene(private val k: RenderKit) {
         land.sky(canvas, f, solstice, sunX)
         if (f.night) land.stars(canvas, f)
         if (solstice) {
-            preparePillars(f)
-            sunPillars(canvas, f, sunX)
+            sunlight.draw(canvas, f, sunX)
             land.ridges(canvas, f, true)
             land.snow(canvas, f, sunX)
         } else {
@@ -223,45 +207,6 @@ internal class AuroraScene(private val k: RenderKit) {
             land.ridges(canvas, f, false)
             land.lake(canvas, f, this)
         }
-    }
-
-    /** Narrow shafts fan outward from a low solar disc. Their angles and lengths drift independently. */
-    private fun sunPillars(canvas: Canvas, f: Frame, x: Float) {
-        val h = f.h
-        val reveal = smooth(f.reveal)
-        val horizon = h * 0.68f + f.shiftY(0.4f)
-        k.glow(canvas, k.glowB, x, horizon, 510f, h * 0.26f, (91 * reveal).toInt(), k.modeFor(f))
-        val p = k.fill
-        val count = (72 * (0.5f + 0.5f * f.detail)).toInt()
-        for (i in 0 until count) {
-            val u = i / (count - 1f)
-            val phase = fraction(i * 43 + 3) * 6.28f
-            val opening = sin(f.t * 0.25f + phase) * 5f * f.amount
-            val angle = (-51f + u * 103f) * (1f + 0.9f * f.composition) + opening
-            val length = h * (0.18f + fraction(i * 31 + 7) * 0.33f +
-                cos(f.t * 0.41f + phase) * 0.035f * f.amount) * reveal
-            val saved = canvas.save()
-            canvas.translate(x + (u - 0.5f) * 100f, horizon)
-            canvas.rotate(angle)
-            canvas.scale(5f + fraction(i * 17 + 1) * 17f, length.coerceAtLeast(1f))
-            p.shader = if (i % 4 == 1) rayBack else rayFront
-            k.luminous(p, f.night)
-            p.alpha = (43f + 24f * sin(f.t * 0.55f + phase)).toInt()
-            k.path.reset()
-            k.path.moveTo(-0.3f, 0f)
-            k.path.lineTo(-1.1f, -1f)
-            k.path.lineTo(1.1f, -1f)
-            k.path.lineTo(0.3f, 0f)
-            k.path.close()
-            canvas.drawPath(k.path, p)
-            canvas.restoreToCount(saved)
-        }
-        k.reset(p)
-        p.color = mix(f.c2, if (f.night) Color.WHITE else f.c1, 0.25f)
-        p.alpha = (195 * reveal).toInt()
-        val sunY = horizon - 55f + sin(f.t * 0.19f) * 24f * f.amount
-        canvas.drawCircle(x, sunY, 74f, p)
-        k.reset(p)
     }
 
     private fun curtain(canvas: Canvas, f: Frame, index: Int) {
@@ -426,9 +371,7 @@ internal class AuroraScene(private val k: RenderKit) {
 
     fun release() {
         for (c in curtains) c.shaders.fill(null)
-        rayFront = null
-        rayBack = null
-        pillarKey = 0
+        sunlight.release()
         key = 0
         land.release()
     }
