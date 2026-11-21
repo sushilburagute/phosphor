@@ -240,6 +240,28 @@ class WallpaperRendererTest {
     }
 
     @Test
+    fun shortPalettesLimitEveryWallpaperToTheChosenHuesAndRetainDetail() {
+        for (preset in WallpaperCatalog.presets) {
+            val settings = WallpaperSettings(presetId = preset.id, reducedMotion = true,
+                palette = ScenePalette.CUSTOM, customColors = listOf(Color.RED, Color.GREEN, Color.BLUE))
+            for (count in 1..2) {
+                val bitmap = render(preset, settings.copy(customColorCount = count))
+                try {
+                    val pixels = pixels(bitmap)
+                    assertTrue("${preset.id}, $count colors: a material escaped the palette", pixels.all {
+                        Color.alpha(it) == 255 && Color.blue(it) <= 1 &&
+                            if (count == 1) Color.red(it) <= 1 else abs(Color.red(it) + Color.green(it) - 255) <= 2
+                    })
+                    assertTrue("${preset.id}, $count colors: lost shading",
+                        pixels.maxOf { Color.green(it) } - pixels.minOf { Color.green(it) } > 16)
+                } finally {
+                    bitmap.recycle()
+                }
+            }
+        }
+    }
+
+    @Test
     fun photoPaletteRecolorsTheImageAndOriginalRestoresIt() {
         val preset = WallpaperCatalog.find("image-custom")
         val source = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
@@ -258,7 +280,7 @@ class WallpaperRendererTest {
             for (highlight in listOf(Color.RED, Color.GREEN)) {
                 val custom = settings.copy(palette = ScenePalette.CUSTOM,
                     customColors = listOf(Color.BLACK, highlight, Color.BLUE))
-                assertEquals(highlight, center(custom))
+                for (count in 1..3) assertEquals(highlight, center(custom.copy(customColorCount = count)))
             }
             assertEquals(Color.WHITE, center(settings))
         } finally {

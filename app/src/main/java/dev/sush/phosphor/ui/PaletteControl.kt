@@ -48,10 +48,14 @@ private fun hexColor(color: Int) = "#%06X".format(java.util.Locale.ROOT, color a
 internal fun PaletteControl(
     preset: WallpaperPreset, settings: WallpaperSettings, onChange: (WallpaperSettings) -> Unit,
 ) {
-    val colors = settings.resolvedColors(preset)
+    val slots = settings.paletteSlots(preset)
     val photo = preset.kind == WallpaperKind.IMAGE
-    val roles = if (photo) photoRoles else sceneRoles
-    var editing by rememberSaveable(preset.id) { mutableStateOf<Int?>(null) }
+    val roles = when (settings.colorCount) {
+        1 -> listOf("Tint")
+        2 -> listOf("Shadows", "Highlights")
+        else -> if (photo) photoRoles else sceneRoles
+    }
+    var editing by rememberSaveable(preset.id, settings.colorCount) { mutableStateOf<Int?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Color palette", style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -63,25 +67,39 @@ internal fun PaletteControl(
                 )
             }
         }
+        if (settings.palette == ScenePalette.CUSTOM) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (count in 1..3) {
+                    FilterChip(
+                        selected = settings.colorCount == count,
+                        onClick = { onChange(settings.copy(customColorCount = count)) },
+                        label = { Text(if (count == 1) "1 color" else "$count colors") },
+                    )
+                }
+            }
+        }
         if (photo && settings.palette == ScenePalette.ORIGINAL) {
             Text("Choose a color to tint your photo.", style = MaterialTheme.typography.bodySmall)
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             roles.forEachIndexed { index, role ->
+                val color = slots[if (settings.colorCount == 1) 1 else index]
                 OutlinedButton(
                     onClick = { editing = index },
-                    modifier = Modifier.semantics { stateDescription = hexColor(colors[index]) },
+                    modifier = Modifier.semantics { stateDescription = hexColor(color) },
                 ) {
-                    Swatches(listOf(colors[index]), 18.dp)
+                    Swatches(listOf(color), 18.dp)
                     Text(role, Modifier.padding(start = 8.dp))
                 }
             }
         }
     }
     editing?.let { index ->
-        ColorDialog(roles[index], colors[index], onDismiss = { editing = null }) { color ->
-            val custom = colors.toMutableList().apply { set(index, color) }
-            onChange(settings.copy(palette = ScenePalette.CUSTOM, customColors = custom))
+        val slot = if (settings.colorCount == 1) 1 else index
+        ColorDialog(roles[index], slots[slot], onDismiss = { editing = null }) { color ->
+            val custom = slots.toMutableList().apply { set(slot, color) }
+            onChange(settings.copy(palette = ScenePalette.CUSTOM, customColors = custom,
+                customColorCount = settings.colorCount))
             editing = null
         }
     }

@@ -12,7 +12,8 @@ import kotlin.math.sin
 /** A turbulent dust veil with blue light spilling through an irregular seam. */
 internal class OrbitNebula(private val orbit: OrbitKit) {
     private val k = orbit.k
-    private var dust: Bitmap? = null
+    private data class Clouds(val mist: Bitmap, val bank: Bitmap)
+    private var clouds: Clouds? = null
     private var groundColor = 0
     private var coolColor = 0
     private var warmColor = 0
@@ -20,8 +21,8 @@ internal class OrbitNebula(private val orbit: OrbitKit) {
     fun draw(canvas: Canvas, f: Frame) {
         val t = f.t
         val energy = f.amount
-        val centerX = 500f + f.shiftX(0.9f) + sin(t * 0.078f) * 33f * energy
-        val centerY = f.h * 0.516f + f.shiftY(0.9f) + sin(t * 0.092f + 0.2f) * 26f * energy
+        val centerX = 500f + f.shiftX(0.38f) + sin(t * 0.078f) * 18f * energy
+        val centerY = f.h * 0.516f + f.shiftY(0.38f) + sin(t * 0.092f + 0.2f) * 14f * energy
         val halfHeight = minOf(f.h * 0.38f, 815f) * (1f + f.composition * 0.75f)
         val light = smooth(f.reveal) * (0.72f + 0.28f * energy)
 
@@ -29,11 +30,11 @@ internal class OrbitNebula(private val orbit: OrbitKit) {
         k.glow(canvas, k.glowA, centerX + 85f, centerY - halfHeight * 0.13f,
             560f, halfHeight * 0.67f, (32 * light).toInt(), RenderKit.Mode.SCREEN)
 
-        val layer = dust?.takeIf { groundColor == f.c0 && coolColor == f.c1 && warmColor == f.c2 }
-            ?: createDust(f).also { dust = it }
+        val layers = clouds?.takeIf { groundColor == f.c0 && coolColor == f.c1 && warmColor == f.c2 }
+            ?: createDust(f).also { clouds = it }
         k.rect.set(centerX - 630f, centerY - halfHeight, centerX + 630f, centerY + halfHeight)
         k.fill.alpha = (240f * (0.70f + light * 0.30f)).toInt()
-        canvas.drawBitmap(layer, null, k.rect, k.fill)
+        canvas.drawBitmap(layers.mist, null, k.rect, k.fill)
         k.reset(k.fill)
 
         // These lights move at a different depth from the dust. Their intensity changes the glow
@@ -47,6 +48,14 @@ internal class OrbitNebula(private val orbit: OrbitKit) {
         star(canvas, lightX + 22f, lightY - halfHeight * 0.105f, 34f, pulse)
         star(canvas, 224f + f.shiftX(0.2f), centerY - halfHeight * 0.41f, 22f,
             light * (0.60f + energy * sin(t * 0.74f) * 0.22f))
+
+        // The much closer dust bank crosses the illuminated gas and occludes its embedded stars.
+        val nearX = 500f + f.shiftX(1.30f) + sin(t * 0.113f + 0.43f) * 41f * energy
+        val nearY = f.h * 0.516f + f.shiftY(1.30f) + sin(t * 0.095f - 0.6f) * 30f * energy
+        k.rect.set(nearX - 663f, nearY - halfHeight * 1.07f, nearX + 663f, nearY + halfHeight * 1.07f)
+        k.fill.alpha = (245f * (0.74f + light * 0.26f)).toInt()
+        canvas.drawBitmap(layers.bank, null, k.rect, k.fill)
+        k.reset(k.fill)
         star(canvas, 771f + f.shiftX(0.3f), centerY + halfHeight * 0.29f, 14f, 0.62f * light)
     }
 
@@ -60,17 +69,19 @@ internal class OrbitNebula(private val orbit: OrbitKit) {
         k.reset(k.fill)
     }
 
-    private fun createDust(f: Frame): Bitmap {
+    private fun createDust(f: Frame): Clouds {
         groundColor = f.c0
         coolColor = f.c1
         warmColor = f.c2
         val width = 420
         val height = 500
         val pixels = IntArray(width * height)
+        val bank = IntArray(width * height)
         val noise = SpaceNoise(2719)
         val deepBlue = mix(f.c0, 0xFF3A5590.toInt(), 0.71f)
         val rimIce = mix(f.c1, Color.WHITE, 0.56f)
         val heatedDust = mix(f.c2, 0xFFD2A6B1.toInt(), 0.21f)
+        val bankShadow = mix(f.c0, Color.BLACK, 0.46f)
         for (row in 0 until height) {
             val y = 2f * row / (height - 1) - 1f
             for (column in 0 until width) {
@@ -102,12 +113,26 @@ internal class OrbitNebula(private val orbit: OrbitKit) {
                 val tint = mix(atmosphere, mix(rimIce, heatedDust, copper), edgeLight)
                 val opacity = envelope * (0.12f + density * 0.60f + wash * 0.23f + rim * 0.05f)
                 pixels[row * width + column] = alpha(tint, (opacity * 255f).toInt())
+
+                // View into a second, denser front. The narrow hot edge is backlit and the
+                // interior falls quickly into shadow, like a cloud seen against a bright star.
+                val bankDepth = roughEdge - 0.20f + 0.105f * sin(x * 5.4f - 0.9f) + (thread - body) * 0.34f
+                val lip = smooth(1f - abs(bankDepth) * 19f)
+                val thickness = smooth((bankDepth + 0.045f) * 9f)
+                val bankLight = lip * (0.40f + 0.60f * body) * (0.43f + hotSpot * 0.57f)
+                val ash = mix(bankShadow, deepBlue, 0.22f + 0.51f * density * thread)
+                val bankTint = mix(ash, heatedDust, bankLight)
+                val bankAlpha = envelope * (lip * 0.35f + thickness * (0.34f + 0.62f * density)).coerceAtMost(1f)
+                bank[row * width + column] = alpha(bankTint, (bankAlpha * 255f).toInt())
             }
         }
-        return Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
+        return Clouds(
+            Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888),
+            Bitmap.createBitmap(bank, width, height, Bitmap.Config.ARGB_8888),
+        )
     }
 
     fun release() {
-        dust = null
+        clouds = null
     }
 }

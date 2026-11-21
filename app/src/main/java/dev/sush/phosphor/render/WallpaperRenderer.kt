@@ -43,6 +43,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
     private val ascii = AsciiScene(kit)
     private val gradient = GradientScene(kit)
     private val glass = GlassScene(kit)
+    private val spectrum = GlassSpectrum(kit)
     private val abstract = AbstractScene(kit)
     private val texture = TextureScene(kit, halftone)
 
@@ -52,9 +53,10 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
     private var noiseShader: Shader? = null
     private var importedBitmap: Bitmap? = null
     private var importedPath: String? = null
-    private var photoFilter: ColorMatrixColorFilter? = null
-    private var photoShadow = 0
-    private var photoHighlight = 0
+    private val toneLayer = Paint()
+    private var toneFilter: ColorMatrixColorFilter? = null
+    private var toneShadow = 0
+    private var toneHighlight = 0
     private var veilKey = 0L
     private var veilTop: Shader? = null
     private var veilBottom: Shader? = null
@@ -111,7 +113,10 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
             f.offsetX = 0f
             f.offsetY = 0f
         }
-        val palette = settings.resolvedColors(preset)
+        // Short palettes are luminance treatments of the finished scene, including any
+        // fixed material colors, reflections and stars. Preserve the original light field.
+        val useTones = settings.colorCount < 3
+        val palette = if (useTones) preset.colors else settings.resolvedColors(preset)
         f.c0 = palette.getOrElse(0) { Color.BLACK }
         f.c1 = palette.getOrElse(1) { 0xFF92D9CE.toInt() }
         f.c2 = palette.getOrElse(2) { 0xFFC2A2E2.toInt() }
@@ -120,6 +125,11 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         val saved = canvas.save()
         canvas.scale(width / 1000f, width / 1000f)
         canvas.clipRect(0f, 0f, 1000f, h)
+        val toneSave = if (useTones) {
+            val tones = settings.resolvedColors(preset)
+            toneLayer.colorFilter = duotoneFilter(tones[0], tones[1])
+            canvas.saveLayer(0f, 0f, 1000f, h, toneLayer)
+        } else -1
         paint.shader = null
         paint.xfermode = null
         paint.alpha = 255
@@ -136,7 +146,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
             WallpaperKind.AURORA -> aurora.draw(canvas, f, preset.id == "aurora-solstice")
             WallpaperKind.ASCII -> ascii.draw(canvas, f, terminal = preset.id == "ascii-echo")
             WallpaperKind.GRADIENT -> gradient.draw(canvas, f, preset.id == "gradient-tide")
-            WallpaperKind.GLASS -> if (preset.id == "glass-spectrum") drawSpectrum(canvas, f, kit) else glass.draw(canvas, f, lenses = false)
+            WallpaperKind.GLASS -> if (preset.id == "glass-spectrum") spectrum.draw(canvas, f) else glass.draw(canvas, f, lenses = false)
             WallpaperKind.ABSTRACT -> abstract.draw(canvas, f, preset.id == "abstract-orbit")
             WallpaperKind.TEXTURE -> texture.draw(canvas, f, preset.id)
             WallpaperKind.IMAGE -> drawImage(canvas, f, settings)
@@ -147,6 +157,7 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         if (preset.kind != WallpaperKind.IMAGE && preset.id != "texture-pixel-weave") {
             drawNoise(canvas, h, 15, preset.kind == WallpaperKind.TEXTURE)
         }
+        if (useTones) canvas.restoreToCount(toneSave)
         // "Calm" darkens the artwork to give launcher labels more contrast.
         paint.shader = null
         paint.color = Color.BLACK
@@ -219,8 +230,8 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         rect.set(left, top, left + bw, top + bh)
         paint.shader = null
         paint.alpha = 255
-        val tinted = settings.palette != ScenePalette.ORIGINAL
-        paint.colorFilter = if (tinted) photoDuotone(f.c0, f.c1) else null
+        val tinted = settings.palette != ScenePalette.ORIGINAL && settings.colorCount == 3
+        paint.colorFilter = if (tinted) duotoneFilter(f.c0, f.c1) else null
         canvas.drawBitmap(bitmap, null, rect, paint)
         paint.colorFilter = null
         // Independent foreground motes create depth without pretending a flat image
@@ -228,9 +239,9 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         motes(canvas, f, (36f + 72f * f.composition).toInt(), if (tinted) f.c2 else f.c1)
     }
 
-    /** Map source luminance to the selected shadow/highlight pair without allocating a second photo. */
-    private fun photoDuotone(shadow: Int, highlight: Int): ColorMatrixColorFilter {
-        photoFilter?.let { if (shadow == photoShadow && highlight == photoHighlight) return it }
+    /** Map source luminance linearly to the selected shadow/highlight pair. */
+    private fun duotoneFilter(shadow: Int, highlight: Int): ColorMatrixColorFilter {
+        toneFilter?.let { if (shadow == toneShadow && highlight == toneHighlight) return it }
         val matrix = FloatArray(20)
         for (channel in 0..2) {
             val shift = 16 - 8 * channel
@@ -244,9 +255,9 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
             matrix[row + 4] = low.toFloat()
         }
         matrix[18] = 1f
-        photoShadow = shadow
-        photoHighlight = highlight
-        return ColorMatrixColorFilter(matrix).also { photoFilter = it }
+        toneShadow = shadow
+        toneHighlight = highlight
+        return ColorMatrixColorFilter(matrix).also { toneFilter = it }
     }
 
     /** Center the subject while reserving enough photo on both sides for the full camera path. */
@@ -324,7 +335,8 @@ class WallpaperRenderer(cacheOrbitBands: Boolean = false) {
         importedBitmap?.recycle()
         importedBitmap = null
         importedPath = null
-        photoFilter = null
+        toneFilter = null
+        toneLayer.colorFilter = null
         noise?.recycle()
         noise = null
         noiseShader = null

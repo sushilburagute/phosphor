@@ -168,7 +168,7 @@ class PhosphorWallpaperService : WallpaperService() {
                 settings.imageFocusX != next.imageFocusX || settings.imageFocusY != next.imageFocusY ||
                 settings.darken != next.darken || settings.intensity != next.intensity ||
                 settings.composition != next.composition || settings.palette != next.palette ||
-                settings.customColors != next.customColors
+                settings.customColors != next.customColors || settings.colorCount != next.colorCount
             if (settings.presetId != next.presetId || settings.imagePath != next.imagePath) resetQuality()
             settings = next
             if (paletteChanged) invalidateColors()

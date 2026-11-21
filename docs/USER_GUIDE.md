@@ -26,7 +26,7 @@ Phosphor keeps a private copy of each imported photo. Clearing app storage or un
 
 Use the scene slider to change the composition, such as the ring angle in Ringfall or the rib spacing in Fluted glass. In **Textures → Pixel weave**, adjust **Pixel spacing** to make the curved bands of flickering squares finer or coarser.
 
-Under **Color palette**, tap **Background**, **First accent**, or **Second accent** to edit the current colors. Choose a color with the RGB sliders or enter a six-digit hex value, then tap **Use color**. Switch between **Original**, **Lagoon**, **Ember**, and **Custom** to compare. Use **Save look** to keep a color combination.
+Under **Color palette**, open **Custom** and choose **1 color** for a monochrome tint, **2 colors** to set the shadows and highlights, or **3 colors** for a background and two independent accents. Tap a swatch to adjust it with RGB sliders or enter a six-digit hex value, then tap **Use color**. Switching counts keeps your swatches. Use **Save look** to keep a color combination.
 
 Imported photos have controls for **Shadows**, **Highlights**, and **Floating lights**. **Original** shows the photo in its natural colors.
 

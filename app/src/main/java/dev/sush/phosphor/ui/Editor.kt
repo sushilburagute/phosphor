@@ -186,7 +186,7 @@ private fun Controls(
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(preset.description, style = MaterialTheme.typography.bodyLarge)
             FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Swatches(settings.resolvedColors(preset), 18.dp)
+                Swatches(settings.selectedColors(preset), 18.dp)
                 TextButton(onClick = onPaletteHelp) { Text("Match your phone’s colors") }
             }
         }

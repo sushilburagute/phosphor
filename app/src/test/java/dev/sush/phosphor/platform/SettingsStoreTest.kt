@@ -7,6 +7,7 @@ import dev.sush.phosphor.model.ScenePalette
 import dev.sush.phosphor.model.WallpaperSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,12 +50,27 @@ class SettingsStoreTest {
             fps = 24, darken = 0.25f, imagePath = "/private/photo.png", imageFocusX = 0.15f, imageFocusY = 0.72f, reducedMotion = true,
             wakeReveal = false, lowBatteryMode = false, unlockAnimation = false, tiltParallax = true, composition = 0.81f,
             palette = ScenePalette.CUSTOM, customColors = listOf(0xFF112233.toInt(), 0xFF77AA99.toInt(), 0xFFCC8800.toInt()),
+            customColorCount = 2,
         )
         store.savePreview(draft)
         store.commitPreview()
 
         assertEquals(draft, store.load())
         assertEquals(draft, SettingsStore(context).load())
+    }
+
+    @Test
+    fun legacyCustomPalettesKeepAllThreeSlotsAndDarkSingleTintsHaveShading() {
+        val record = org.json.JSONObject().put("palette", "CUSTOM")
+            .put("customColors", org.json.JSONArray(listOf(-1, 0xFF000000.toInt(), -1)))
+        val preset = WallpaperCatalog.presets.first()
+        val legacy = SettingsStore.decode(record)
+        assertEquals(3, legacy.colorCount)
+        assertEquals(legacy.customColors, legacy.resolvedColors(preset))
+        assertEquals(3, SettingsStore.decode(record.put("customColorCount", 0)).colorCount)
+        val mono = legacy.copy(customColorCount = 1)
+        assertEquals(listOf(0xFF000000.toInt()), mono.selectedColors(preset))
+        assertTrue(mono.resolvedColors(preset)[0] != mono.resolvedColors(preset)[1])
     }
 
     @Test

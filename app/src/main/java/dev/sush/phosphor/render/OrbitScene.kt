@@ -19,7 +19,7 @@ import kotlin.math.sin
 
 internal class OrbitScene(k: RenderKit, cacheBands: Boolean) {
     private val kit = OrbitKit(k, cacheBands)
-    private val exposure = OrbitExposure(kit, cacheBands)
+    private val exposure = OrbitExposure(kit)
     private val threshold = OrbitThreshold(kit)
     private val ringfall = OrbitRingfall(kit)
     private val firstLight = OrbitFirstLight(kit)

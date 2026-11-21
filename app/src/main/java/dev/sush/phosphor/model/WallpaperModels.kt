@@ -39,11 +39,44 @@ data class WallpaperSettings(
     val palette: ScenePalette = ScenePalette.ORIGINAL,
     val musicReactive: Boolean = false,
     val customColors: List<Int> = WallpaperCatalog.find(presetId).colors,
+    val customColorCount: Int = 3,
 ) {
-    fun resolvedColors(preset: WallpaperPreset): List<Int> = when (palette) {
+    val colorCount: Int = if (palette == ScenePalette.CUSTOM && customColors.size == 3 &&
+        customColorCount in 1..3) customColorCount else 3
+
+    // A one-color look uses the first accent. Two-color looks map shadows to slot 0 and
+    // highlights to slot 1. Keep the third slot intact so switching counts is reversible.
+    private val tones = when (colorCount) {
+        1 -> monochrome(customColors[1])
+        2 -> if (customColors[0] == customColors[1]) monochrome(customColors[1])
+             else listOf(customColors[0], customColors[1], customColors[1])
+        else -> null
+    }
+
+    fun paletteSlots(preset: WallpaperPreset): List<Int> = when (palette) {
         ScenePalette.CUSTOM -> customColors.takeIf { it.size == 3 } ?: preset.colors
         else -> palette.colors ?: preset.colors
     }
+
+    fun selectedColors(preset: WallpaperPreset): List<Int> = when (colorCount) {
+        1 -> listOf(customColors[1])
+        2 -> customColors.take(2)
+        else -> paletteSlots(preset)
+    }
+
+    fun resolvedColors(preset: WallpaperPreset): List<Int> = tones ?: paletteSlots(preset)
+}
+
+private fun monochrome(color: Int): List<Int> {
+    val red = (color ushr 16) and 255
+    val green = (color ushr 8) and 255
+    val blue = color and 255
+    val peak = maxOf(red, green, blue)
+    // An ink-black selection still needs graphite highlights to show the surface.
+    fun highlight(channel: Int) = if (peak == 0) 112 else channel * maxOf(112, peak) / peak
+    val shadow = 0xFF000000.toInt() or ((red / 18) shl 16) or ((green / 18) shl 8) or (blue / 18)
+    val light = 0xFF000000.toInt() or (highlight(red) shl 16) or (highlight(green) shl 8) or highlight(blue)
+    return listOf(shadow, light, light)
 }
 
 /** Stable IDs are persisted by the app and used by the live wallpaper service. */
@@ -51,7 +84,7 @@ object WallpaperCatalog {
     val presets: List<WallpaperPreset> = listOf(
         WallpaperPreset(
             "orbit-exposure", "Horizon height", "Long exposure",
-            "Blue and ember rings sweep toward a white-hot horizon. Someone stands at the edge, watching.",
+            "Blue and ember star trails circle the celestial pole. Their reflection crosses a lake beneath a mountain pass.",
             WallpaperKind.ORBIT,
             listOf(0xFF010308.toInt(), 0xFF559DFF.toInt(), 0xFFFF5933.toInt()),
         ),
@@ -75,17 +108,17 @@ object WallpaperCatalog {
         ),
         WallpaperPreset(
             "orbit-nebula", "Dust cloud height", "Veil nebula",
-            "Blue light shines through a cleft in drifting clouds of dust, picking out their copper edges.",
+            "Stars shine through blue gas while a nearer cloud of copper-edged dust drifts across them.",
             WallpaperKind.ORBIT,
             listOf(0xFF02040A.toInt(), 0xFF56C2F5.toInt(), 0xFFF0A477.toInt()),
         ),
         WallpaperPreset(
-            "aurora-veil", "Curtain width", "Northern veil", "Curtains of jade light fold and drift over a still mountain lake.",
+            "aurora-veil", "Curtain width", "Northern veil", "Jade curtains fold above a fjord. Steep rock faces catch their light and reflect in the water.",
             WallpaperKind.AURORA,
             listOf(0xFF031218.toInt(), 0xFF80E6D4.toInt(), 0xFF249AAA.toInt()),
         ),
         WallpaperPreset(
-            "aurora-solstice", "Ray spread", "Solstice", "Rose and amber shafts fan out from a low sun behind layered ridges.",
+            "aurora-solstice", "Ray spread", "Solstice", "A low sun picks out the ledges of terraced ridges beneath a fan of rose and amber light.",
             WallpaperKind.AURORA,
             listOf(0xFF0D0820.toInt(), 0xFFE74A94.toInt(), 0xFFFF9C43.toInt()),
         ),
@@ -115,12 +148,12 @@ object WallpaperCatalog {
             listOf(0xFF010307.toInt(), 0xFF548EF3.toInt(), 0xFFFF663B.toInt()),
         ),
         WallpaperPreset(
-            "abstract-orbit", "Ribbon width", "Chromatic loop", "A sculptural band twists through space, flipping color with every turn.",
+            "abstract-orbit", "Ribbon width", "Chromatic loop", "A beveled ribbon threads through three crossings as light travels around its polished edge.",
             WallpaperKind.ABSTRACT,
             listOf(0xFF12060F.toInt(), 0xFFF33C3E.toInt(), 0xFFFF92BD.toInt()),
         ),
         WallpaperPreset(
-            "texture-basalt", "Light direction", "Basalt", "Etched contours over graphite stone glint as a low sun circles.",
+            "texture-basalt", "Light direction", "Basalt", "Raking light catches mineral seams along the stepped walls of a basalt canyon.",
             WallpaperKind.TEXTURE,
             listOf(0xFF080C15.toInt(), 0xFF6D88B9.toInt(), 0xFFCD9679.toInt()),
         ),
@@ -129,7 +162,7 @@ object WallpaperCatalog {
             WallpaperKind.ASCII, listOf(0xFF080611.toInt(), 0xFFE187AC.toInt(), 0xFF8785DF.toInt()),
         ),
         WallpaperPreset(
-            "glass-spectrum", "Spectrum spread", "Split spectrum", "A turning triangular prism opens a narrow beam into a fan of color.",
+            "glass-spectrum", "Spectrum spread", "Split spectrum", "A beam sweeps through a turning glass prism and opens into a moving fan of color.",
             WallpaperKind.GLASS, listOf(0xFF060918.toInt(), 0xFF75CDE8.toInt(), 0xFFFF9785.toInt()),
         ),
         WallpaperPreset(

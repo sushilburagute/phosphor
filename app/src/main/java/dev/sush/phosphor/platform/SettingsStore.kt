@@ -113,6 +113,7 @@ class SettingsStore(context: Context) {
                 composition = number(json, "composition", defaults.composition),
                 palette = ScenePalette.entries.firstOrNull { it.name == json.optString("palette") } ?: defaults.palette,
                 customColors = decodeColors(json.optJSONArray("customColors")) ?: defaults.customColors,
+                customColorCount = json.optInt("customColorCount", 3).takeIf { it in 1..3 } ?: 3,
                 speed = number(json, "speed", defaults.speed),
                 intensity = number(json, "intensity", defaults.intensity),
                 parallax = json.optBoolean("parallax", defaults.parallax),
@@ -135,6 +136,7 @@ class SettingsStore(context: Context) {
             put("composition", bounded(settings.composition, 0.5f))
             put("palette", settings.palette.name)
             put("customColors", JSONArray(settings.customColors))
+            put("customColorCount", settings.customColorCount)
             put("speed", bounded(settings.speed, 0.5f))
             put("intensity", bounded(settings.intensity, 0.6f))
             put("parallax", settings.parallax)

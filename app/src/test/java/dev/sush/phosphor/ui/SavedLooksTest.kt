@@ -45,7 +45,7 @@ class SavedLooksTest {
         val looks = listOf(
             SavedLook("a", "Left bank", photo),
             SavedLook("b", "Right bank", photo.copy(imageFocusX = 0.9f, speed = 0.1f, customColors = photo.customColors.reversed())),
-            SavedLook("c", "Dusk", photo.copy(imagePath = "/private/second.png", darken = 0.4f)),
+            SavedLook("c", "Dusk", photo.copy(imagePath = "/private/second.png", darken = 0.4f, customColorCount = 1)),
         )
         preferences.edit().clear().commit()
         looks.reversed().forEach { SavedLooks(preferences).save(it, WallpaperSettings()) }
