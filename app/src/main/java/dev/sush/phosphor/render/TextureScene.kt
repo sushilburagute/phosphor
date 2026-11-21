@@ -2,12 +2,18 @@ package dev.sush.phosphor.render
 
 import android.graphics.Canvas
 
-/** The texture family: lit rose silk under a halftone screen, or an etched basalt relief map. */
 internal class TextureScene(k: RenderKit, halftone: Halftone) {
     private val silk = TextureSilk(k, halftone)
-    private val basalt = TextureBasalt(k)
+    private val basalt = TextureBasalt()
+    private val pixels = TexturePixelWeave()
 
-    fun draw(canvas: Canvas, f: Frame, basalt: Boolean) {
-        if (basalt) this.basalt.draw(canvas, f) else silk.draw(canvas, f)
+    fun draw(canvas: Canvas, f: Frame, id: String) {
+        when (id) {
+            "texture-satin" -> silk.draw(canvas, f)
+            "texture-pixel-weave" -> pixels.draw(canvas, f)
+            else -> basalt.draw(canvas, f)
+        }
     }
+
+    fun release() = basalt.release()
 }

@@ -6,6 +6,7 @@ import androidx.core.content.edit
 import dev.sush.phosphor.model.ScenePalette
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperSettings
+import org.json.JSONArray
 import org.json.JSONObject
 import java.time.ZonedDateTime
 
@@ -106,12 +107,13 @@ class SettingsStore(context: Context) {
 
     companion object {
         fun decode(json: JSONObject): WallpaperSettings {
-            val defaults = WallpaperSettings()
+            val defaults = WallpaperSettings(presetId = json.optString("presetId", WallpaperCatalog.presets.first().id))
             return defaults.copy(
-                presetId = json.optString("presetId", defaults.presetId),
                 musicReactive = json.optBoolean("musicReactive", defaults.musicReactive),
                 composition = number(json, "composition", defaults.composition),
                 palette = ScenePalette.entries.firstOrNull { it.name == json.optString("palette") } ?: defaults.palette,
+                customColors = decodeColors(json.optJSONArray("customColors")) ?: defaults.customColors,
+                customColorCount = json.optInt("customColorCount", 3).takeIf { it in 1..3 } ?: 3,
                 speed = number(json, "speed", defaults.speed),
                 intensity = number(json, "intensity", defaults.intensity),
                 parallax = json.optBoolean("parallax", defaults.parallax),
@@ -133,6 +135,8 @@ class SettingsStore(context: Context) {
             if (settings.musicReactive) put("musicReactive", true)
             put("composition", bounded(settings.composition, 0.5f))
             put("palette", settings.palette.name)
+            put("customColors", JSONArray(settings.customColors))
+            put("customColorCount", settings.customColorCount)
             put("speed", bounded(settings.speed, 0.5f))
             put("intensity", bounded(settings.intensity, 0.6f))
             put("parallax", settings.parallax)
@@ -146,6 +150,16 @@ class SettingsStore(context: Context) {
             put("wakeReveal", settings.wakeReveal)
             put("lowBatteryMode", settings.lowBatteryMode)
             put("unlockAnimation", settings.unlockAnimation)
+        }
+
+        private fun decodeColors(colors: JSONArray?): List<Int>? {
+            if (colors == null || colors.length() != 3) return null
+            return List(3) { index ->
+                val color = colors.opt(index) as? Int ?: return null
+                // Colors are stored as signed, opaque ARGB integers.
+                if (color ushr 24 != 255) return null
+                color
+            }
         }
 
         private fun bounded(value: Float, fallback: Float): Float =

@@ -1,291 +1,262 @@
 package dev.sush.phosphor.render
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.LinearGradient
 import android.graphics.Paint
-import dev.sush.phosphor.render.RenderKit.Companion.alpha
+import android.graphics.Path
+import android.graphics.PointF
+import android.graphics.Shader
 import dev.sush.phosphor.render.RenderKit.Companion.fraction
-import dev.sush.phosphor.render.RenderKit.Companion.hash
 import dev.sush.phosphor.render.RenderKit.Companion.mix
 import dev.sush.phosphor.render.RenderKit.Companion.smooth
 import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.floor
-import kotlin.math.pow
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/**
- * Basalt: a hillshaded relief map of dark stone with etched contour lines and mineral specks.
- *
- * The terrain is cached; only the light moves. A low sun circles slowly, so slopes turn from
- * shadow to light and specks glint as the light crosses their facets. Contours are traced
- * with marching squares and drawn as engraved grooves (a shadow on one side, a lit lip on the
- * other). Foreground minerals shift separately as the launcher scrolls.
- */
-internal class TextureBasalt(private val k: RenderKit) {
-    private val grid = ShadedGrid()
-    private var height = FloatArray(0)
-    private var nX = FloatArray(0)
-    private var nY = FloatArray(0)
-    private var baseKey = 0L
-
-    private val minor = FloatArray(MAX_SEGMENTS * 4)
-    private val major = FloatArray(MAX_SEGMENTS / 3 * 4)
-    private var minorCount = 0
-    private var majorCount = 0
-
-    private val specks = Array(3) { FloatArray(SPECKS * 2) }
-    private val speckCount = IntArray(3)
-    private val stars = FloatArray(MAX_STARS * 8)
-    private var starCount = 0
+/** A jointed lava bed seen obliquely, with a narrow erosion channel cutting across it. */
+internal class TextureBasalt {
+    private val ink = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val path = Path()
+    private val noise = SpaceNoise(281)
+    private var stone: Bitmap? = null
+    private var sceneHeight = 0f
+    private var meshRows = 0
+    private var vertices = FloatArray(0)
+    private var relief = FloatArray(0)
+    private val lights = arrayOfNulls<ColorMatrixColorFilter>(96)
+    private var ground = 0
+    private var slate = 0
+    private var mineral = 0
 
     fun draw(canvas: Canvas, f: Frame) {
-        val h = f.h
-        val reveal = smooth(f.reveal)
-        val cols = (24 + 52 * f.detail).toInt()
-        val rows = (cols * h / 1000f).toInt()
-        val rebuilt = grid.ensure(cols, rows, 1000f, h, 40f)
-        val key = (cols.toLong() shl 20) + h.toLong()
-        if (rebuilt || key != baseKey) {
-            baseKey = key
-            val n = (cols + 1) * (rows + 1)
-            height = FloatArray(n); nX = FloatArray(n); nY = FloatArray(n)
-            for (at in 0 until n) height[at] = terrain(grid.verts[at * 2], grid.verts[at * 2 + 1])
-            normals()
-            contours()
+        if (stone == null || sceneHeight != f.h) bake(f.h)
+        if (ground != f.c0 || slate != f.c1 || mineral != f.c2) {
+            ground = f.c0
+            slate = f.c1
+            mineral = f.c2
+            lights.fill(null)
         }
-        // A low sun sweeps across the strata.
-        val az = 0.72f + f.composition * 5f + sin(f.t * 0.16f) * (0.48f + f.amount * 0.64f)
-        val el = 0.38f
-        val lx = cos(az) * cos(el); val ly = sin(az) * cos(el); val lz = sin(el)
-        shade(f, lx, ly, lz, reveal)
-        val p = k.fill
-        k.normal(p)
-        p.style = Paint.Style.FILL
-        p.color = Color.WHITE
-        val saved = canvas.save()
-        canvas.translate(f.shiftX(0.58f), f.shiftY(0.58f))
-        grid.draw(canvas, p)
-        val light = canvas.save()
-        canvas.translate(520f + 115f * sin(az), h * 0.58f)
-        canvas.rotate(-33f)
-        k.glow(canvas, k.glowA, 0f, -60f, 1050f, h * 0.19f, ((if (f.night) 61 else 41) * reveal).toInt(), k.modeFor(f))
-        k.glow(canvas, k.glowB, 120f, 85f, 890f, h * 0.075f, ((if (f.night) 33 else 26) * reveal).toInt(), k.modeFor(f))
-        canvas.restoreToCount(light)
-        etch(canvas, f, lx, ly, reveal)
-        canvas.restoreToCount(saved)
-        glints(canvas, f, az, reveal)
-    }
-
-    // region Terrain
-
-    /** Domain-warped value-noise relief, normalized to roughly -1..1. */
-    private fun terrain(x: Float, y: Float): Float {
-        val wx = x + 80f * noise((x * 0.7f - y * 0.7f) / 380f + 3.1f, (x * 0.7f + y * 0.7f) / 380f, 11)
-        val wy = y + 80f * noise((x * 0.9f + y * 0.4f) / 380f, (y * 0.9f - x * 0.4f) / 380f + 7.7f, 23)
-        // Stretched octaves follow the grain of the cooled lava.
-        val along = wx * 0.84f - wy * 0.54f
-        val across = wx * 0.54f + wy * 0.84f
-        var sum = noise(along / 820f, across / 400f, 7) * 0.72f
-        var amp = 0.54f
-        var freq = 1f / 265f
-        for (o in 0 until 3) {
-            val n = 1f - abs(noise((along * 0.34f + across * o * 0.07f) * freq, across * freq, 101 + o * 37))
-            sum += (n * n - 0.45f) * amp
-            amp *= 0.5f; freq *= 2.07f
+        val light = (0.48f + f.composition * 0.74f + 0.20f * f.amount * sin(f.t * 0.32f)).coerceIn(0f, 1f)
+        val step = (light * lights.lastIndex).roundToInt()
+        ink.colorFilter = lights[step] ?: lighting(step.toFloat() / lights.lastIndex).also { lights[step] = it }
+        var i = 0
+        for (row in 0..meshRows) {
+            val y = -MARGIN + (f.h + 2f * MARGIN) * row / meshRows
+            for (col in 0..MESH_COLS) {
+                val depth = 0.24f + 0.84f * relief[i]
+                vertices[2 * i] = -MARGIN + WIDTH * col / MESH_COLS + f.shiftX(depth)
+                vertices[2 * i + 1] = y + f.shiftY(depth)
+                i++
+            }
         }
-        sum += 0.33f * sin(across * 0.009f + sin(along * 0.0034f) * 0.75f)
-        return sum * 0.9f
+        canvas.drawBitmapMesh(checkNotNull(stone), MESH_COLS, meshRows, vertices, 0, null, 0, ink)
+        ink.colorFilter = null
     }
 
-    private fun noise(x: Float, y: Float, seed: Int): Float {
-        val xi = floor(x).toInt(); val yi = floor(y).toInt()
-        val fx = x - xi; val fy = y - yi
-        val u = fx * fx * (3f - 2f * fx); val v = fy * fy * (3f - 2f * fy)
-        fun lattice(i: Int, j: Int) = (hash(i * 73856093 xor j * 19349663 xor seed * 83492791) and 65535) / 32767.5f - 1f
-        val a = lattice(xi, yi); val b = lattice(xi + 1, yi)
-        val c = lattice(xi, yi + 1); val d = lattice(xi + 1, yi + 1)
-        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v
-    }
-
-    private fun normals() {
-        val g = grid
-        val dx = (g.verts[2] - g.verts[0]) * 2f
-        val dy = (g.y(1) - g.y(0)) * 2f
-        for (j in 0..g.rows) for (i in 0..g.cols) {
-            val at = g.index(i, j)
-            val l = g.index((i - 1).coerceAtLeast(0), j); val r = g.index((i + 1).coerceAtMost(g.cols), j)
-            val u = g.index(i, (j - 1).coerceAtLeast(0)); val d = g.index(i, (j + 1).coerceAtMost(g.rows))
-            nX[at] = -(height[r] - height[l]) / dx * RELIEF
-            nY[at] = -(height[d] - height[u]) / dy * RELIEF
+    // The baked RGB channels contain skylight and diffuse illumination from two oblique directions.
+    // Relighting the rock takes one draw regardless of the number of columns in view.
+    private fun lighting(light: Float): ColorMatrixColorFilter {
+        val cool = mix(slate, Color.WHITE, 0.09f)
+        val amber = mix(slate, mineral, 0.90f)
+        val matrix = FloatArray(20)
+        for (i in 0..2) {
+            val shift = 16 - i * 8
+            val base = (ground ushr shift) and 255
+            val sky = (((cool ushr shift) and 255) - base) / 255f
+            val sun = (((amber ushr shift) and 255) - base) / 255f
+            matrix[5 * i] = sky
+            matrix[5 * i + 1] = sun * (1f - light)
+            matrix[5 * i + 2] = sky * light
+            matrix[5 * i + 4] = base.toFloat()
         }
+        matrix[18] = 1f
+        return ColorMatrixColorFilter(matrix)
     }
 
-    /** Marching squares separates minor contours from each fifth, heavier contour. */
-    private fun contours() {
-        val g = grid
-        minorCount = 0; majorCount = 0
-        for (j in 0 until g.rows) for (i in 0 until g.cols) {
-            val a = g.index(i, j); val b = g.index(i + 1, j)
-            val c = g.index(i + 1, j + 1); val d = g.index(i, j + 1)
-            val za = height[a]; val zb = height[b]; val zc = height[c]; val zd = height[d]
-            val lo = minOf(minOf(za, zb), minOf(zc, zd))
-            val hi = maxOf(maxOf(za, zb), maxOf(zc, zd))
-            var level = kotlin.math.ceil(lo / STEP).toInt()
-            while (level * STEP <= hi) {
-                val v = level * STEP
-                var n = 0
-                // Crossings on the four edges, in order; two or four of them.
-                if ((za < v) != (zb < v)) { val t = (v - za) / (zb - za); edgePoint(g, a, b, t, n++) }
-                if ((zb < v) != (zc < v)) { val t = (v - zb) / (zc - zb); edgePoint(g, b, c, t, n++) }
-                if ((zc < v) != (zd < v)) { val t = (v - zc) / (zd - zc); edgePoint(g, c, d, t, n++) }
-                if ((zd < v) != (za < v)) { val t = (v - zd) / (za - zd); edgePoint(g, d, a, t, n++) }
-                if (n >= 2) {
-                    emit(level, 0)
-                    if (n == 4) emit(level, 2)
+    private fun bake(h: Float) {
+        sceneHeight = h
+        val scale = minOf(0.74f, 1560f / (h + 2f * MARGIN))
+        val bitmap = Bitmap.createBitmap(ceil(WIDTH * scale).toInt().coerceAtLeast(1),
+            ceil((h + 2f * MARGIN) * scale).toInt(), Bitmap.Config.ARGB_8888)
+        val surface = Canvas(bitmap)
+        surface.drawColor(Color.rgb(6, 1, 2))
+        surface.scale(scale, scale)
+        surface.translate(MARGIN, MARGIN)
+        val count = ceil((h + MARGIN + 390f) / ROW_STEP).toInt()
+        val rows = (-3..count).map { row -> (-3..13).map { col ->
+            val seed = row * 14327 + col * 571
+            PointF((col + (row and 1) * 0.5f + (fraction(seed) - 0.5f) * 0.53f) * COL_STEP,
+                (row + (fraction(seed + 37) - 0.5f) * 0.54f) * ROW_STEP)
+        } }
+        // In this projection the faces grow toward the bottom edge. Paint back to front.
+        for (r in 1 until rows.lastIndex) {
+            for (c in (1 until rows[r].lastIndex).sortedBy { rows[r][it].y }) {
+                val center = rows[r][c]
+                var boundary = listOf(PointF(-COL_STEP, -ROW_STEP), PointF(COL_STEP, -ROW_STEP),
+                    PointF(COL_STEP, ROW_STEP), PointF(-COL_STEP, ROW_STEP))
+                for (dr in -1..1) for (dc in -1..1) {
+                    if (dr == 0 && dc == 0) continue
+                    val neighbor = rows[r + dr][c + dc]
+                    boundary = clipCell(boundary, neighbor.x - center.x, neighbor.y - center.y)
                 }
-                level++
+                drawColumn(surface, center, boundary, h, (r - 3) * 14327 + (c - 3) * 571)
             }
         }
-    }
-
-    private val ex = FloatArray(4)
-    private val ey = FloatArray(4)
-
-    private fun edgePoint(g: ShadedGrid, a: Int, b: Int, t: Float, n: Int) {
-        ex[n] = g.verts[a * 2] + (g.verts[b * 2] - g.verts[a * 2]) * t
-        ey[n] = g.verts[a * 2 + 1] + (g.verts[b * 2 + 1] - g.verts[a * 2 + 1]) * t
-    }
-
-    private fun emit(level: Int, from: Int) {
-        val x0 = ex[from]; val y0 = ey[from]; val x1 = ex[from + 1]; val y1 = ey[from + 1]
-        if (Math.floorMod(level, 5) == 0) {
-            if (majorCount + 4 > major.size) return
-            major[majorCount] = x0; major[majorCount + 1] = y0; major[majorCount + 2] = x1; major[majorCount + 3] = y1
-            majorCount += 4
-        } else {
-            if (minorCount + 4 > minor.size) return
-            minor[minorCount] = x0; minor[minorCount + 1] = y0; minor[minorCount + 2] = x1; minor[minorCount + 3] = y1
-            minorCount += 4
+        meshRows = ceil((h + 2f * MARGIN) / 55f).toInt().coerceIn(8, 72)
+        relief = FloatArray((MESH_COLS + 1) * (meshRows + 1)) { i ->
+            val x = (i % (MESH_COLS + 1)) * (bitmap.width - 1) / MESH_COLS
+            val y = (i / (MESH_COLS + 1)) * (bitmap.height - 1) / meshRows
+            (Color.red(bitmap.getPixel(x, y)) / 65f).coerceIn(0f, 1f)
         }
+        vertices = FloatArray(relief.size * 2)
+        stone?.recycle()
+        stone = bitmap
     }
 
-    // endregion
-
-    // region Drawing
-
-    private fun shade(f: Frame, lx: Float, ly: Float, lz: Float, reveal: Float) {
-        val g = grid
-        val night = f.night
-        val dark = if (night) mix(f.c0, Color.BLACK, 0.2f) else mix(f.c0, f.c1, 0.42f)
-        val light = if (night) mix(f.c0, f.c1, 0.4f) else f.c0
-        for (at in height.indices) {
-            val nx = nX[at]; val ny = nY[at]
-            val shade = ((nx * lx + ny * ly + lz) / sqrt(nx * nx + ny * ny + 1f)).coerceIn(0f, 1f)
-            // Higher ground is slightly lighter, low ground pools darker.
-            val lift = 0.82f + 0.18f * (height[at] * 0.5f + 0.5f).coerceIn(0f, 1f)
-            val v = (shade.pow(1.35f) * lift * 1.15f).coerceIn(0f, 1f)
-            val c = mix(dark, light, v)
-            g.colors[at] = mix(if (night) f.c0 else f.c0, c, reveal)
-        }
-    }
-
-    private fun etch(canvas: Canvas, f: Frame, lx: Float, ly: Float, reveal: Float) {
-        val s = k.stroke
-        val night = f.night
-        s.strokeCap = Paint.Cap.BUTT
-        // An engraved groove: dark on the side away from the light, a lit lip toward it.
-        val ox = lx * 1.6f; val oy = ly * 1.6f
-        for (pass in 0 until 2) {
-            val lit = pass == 1
-            if (lit) {
-                if (night) k.luminous(s, true) else k.normal(s)
-                s.color = if (night) mix(f.c1, f.c2, 0.35f) else Color.WHITE
-            } else {
-                if (night) k.normal(s) else k.blend(s, RenderKit.Mode.INK)
-                s.color = if (night) Color.BLACK else f.c2
+    // Perpendicular bisectors give neighboring joints a shared, irregular edge.
+    private fun clipCell(points: List<PointF>, dx: Float, dy: Float): List<PointF> {
+        if (points.isEmpty()) return points
+        val ny = dy * 2.2f // foreshorten the ground plane
+        val mid = (dx * dx + dy * ny) * 0.5f
+        val clipped = ArrayList<PointF>(8)
+        var a = points.last()
+        var da = a.x * dx + a.y * ny - mid
+        for (b in points) {
+            val db = b.x * dx + b.y * ny - mid
+            if ((da <= 0f) != (db <= 0f)) {
+                val t = da / (da - db)
+                clipped.add(PointF(a.x + t * (b.x - a.x), a.y + t * (b.y - a.y)))
             }
-            canvas.save()
-            canvas.translate(if (lit) ox else -ox, if (lit) oy else -oy)
-            s.strokeWidth = if (lit) 1f else 1.5f
-            s.alpha = ((if (lit) (if (night) 54 else 150) else (if (night) 150 else 110)) * reveal).toInt()
-            if (minorCount > 0) canvas.drawLines(minor, 0, minorCount, s)
-            s.strokeWidth = if (lit) 1.5f else 2.6f
-            s.alpha = ((if (lit) (if (night) 170 else 220) else (if (night) 210 else 200)) * reveal).toInt()
-            if (majorCount > 0) canvas.drawLines(major, 0, majorCount, s)
-            canvas.restore()
+            if (db <= 0f) clipped.add(b)
+            a = b
+            da = db
         }
-
-        k.reset(s)
-        s.strokeCap = Paint.Cap.ROUND
+        return clipped
     }
 
-    /** Mineral specks: dull flecks everywhere, glinting when the sun crosses their facet. */
-    private fun glints(canvas: Canvas, f: Frame, az: Float, reveal: Float) {
-        speckCount.fill(0)
-        starCount = 0
-        val count = (SPECKS * (0.35f + f.detail * 0.65f)).toInt()
-        for (i in 0 until count) {
-            val seed = i * 3301 + 41
-            val x = fraction(seed) * 1080f - 40f + f.shiftX(0.92f)
-            val y = fraction(seed + 1) * (f.h + 80f) - 40f + f.shiftY(0.92f)
-            val facet = fraction(seed + 2) * 6.283f
-            val c = cos(az - facet)
-            var glint = if (c > 0f) c.pow(36f) else 0f
-            glint *= 0.7f + 0.3f * sin(f.t * 1.1f + seed)
-
-            val bucket = when { glint > 0.55f -> 2; glint > 0.18f -> 1; else -> 0 }
-            val at = speckCount[bucket] * 2
-            specks[bucket][at] = x; specks[bucket][at + 1] = y
-            speckCount[bucket]++
-            if (glint > 0.7f && starCount < MAX_STARS) {
-                val len = 5f + glint.coerceAtMost(1.6f) * 9f
-                val o = starCount * 8
-                stars[o] = x - len; stars[o + 1] = y; stars[o + 2] = x + len; stars[o + 3] = y
-                stars[o + 4] = x; stars[o + 5] = y - len; stars[o + 6] = x; stars[o + 7] = y + len
-                starCount++
+    private fun drawColumn(canvas: Canvas, center: PointF, outline: List<PointF>, h: Float, seed: Int) {
+        if (outline.size < 3) return
+        val u = center.y / h
+        val fault = 505f - 430f * (u - 0.5f) + 145f * sin(u * 6.4f + 0.34f)
+        val distance = center.x - fault
+        val rough = noise.sample(center.x * 0.0036f, center.y * 0.0036f)
+        val cliff = smooth((abs(distance) + 88f * (rough - 0.5f) - 26f) / 310f)
+        val uplift = if (distance < 0f) 138f else 266f
+        val height = 8f + cliff * (uplift + 118f * rough) + fraction(seed + 16) * (18f + 90f * cliff)
+        val exposure = (0.14f + 0.86f * cliff) * (0.74f + 0.26f * rough)
+        val slopeX = (fraction(seed + 73) - 0.57f) * 0.45f
+        val slopeY = (fraction(seed + 24) - 0.45f) * 0.43f
+        val top = outline.map { p -> PointF(center.x + p.x * 0.978f,
+            center.y - height + p.y * 0.978f + slopeX * p.x + slopeY * p.y) }
+        val bottom = outline.map { p -> PointF(center.x + p.x, center.y + p.y + 6f) }
+        val paint = ink
+        for (i in top.indices) {
+            val j = (i + 1) % top.size
+            val a = top[i]
+            val b = top[j]
+            val dx = b.x - a.x
+            if (dx > 0f) continue
+            val dy = b.y - a.y
+            val nx = dy / sqrt(dx * dx + dy * dy).coerceAtLeast(0.01f)
+            val left = (0.16f - nx * 0.76f).coerceIn(0f, 1f)
+            val right = (0.25f + nx * 0.71f).coerceIn(0f, 1f)
+            val shoulder = channels(7f + exposure * 23f, left * exposure * 230f, right * exposure * 185f)
+            path.rewind()
+            path.moveTo(a.x, a.y)
+            path.lineTo(b.x, b.y)
+            path.lineTo(bottom[j].x, bottom[j].y)
+            path.lineTo(bottom[i].x, bottom[i].y)
+            path.close()
+            val y = 0.5f * (a.y + b.y)
+            paint.shader = LinearGradient(0f, y, 0f, y + height * 0.86f, shoulder,
+                mix(shoulder, Color.BLACK, 0.83f), Shader.TileMode.CLAMP)
+            paint.color = Color.WHITE
+            canvas.drawPath(path, paint)
+            paint.shader = null
+            // Narrow growth flutes follow each exposed face down into the cleft.
+            for (n in 1..6) {
+                val seedLine = seed + i * 103 + n * 17
+                val t = (n + fraction(seedLine) * 0.65f) / 7f
+                val x = a.x + t * dx
+                val y0 = a.y + t * dy + 4f
+                paint.color = RenderKit.alpha(shoulder, 35 + (fraction(seedLine + 5) * 67f).toInt())
+                paint.strokeWidth = 0.8f + fraction(seedLine + 8) * 2f
+                canvas.drawLine(x, y0, x + 1.8f, y0 + height * (0.15f + 0.69f * fraction(seedLine + 3)), paint)
             }
         }
-        val d = k.dots
-        val night = f.night
-        // Dull flecks first: dark grains by day, faint grey by night.
-        k.blend(d, if (night) RenderKit.Mode.SCREEN else RenderKit.Mode.INK)
-        d.color = if (night) f.c1 else f.c2
-        d.strokeWidth = 1.8f; d.alpha = ((if (night) 60 else 120) * reveal).toInt()
-        canvas.drawPoints(specks[0], 0, speckCount[0] * 2, d)
-        if (night) k.additive(d, true) else k.normal(d)
-        d.color = if (night) f.c2 else Color.WHITE
-        d.strokeWidth = 2.4f; d.alpha = ((if (night) 150 else 200) * reveal).toInt()
-        canvas.drawPoints(specks[1], 0, speckCount[1] * 2, d)
-        d.color = Color.WHITE
-        d.strokeWidth = 3.4f; d.alpha = (255 * reveal).toInt()
-        canvas.drawPoints(specks[2], 0, speckCount[2] * 2, d)
-        if (!night && speckCount[2] > 0) {
-            // By day a bright glint needs an inked rim to read on pale stone.
-            k.blend(d, RenderKit.Mode.INK)
-            d.color = f.c2; d.strokeWidth = 5.2f; d.alpha = (90 * reveal).toInt()
-            canvas.drawPoints(specks[2], 0, speckCount[2] * 2, d)
-            k.normal(d)
-            d.color = Color.WHITE; d.strokeWidth = 3f; d.alpha = (255 * reveal).toInt()
-            canvas.drawPoints(specks[2], 0, speckCount[2] * 2, d)
+        path.rewind()
+        path.moveTo(top.first().x, top.first().y)
+        for (i in 1 until top.size) path.lineTo(top[i].x, top[i].y)
+        path.close()
+        val cap = channels(7f + exposure * (39f + 25f * rough),
+            exposure * (46f + slopeX * 155f + slopeY * 42f),
+            exposure * (43f - slopeX * 123f - slopeY * 42f))
+        val a0 = top.first()
+        val opposite = top[top.size / 2]
+        paint.shader = LinearGradient(a0.x, a0.y, opposite.x, opposite.y,
+            cap, mix(cap, Color.BLACK, 0.24f), Shader.TileMode.CLAMP)
+        paint.color = Color.WHITE
+        canvas.drawPath(path, paint)
+        paint.shader = null
+        // A broken corner exposes a fresh plane. Its irregular crease ends inside the cap.
+        val fracture = fraction(seed + 57)
+        if (fracture > 0.36f) {
+            val i = (fracture * 127f).toInt() % top.size
+            val a = top[i]
+            val tip = top[(i + 1) % top.size]
+            val b = top[(i + 2) % top.size]
+            val left = PointF(a.x + (tip.x - a.x) * 0.21f, a.y + (tip.y - a.y) * 0.21f)
+            val right = PointF(b.x + (tip.x - b.x) * 0.38f, b.y + (tip.y - b.y) * 0.38f)
+            val split = 0.18f + 0.38f * fraction(seed + 59)
+            val x = tip.x + (center.x - tip.x) * split
+            val y = tip.y + (center.y - height - tip.y) * split
+            path.rewind()
+            path.moveTo(left.x, left.y)
+            path.lineTo(tip.x, tip.y)
+            path.lineTo(right.x, right.y)
+            path.lineTo(x, y)
+            path.close()
+            paint.color = channels(Color.red(cap) * 0.85f, Color.green(cap) + 78f * exposure,
+                Color.blue(cap) * 0.68f)
+            canvas.drawPath(path, paint)
+            paint.color = mix(cap, Color.BLACK, 0.50f)
+            paint.strokeWidth = 1.25f
+            canvas.drawLine(left.x, left.y, x, y, paint)
         }
-        k.reset(d)
-        if (starCount > 0) {
-            val s = k.stroke
-            if (night) k.additive(s, true) else k.blend(s, RenderKit.Mode.INK)
-            s.color = if (night) Color.WHITE else f.c2
-            s.strokeWidth = 1f; s.alpha = ((if (night) 200 else 160) * reveal).toInt()
-            canvas.drawLines(stars, 0, starCount * 8, s)
-            k.reset(s)
+        for (i in top.indices) {
+            val a = top[i]
+            val b = top[(i + 1) % top.size]
+            val dx = b.x - a.x
+            val dy = b.y - a.y
+            val side = dy / sqrt(dx * dx + dy * dy).coerceAtLeast(0.01f)
+            paint.color = channels(Color.red(cap) + exposure * 12f,
+                Color.green(cap) + exposure * (43f - side * 42f), Color.blue(cap) + exposure * (40f + side * 37f))
+            paint.strokeWidth = 0.7f + fraction(seed + i) * 1.6f
+            canvas.drawLine(a.x, a.y, b.x, b.y, paint)
         }
+    }
+
+    private fun channels(sky: Float, left: Float, right: Float) =
+        Color.rgb(sky.toInt().coerceIn(0, 255), left.toInt().coerceIn(0, 255), right.toInt().coerceIn(0, 255))
+
+    fun release() {
+        stone?.recycle()
+        stone = null
+        lights.fill(null)
+        vertices = FloatArray(0)
+        relief = FloatArray(0)
     }
 
     private companion object {
-        const val RELIEF = 300f
-        const val STEP = 0.055f
-        const val MAX_SEGMENTS = 9000
-        const val SPECKS = 900
-        const val MAX_STARS = 40
+        const val COL_STEP = 115f
+        const val ROW_STEP = 74f
+        const val MARGIN = 100f
+        const val WIDTH = 1000f + 2 * MARGIN
+        const val MESH_COLS = 24
     }
 }

@@ -73,7 +73,7 @@ internal object GalleryThumbnails {
 
 @Composable
 internal fun GalleryThumbnail(preset: WallpaperPreset, settings: WallpaperSettings, modifier: Modifier) {
-    BoxWithConstraints(modifier.background(Color(preset.colors.first()))) {
+    BoxWithConstraints(modifier.background(Color(settings.resolvedColors(preset).first()))) {
         val size = thumbnailSize(constraints.maxWidth, constraints.maxHeight)
         val reduced = settings.reducedMotion || !ValueAnimator.areAnimatorsEnabled()
         val request = remember(preset, settings, size, reduced) {

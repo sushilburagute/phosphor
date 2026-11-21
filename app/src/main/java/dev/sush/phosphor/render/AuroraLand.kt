@@ -47,7 +47,8 @@ internal class AuroraLand(private val k: RenderKit) {
     private val rowBody = FloatArray(3)
 
     private var key = 0L
-    private val ridgeShaders = arrayOfNulls<Shader>(3)
+    private val fjord = AuroraTerrain(solstice = false)
+    private val mesas = AuroraTerrain(solstice = true)
     private var groundShader: Shader? = null
     private var snowShine: Shader? = null
 
@@ -57,10 +58,6 @@ internal class AuroraLand(private val k: RenderKit) {
         key = next
         val h = f.h
         if (f.night) {
-            // Far ridges are hazed with the aurora's light; near ones are nearly black.
-            ridgeShaders[0] = LinearGradient(0f, h * 0.62f, 0f, h * 0.72f, mix(f.c0, f.c1, 0.16f), mix(f.c0, f.c1, 0.07f), Shader.TileMode.CLAMP)
-            ridgeShaders[1] = LinearGradient(0f, h * 0.66f, 0f, h * 0.75f, mix(f.c0, Color.BLACK, 0.25f), mix(f.c0, f.c1, 0.06f), Shader.TileMode.CLAMP)
-            ridgeShaders[2] = LinearGradient(0f, h * 0.71f, 0f, h * 0.78f, mix(f.c0, Color.BLACK, 0.55f), mix(f.c0, Color.BLACK, 0.4f), Shader.TileMode.CLAMP)
             groundShader = if (solstice) {
                 LinearGradient(0f, h * 0.74f, 0f, h, intArrayOf(mix(f.c0, mix(f.c1, f.c2, 0.4f), 0.3f), mix(f.c0, f.c1, 0.1f), mix(f.c0, Color.BLACK, 0.1f), mix(f.c0, Color.BLACK, 0.35f)),
                     floatArrayOf(0f, 0.18f, 0.45f, 1f), Shader.TileMode.CLAMP)
@@ -71,9 +68,6 @@ internal class AuroraLand(private val k: RenderKit) {
             snowShine = LinearGradient(0f, h * 0.75f, 0f, h * 0.825f, alpha(mix(f.c1, Color.WHITE, 0.25f), 255), alpha(f.c1, 0), Shader.TileMode.CLAMP)
         } else {
             snowShine = LinearGradient(0f, h * 0.75f, 0f, h * 0.825f, alpha(f.c1, 255), alpha(f.c1, 0), Shader.TileMode.CLAMP)
-            ridgeShaders[0] = LinearGradient(0f, h * 0.62f, 0f, h * 0.72f, alpha(f.c2, 70), alpha(f.c2, 20), Shader.TileMode.CLAMP)
-            ridgeShaders[1] = LinearGradient(0f, h * 0.66f, 0f, h * 0.75f, alpha(f.c1, 70), alpha(f.c1, 26), Shader.TileMode.CLAMP)
-            ridgeShaders[2] = LinearGradient(0f, h * 0.71f, 0f, h * 0.78f, alpha(mix(f.c1, f.c2, 0.4f), 96), alpha(mix(f.c1, f.c2, 0.4f), 60), Shader.TileMode.CLAMP)
             groundShader = LinearGradient(0f, h * 0.745f, 0f, h, intArrayOf(alpha(f.c2, 30), alpha(f.c2, 0), alpha(f.c2, 0)),
                 floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
         }
@@ -174,88 +168,8 @@ internal class AuroraLand(private val k: RenderKit) {
         k.glow(canvas, k.glowWhite, hx, hy, 14f, 14f, (180f * sin(u * 3.1416f)).toInt(), RenderKit.Mode.ADD)
     }
 
-    private fun noise(x: Float, seed: Int): Float {
-        val i = floor(x).toInt()
-        val a = fraction(i * 157 + seed)
-        val b = fraction((i + 1) * 157 + seed)
-        return a + (b - a) * smooth(x - i)
-    }
-
-    /** A ridge line: broad massifs, then shoulders, then crags. */
-    private fun ridgeY(x: Float, layer: Int, f: Frame): Float {
-        val h = f.h
-        return when (layer) {
-            0 -> h * 0.69f - 110f * noise(x / 210f, 11).let { it * it } - 34f * noise(x / 63f, 17) - 10f * noise(x / 19f, 23)
-            1 -> h * 0.722f - 80f * noise(x / 160f + 3f, 31).let { it * it } - 24f * noise(x / 47f, 37) - 8f * noise(x / 13f, 41)
-            else -> h * 0.748f - 30f * noise(x / 120f + 7f, 53) - 12f * noise(x / 35f, 59) - 4f * noise(x / 11f, 61)
-        }
-    }
-
-    fun ridges(canvas: Canvas, f: Frame, solstice: Boolean) {
-        val h = f.h
-        val p = k.fill
-        for (layer in 0 until 3) {
-            val depth = 0.45f + layer * 0.35f
-            val sx = f.shiftX(depth)
-            val sy = f.shiftY(depth * 0.6f)
-            val path = k.path
-            path.reset()
-            path.moveTo(-88f, h + 40f)
-            var x = -88f
-            while (x <= 1092f) {
-                path.lineTo(x + sx, ridgeY(x, layer, f) + sy)
-                x += 6f
-            }
-            path.lineTo(1092f, h + 40f)
-            path.close()
-            p.shader = ridgeShaders[layer]
-            if (!f.night) k.blend(p, RenderKit.Mode.INK)
-            canvas.drawPath(path, p)
-            k.reset(p)
-            // Snow on the far crests catches the aurora.
-            if (layer == 0) crest(canvas, f, path, sx, sy)
-            if (layer == 2 && !solstice) pines(canvas, f, sx, sy)
-        }
-    }
-
-    private fun crest(canvas: Canvas, f: Frame, path: android.graphics.Path, sx: Float, sy: Float) {
-        path.reset()
-        var x = -88f
-        while (x <= 1092f) {
-            val y = ridgeY(x, 0, f) + sy
-            if (x == -88f) path.moveTo(x + sx, y) else path.lineTo(x + sx, y)
-            x += 6f
-        }
-        val s = k.stroke
-        k.additive(s, f.night)
-        s.color = if (f.night) mix(f.c1, Color.WHITE, 0.4f) else f.c2
-        s.alpha = if (f.night) 70 else 60
-        s.strokeWidth = 1.3f
-        canvas.drawPath(path, s)
-        k.reset(s)
-    }
-
-    /** A fringe of conifers along the near shore, for scale. */
-    private fun pines(canvas: Canvas, f: Frame, sx: Float, sy: Float) {
-        val path = k.path
-        path.reset()
-        val n = (90 * (0.5f + 0.5f * f.detail)).toInt()
-        for (i in 0 until n) {
-            val x = fraction(i * 29 + 5) * 1176f - 88f
-            val ground = ridgeY(x, 2, f) + sy + 4f
-            val tall = 7f + 22f * fraction(i * 31 + 9).let { it * it }
-            val w = tall * 0.22f
-            path.moveTo(x + sx - w, ground)
-            path.lineTo(x + sx, ground - tall)
-            path.lineTo(x + sx + w, ground)
-            path.close()
-        }
-        val p = k.fill
-        p.color = if (f.night) mix(f.c0, Color.BLACK, 0.65f) else alpha(mix(f.c1, f.c2, 0.4f), 120)
-        if (!f.night) k.blend(p, RenderKit.Mode.INK)
-        canvas.drawPath(path, p)
-        k.reset(p)
-    }
+    fun ridges(canvas: Canvas, f: Frame, solstice: Boolean) =
+        (if (solstice) mesas else fjord).draw(canvas, f)
 
     /** Light of all three curtains in a column, smoothed, nearest curtain weighted most. */
     private fun columnLight(scene: AuroraScene) {
@@ -280,6 +194,7 @@ internal class AuroraLand(private val k: RenderKit) {
         if (!f.night) k.blend(p, RenderKit.Mode.INK)
         canvas.drawRect(-10f, shore, 1010f, h + 10f, p)
         k.reset(p)
+        fjord.draw(canvas, f, reflection = true)
         k.glow(canvas, k.glowA, 500f, shore + 20f, 700f, 40f, if (f.night) 40 else 26, k.modeFor(f))
 
         columnLight(scene)
@@ -527,7 +442,8 @@ internal class AuroraLand(private val k: RenderKit) {
         key = 0
         groundShader = null
         snowShine = null
-        ridgeShaders.fill(null)
+        fjord.release()
+        mesas.release()
     }
 
     private companion object {

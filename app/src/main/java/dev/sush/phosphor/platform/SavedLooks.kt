@@ -21,6 +21,8 @@ internal fun WallpaperSettings.forPreset(preset: WallpaperPreset, importedPath: 
         musicReactive = musicReactive && presetId == preset.id && preset.id == "ascii-echo",
         composition = if (presetId == preset.id) composition else 0.5f,
         palette = if (presetId == preset.id) palette else ScenePalette.ORIGINAL,
+        customColors = if (presetId == preset.id) customColors else preset.colors,
+        customColorCount = if (presetId == preset.id) customColorCount else 3,
         imageFocusX = if (path != null && path == imagePath) imageFocusX else 0.5f,
         imageFocusY = if (path != null && path == imagePath) imageFocusY else 0.5f,
     )

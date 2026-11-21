@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import dev.sush.phosphor.model.ScenePalette
 import dev.sush.phosphor.model.WallpaperCatalog
 import dev.sush.phosphor.model.WallpaperKind
 import dev.sush.phosphor.model.WallpaperPreset
@@ -170,6 +171,23 @@ class WallpaperRendererTest {
     }
 
     @Test
+    fun pixelWeaveFlickersLocallyWithTheCameraFixed() {
+        val preset = WallpaperCatalog.find("texture-pixel-weave")
+        val settings = WallpaperSettings(presetId = preset.id, parallax = false)
+        val first = render(preset, settings, time = 0f)
+        val later = render(preset, settings, time = 5f)
+        try {
+            val a = pixels(first)
+            val b = pixels(later)
+            assertTrue("Individual pixels should visibly brighten", a.indices.any { abs(Color.red(a[it]) - Color.red(b[it])) >= 25 })
+            assertTrue("The surrounding weave should hold still", changedFraction(first, later) < 0.05f)
+        } finally {
+            first.recycle()
+            later.recycle()
+        }
+    }
+
+    @Test
     fun variantsHaveDifferentCompositionsEvenWithMatchingColors() {
         for ((firstId, secondId) in listOf("aurora-veil" to "aurora-solstice", "gradient-daybreak" to "gradient-tide",
                 "ascii-signal" to "ascii-echo", "glass-prism" to "glass-spectrum", "texture-basalt" to "texture-satin")) {
@@ -202,6 +220,74 @@ class WallpaperRendererTest {
             assertTrue("${preset.id} moves with reduced motion", first.sameAs(later))
             first.recycle()
             later.recycle()
+        }
+    }
+
+    @Test
+    fun everyProceduralWallpaperUsesItsCustomPalette() {
+        val colors = listOf(0xFF271524.toInt(), 0xFFAFE63C.toInt(), 0xFFE73590.toInt())
+        for (preset in WallpaperCatalog.presets.filter { it.kind != WallpaperKind.IMAGE }) {
+            val original = WallpaperSettings(presetId = preset.id, reducedMotion = true)
+            val first = render(preset, original)
+            val custom = render(preset, original.copy(palette = ScenePalette.CUSTOM, customColors = colors))
+            try {
+                assertTrue("${preset.name} ignores custom colors", changedFraction(first, custom) > 0.25f)
+            } finally {
+                first.recycle()
+                custom.recycle()
+            }
+        }
+    }
+
+    @Test
+    fun shortPalettesLimitEveryWallpaperToTheChosenHuesAndRetainDetail() {
+        for (preset in WallpaperCatalog.presets) {
+            val settings = WallpaperSettings(presetId = preset.id, reducedMotion = true,
+                palette = ScenePalette.CUSTOM, customColors = listOf(Color.RED, Color.GREEN, Color.BLUE))
+            for (count in 1..2) {
+                val bitmap = render(preset, settings.copy(customColorCount = count))
+                try {
+                    val pixels = pixels(bitmap)
+                    assertTrue("${preset.id}, $count colors: a material escaped the palette", pixels.all {
+                        Color.alpha(it) == 255 && Color.blue(it) <= 1 &&
+                            if (count == 1) Color.red(it) <= 1 else abs(Color.red(it) + Color.green(it) - 255) <= 2
+                    })
+                    assertTrue("${preset.id}, $count colors: lost shading",
+                        pixels.maxOf { Color.green(it) } - pixels.minOf { Color.green(it) } > 16)
+                } finally {
+                    bitmap.recycle()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun photoPaletteRecolorsTheImageAndOriginalRestoresIt() {
+        val preset = WallpaperCatalog.find("image-custom")
+        val source = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+        source.eraseColor(Color.WHITE)
+        val file = File.createTempFile("phosphor-photo-palette-", ".png")
+        val output = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+        val renderer = WallpaperRenderer()
+        try {
+            file.outputStream().use { source.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            val settings = WallpaperSettings(presetId = preset.id, imagePath = file.absolutePath,
+                composition = 0f, reducedMotion = true)
+            fun center(settings: WallpaperSettings): Int {
+                renderer.draw(Canvas(output), WIDTH, HEIGHT, 0f, preset, settings)
+                return output.getPixel(WIDTH / 2, HEIGHT / 2)
+            }
+            for (highlight in listOf(Color.RED, Color.GREEN)) {
+                val custom = settings.copy(palette = ScenePalette.CUSTOM,
+                    customColors = listOf(Color.BLACK, highlight, Color.BLUE))
+                for (count in 1..3) assertEquals(highlight, center(custom.copy(customColorCount = count)))
+            }
+            assertEquals(Color.WHITE, center(settings))
+        } finally {
+            renderer.release()
+            output.recycle()
+            source.recycle()
+            file.delete()
         }
     }
 
