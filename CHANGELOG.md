@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.1.0
+
+- Add Pixel weave live wallpaper and editable scene palettes (8d587e1)
+- Rework seven live scenes and support one- to three-color palettes (1af84c2)
+- Carve Basalt columns and soften Solstice sunlight (6b3e374)
+
 ## 1.0.0
 
 - Check for newer Phosphor releases in Settings and open the release notes and APK download.
